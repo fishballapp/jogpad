@@ -137,7 +137,7 @@ pub fn listen(tx: Sender<Gesture>) {
     );
 
     let Ok(tap) = tap else {
-        eprintln!("jogpad: could not install the event tap. Grant Accessibility access.");
+        eprintln!("jogpad: could not install the event tap, retrying.");
         return;
     };
 

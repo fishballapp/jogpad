@@ -349,8 +349,26 @@ fn spawn_hotkey_listener(app: AppHandle) {
     use std::sync::mpsc::channel;
 
     let (tx, rx) = channel();
-    // The tap needs a CFRunLoop of its own, so it gets a dedicated thread.
-    std::thread::spawn(move || hotkey::listen(tx));
+
+    // CGEventTapCreate returns null without Accessibility access, and the
+    // grant almost always arrives after launch. Installing the tap once at
+    // startup meant it silently never existed until the next restart, which
+    // looks exactly like the permission not working. So wait for the grant,
+    // then install, and try again if the tap ever goes away.
+    std::thread::spawn({
+        let app = app.clone();
+        move || loop {
+            while !selection::is_trusted() {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+            // Clears the "needs Accessibility" banner without a restart.
+            let _ = app.emit("notes", app.state::<AppState>().snapshot());
+
+            // Blocks on its own CFRunLoop while the tap is alive.
+            hotkey::listen(tx.clone());
+            std::thread::sleep(std::time::Duration::from_secs(2));
+        }
+    });
 
     std::thread::spawn(move || {
         while let Ok(gesture) = rx.recv() {
