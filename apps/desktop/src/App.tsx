@@ -232,13 +232,14 @@ export default function App() {
 
   if (!snap) return null;
 
-  // Two separate grants, and the app is useless without both. Naming the one
-  // that is actually missing beats a generic "check your settings".
-  const missing = [
-    !snap.input_monitoring && "Input Monitoring",
-    !snap.trusted && "Accessibility",
-  ].filter(Boolean);
-  const missingPermission = missing.length ? missing.join(" and ") : null;
+  // Accessibility is the prerequisite, and Input Monitoring follows from it
+  // without a prompt, so naming both at once would send people hunting for a
+  // permission they never have to grant by hand.
+  const missingPermission = !snap.trusted
+    ? "Accessibility"
+    : !snap.input_monitoring
+      ? "Input Monitoring"
+      : null;
 
   return (
     <TooltipProvider>

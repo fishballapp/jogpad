@@ -288,17 +288,20 @@ fn request_permissions(app: AppHandle) {
         // The panel floats above everything, which includes the system prompt
         // we are about to trigger. Get out of its way first.
         panel::set_floating(&app, false);
-        // These prompts are one-shot per app. Once macOS has asked and been
-        // answered, or dismissed, calling again does nothing at all, which
-        // leaves a button that looks broken. So ask, then send the user
-        // somewhere they can actually change the answer.
-        selection::request_trust();
-        hotkey::request_input_monitoring();
-
-        let pane = if !hotkey::input_monitoring_granted() {
-            Some("Privacy_ListenEvent")
-        } else if !selection::is_trusted() {
+        // Accessibility comes first. It is the prerequisite, and once it is
+        // held macOS grants Input Monitoring without a prompt, so asking for
+        // Input Monitoring beforehand only risks spending its one-shot prompt
+        // in a state where the answer would be no.
+        //
+        // These prompts are one-shot per app: once macOS has asked and been
+        // answered, or dismissed, calling again does nothing at all. So ask,
+        // then offer somewhere the answer can actually be changed.
+        let pane = if !selection::is_trusted() {
+            selection::request_trust();
             Some("Privacy_Accessibility")
+        } else if !hotkey::input_monitoring_granted() {
+            hotkey::request_input_monitoring();
+            (!hotkey::input_monitoring_granted()).then_some("Privacy_ListenEvent")
         } else {
             None
         };
