@@ -22,15 +22,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # A release event runs with the tag as its ref, and the github-pages
+  # environment only accepts deployments from main. Bounce back to main rather
+  # than granting every tag permission to deploy: the site should always be
+  # built from the branch, never from whatever the tag happened to point at.
+  from-main:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run site.yml --repo ${{ github.repository }} --ref main
+
   deploy:
+    if: github.event_name != 'release'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
 
     steps:
-      # A release event checks out the tag by default, which would rebuild the
-      # site from whatever the landing page looked like when that tag was cut.
+      # Belt and braces: this job no longer runs on a release event, but pinning
+      # the ref means a future trigger cannot quietly rebuild the site from a
+      # tag's tree and revert the landing page.
       - uses: actions/checkout@v5
         with:
           ref: main

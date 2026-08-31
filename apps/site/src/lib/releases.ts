@@ -120,16 +120,27 @@ export async function manifestFor(release: GitHubRelease): Promise<string> {
     throw new Error(`${MANIFEST_ASSET} for ${release.tag_name} lists no platforms`);
   }
   for (const [platform, record] of platforms) {
-    // A `releases/latest/download` URL would resolve to whatever is newest
-    // rather than to this release, which is wrong for every prerelease.
-    if (typeof record?.url !== "string" || !record.url.includes(`/releases/download/`)) {
+    if (typeof record?.url !== "string" || !pinsToThisRelease(record.url, release.tag_name)) {
       throw new Error(
-        `${MANIFEST_ASSET} for ${release.tag_name}: platform ${platform} has no tag-specific url`,
+        `${MANIFEST_ASSET} for ${release.tag_name}: platform ${platform} has a url that is not pinned to this release (${record?.url})`,
       );
     }
   }
 
   return body;
+}
+
+/// The download must name one immutable asset. `tauri-action` writes an API
+/// asset URL when it builds against a draft, since a draft has no public
+/// download URL yet, and the updater sends `Accept: application/octet-stream`
+/// which makes those return the archive rather than JSON. Both forms are fine.
+/// What is not fine is `releases/latest/download`, which resolves to whatever
+/// happens to be newest and would hand a beta client the wrong build.
+function pinsToThisRelease(url: string, tag: string): boolean {
+  if (url.includes("/releases/latest/download")) return false;
+  return (
+    url.includes(`/releases/download/${tag}/`) || /\/releases\/assets\/\d+$/.test(url)
+  );
 }
 
 export function dmgUrl(release: GitHubRelease | null): string | null {
