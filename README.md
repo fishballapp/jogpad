@@ -7,6 +7,10 @@ Select text in any app, tap `Shift` twice, and it lands in the sidebar without p
 focus away from what you were reading. Pick several items later, hit `⌘⇧C`, and paste
 them as a numbered list into a prompt box.
 
+<p align="center">
+  <img src="assets/screenshot.png" alt="JogPad, a narrow sidebar listing captured snippets with checkboxes and a prompt input at the bottom" width="420">
+</p>
+
 Everything is one markdown file under `~/Library/Application Support/com.ycmjason.jogpad/notes.md`.
 No account, no sync, no telemetry.
 

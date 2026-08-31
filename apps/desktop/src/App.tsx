@@ -245,7 +245,7 @@ export default function App() {
     <TooltipProvider>
     <div
       className={cn(
-        "flex h-screen flex-col overflow-hidden rounded-xl border bg-background/85 backdrop-blur-2xl transition-colors",
+        "flex h-screen flex-col overflow-hidden rounded-xl border bg-background transition-colors",
         focused ? "border-ring/80" : "border-border/30",
       )}
     >
