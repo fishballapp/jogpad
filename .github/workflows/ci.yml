@@ -102,7 +102,16 @@ jobs:
           echo "KEYCHAIN_PASSWORD=${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
 
       - name: Build universal app
-        run: pnpm --filter @jogpad/desktop tauri build --target universal-apple-darwin --bundles app
+        # createUpdaterArtifacts is on for releases, and it applies to every
+        # build, so without this override the job dies asking for the updater
+        # signing key. It is deliberately not given one: this artifact is a
+        # build to test by hand, not an update anyone installs, and the key
+        # belongs only to the job that cuts releases.
+        run: >
+          pnpm --filter @jogpad/desktop tauri build
+          --target universal-apple-darwin
+          --bundles app
+          --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Verify signed application
         run: |
