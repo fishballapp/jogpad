@@ -163,11 +163,7 @@ fn toggle_item(app: AppHandle, id: u64) {
 
 #[tauri::command]
 fn delete_items(app: AppHandle, ids: Vec<u64>) {
-    app.state::<AppState>()
-        .doc
-        .lock()
-        .unwrap()
-        .take_items(&ids);
+    app.state::<AppState>().doc.lock().unwrap().take_items(&ids);
     commit(&app);
 }
 
@@ -550,7 +546,10 @@ pub fn run() {
                     // Older builds kept only the section name, in its own file.
                     let active = std::fs::read_to_string(&legacy_active).ok()?;
                     let _ = std::fs::remove_file(&legacy_active);
-                    Some(Prefs { active, ..Prefs::default() })
+                    Some(Prefs {
+                        active,
+                        ..Prefs::default()
+                    })
                 })
                 .unwrap_or_default();
 
@@ -587,8 +586,7 @@ pub fn run() {
             let tray = TrayIconBuilder::new().icon(tray_icon);
             #[cfg(target_os = "macos")]
             let tray = tray.icon_as_template(true);
-            tray
-                .menu(&Menu::with_items(app, &[&show, &hide, &quit])?)
+            tray.menu(&Menu::with_items(app, &[&show, &hide, &quit])?)
                 // Left click toggles, right click opens the menu.
                 .show_menu_on_left_click(false)
                 .on_tray_icon_event(|tray, event| {

@@ -11,8 +11,8 @@ use accessibility_sys::{
     AXUIElementCopyAttributeValue, AXUIElementCreateSystemWide, AXUIElementRef,
 };
 use core_foundation::base::{CFRelease, CFType, CFTypeRef, TCFType};
-use core_foundation::dictionary::CFDictionary;
 use core_foundation::boolean::CFBoolean;
+use core_foundation::dictionary::CFDictionary;
 use core_foundation::string::{CFString, CFStringRef};
 use core_graphics::event::{CGEventFlags, CGEventTapLocation, CGEventType};
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
@@ -49,9 +49,8 @@ pub fn current() -> Option<String> {
 fn copy_attribute(element: AXUIElementRef, attribute: &str) -> Option<CFTypeRef> {
     let name = CFString::new(attribute);
     let mut value: CFTypeRef = std::ptr::null();
-    let err = unsafe {
-        AXUIElementCopyAttributeValue(element, name.as_concrete_TypeRef(), &mut value)
-    };
+    let err =
+        unsafe { AXUIElementCopyAttributeValue(element, name.as_concrete_TypeRef(), &mut value) };
     if err != kAXErrorSuccess || value.is_null() {
         return None;
     }

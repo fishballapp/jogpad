@@ -192,7 +192,10 @@ mod tests {
         let mut d = Detector::default();
         assert_eq!(d.press(KEYCODE_LEFT_SHIFT), None);
         assert_eq!(d.press(KEYCODE_RIGHT_SHIFT), None);
-        assert_eq!(d.press(KEYCODE_RIGHT_SHIFT), Some(Gesture::RightShiftDouble));
+        assert_eq!(
+            d.press(KEYCODE_RIGHT_SHIFT),
+            Some(Gesture::RightShiftDouble)
+        );
     }
 
     #[test]

@@ -244,10 +244,7 @@ mod tests {
     #[test]
     fn take_items_preserves_document_order() {
         let mut doc = Doc::parse("## A\n\n- [ ] one\n- [ ] two\n\n## B\n\n- [ ] three\n\n");
-        let ids: Vec<u64> = vec![
-            doc.sections[1].items[0].id,
-            doc.sections[0].items[0].id,
-        ];
+        let ids: Vec<u64> = vec![doc.sections[1].items[0].id, doc.sections[0].items[0].id];
         let taken = doc.take_items(&ids);
         assert_eq!(
             taken.iter().map(|i| i.text.as_str()).collect::<Vec<_>>(),

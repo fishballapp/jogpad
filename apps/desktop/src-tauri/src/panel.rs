@@ -7,8 +7,8 @@
 
 use objc2::runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel};
 use objc2::{class, msg_send, sel};
-use tauri::Manager;
 use std::sync::OnceLock;
+use tauri::Manager;
 
 extern "C" {
     fn object_setClass(obj: *mut AnyObject, cls: *const AnyClass) -> *mut AnyObject;
@@ -46,7 +46,11 @@ pub fn set_floating(app: &tauri::AppHandle, floating: bool) {
             return;
         };
         let ptr = ptr as *mut AnyObject;
-        let level = if floating { NS_FLOATING_WINDOW_LEVEL } else { 0 };
+        let level = if floating {
+            NS_FLOATING_WINDOW_LEVEL
+        } else {
+            0
+        };
         unsafe {
             let _: () = msg_send![ptr, setFloatingPanel: floating];
             let _: () = msg_send![ptr, setLevel: level];
