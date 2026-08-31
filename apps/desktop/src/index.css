@@ -128,3 +128,16 @@
     @apply font-sans;
     }
 }
+/* The native window is transparent and the panel draws its own rounded
+   corners, so the page must not paint a background of its own. shadcn's base
+   layer puts an opaque one on the body, which showed as square corners behind
+   the rounded ones. Unlayered rules beat layered ones, so this wins. */
+html,
+body,
+#root {
+  background: transparent;
+}
+
+#root {
+  height: 100%;
+}

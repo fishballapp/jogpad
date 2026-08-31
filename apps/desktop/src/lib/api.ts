@@ -9,6 +9,7 @@ export type Snapshot = {
   zoom: number;
   notes_path: string;
   trusted: boolean;
+  input_monitoring: boolean;
 };
 
 export const api = {
@@ -26,7 +27,7 @@ export const api = {
     invoke<void>("rename_section", { from, to }),
   deleteSection: (section: string) => invoke<void>("delete_section", { section }),
   copyAsList: (ids: number[]) => invoke<string>("copy_as_list", { ids }),
-  requestAccessibility: () => invoke<boolean>("request_accessibility"),
+  requestPermissions: () => invoke<void>("request_permissions"),
   revealNotes: () => invoke<void>("reveal_notes"),
   hideWindow: () => invoke<void>("hide_window"),
   quit: () => invoke<void>("quit"),
@@ -46,6 +47,7 @@ if (!inTauri) {
     zoom: 1,
     notes_path: "~/Library/Application Support/com.ycmjason.jogpad/notes.md",
     trusted: false,
+    input_monitoring: false,
     sections: [
       {
         name: "Inbox",
@@ -62,14 +64,24 @@ if (!inTauri) {
       { name: "Refactor", items: [{ id: 4, text: "Split the store module", done: false }] },
     ],
   };
+  // Every method, not just the ones the first screen needs: a half-stubbed
+  // api throws as soon as you click a row, which defeats the point.
   Object.assign(api, {
     snapshot: async () => fixture,
     addItem: async () => {},
+    updateItem: async () => {},
+    toggleItem: async () => {},
+    deleteItems: async () => {},
+    moveItems: async () => {},
+    mergeItems: async () => {},
+    setActive: async () => {},
+    renameSection: async () => {},
+    deleteSection: async () => {},
     copyAsList: async () => "",
+    requestPermissions: async () => {},
     revealNotes: async () => {},
     hideWindow: async () => {},
     quit: async () => {},
     setZoom: async () => {},
-    requestAccessibility: async () => true,
   });
 }

@@ -16,8 +16,10 @@ use core_foundation::boolean::CFBoolean;
 use core_foundation::string::{CFString, CFStringRef};
 use core_graphics::event::{CGEventFlags, CGEventTapLocation, CGEventType};
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
-use objc2_foundation::NSString;
+use objc2::rc::Retained;
+use objc2::runtime::ProtocolObject;
+use objc2_app_kit::{NSPasteboard, NSPasteboardItem, NSPasteboardTypeString, NSPasteboardWriting};
+use objc2_foundation::NSArray;
 use std::time::Duration;
 
 const KEYCODE_C: u16 = 8;
@@ -85,41 +87,70 @@ fn pasteboard_string(pb: &NSPasteboard) -> Option<String> {
     unsafe { pb.stringForType(NSPasteboardTypeString) }.map(|s| s.to_string())
 }
 
+/// A deep copy of everything on the pasteboard, every item and every
+/// representation. Saving just the string would quietly downgrade a copied
+/// image, file or styled text to plain text on every capture.
+fn snapshot_pasteboard(pb: &NSPasteboard) -> Vec<Retained<NSPasteboardItem>> {
+    let mut saved = Vec::new();
+    let Some(items) = pb.pasteboardItems() else {
+        return saved;
+    };
+    for item in items.iter() {
+        let copy = NSPasteboardItem::new();
+        for kind in item.types().iter() {
+            // Promised types have no data yet and cannot be carried over.
+            if let Some(data) = item.dataForType(&kind) {
+                copy.setData_forType(&data, &kind);
+            }
+        }
+        saved.push(copy);
+    }
+    saved
+}
+
+fn restore_pasteboard(pb: &NSPasteboard, saved: Vec<Retained<NSPasteboardItem>>) {
+    pb.clearContents();
+    if saved.is_empty() {
+        return;
+    }
+    let writable: Vec<Retained<ProtocolObject<dyn NSPasteboardWriting>>> = saved
+        .into_iter()
+        .map(ProtocolObject::from_retained)
+        .collect();
+    pb.writeObjects(&NSArray::from_retained_slice(&writable));
+}
+
 /// Press Cmd+C for the user, read what landed, then put the clipboard back.
 fn synthetic_copy() -> Option<String> {
-    unsafe {
-        let pb = NSPasteboard::generalPasteboard();
-        let before_count = pb.changeCount();
-        let before_text = pasteboard_string(&pb);
+    let pb = NSPasteboard::generalPasteboard();
+    let before_count = pb.changeCount();
+    let saved = snapshot_pasteboard(&pb);
 
-        let source = CGEventSource::new(CGEventSourceStateID::CombinedSessionState).ok()?;
-        for down in [true, false] {
-            let event =
-                core_graphics::event::CGEvent::new_keyboard_event(source.clone(), KEYCODE_C, down)
-                    .ok()?;
-            event.set_flags(CGEventFlags::CGEventFlagCommand);
-            event.post(CGEventTapLocation::HID);
-        }
-        let _ = CGEventType::KeyDown;
-
-        // The target app copies asynchronously, so poll rather than guess.
-        let mut copied = None;
-        for _ in 0..20 {
-            std::thread::sleep(Duration::from_millis(15));
-            if pb.changeCount() != before_count {
-                copied = pasteboard_string(&pb);
-                break;
-            }
-        }
-
-        // Best effort. The pasteboard is shared global state and another app
-        // may have written to it while we were waiting.
-        if copied.is_some() {
-            if let Some(previous) = before_text {
-                pb.clearContents();
-                pb.setString_forType(&NSString::from_str(&previous), NSPasteboardTypeString);
-            }
-        }
-        copied
+    let source = CGEventSource::new(CGEventSourceStateID::CombinedSessionState).ok()?;
+    for down in [true, false] {
+        let event =
+            core_graphics::event::CGEvent::new_keyboard_event(source.clone(), KEYCODE_C, down)
+                .ok()?;
+        event.set_flags(CGEventFlags::CGEventFlagCommand);
+        event.post(CGEventTapLocation::HID);
     }
+    let _ = CGEventType::KeyDown;
+
+    // The target app copies asynchronously, so poll rather than guess.
+    let mut copied = None;
+    for _ in 0..20 {
+        std::thread::sleep(Duration::from_millis(15));
+        if pb.changeCount() != before_count {
+            copied = pasteboard_string(&pb);
+            break;
+        }
+    }
+
+    // Only put things back if the change we are undoing is still the most
+    // recent one. Another app may have written to the pasteboard while we
+    // were polling, and clobbering that would be worse than leaving ours.
+    if copied.is_some() && pb.changeCount() == before_count + 1 {
+        restore_pasteboard(&pb, saved);
+    }
+    copied
 }

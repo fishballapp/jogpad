@@ -50,7 +50,10 @@ struct Snapshot {
     active: String,
     zoom: f64,
     notes_path: String,
+    /// Accessibility: reading the selection out of other apps.
     trusted: bool,
+    /// Input Monitoring: seeing the Shift presses at all. A separate grant.
+    input_monitoring: bool,
 }
 
 impl AppState {
@@ -62,6 +65,7 @@ impl AppState {
             zoom: prefs.zoom,
             notes_path: self.notes_path.display().to_string(),
             trusted: trusted(),
+            input_monitoring: input_monitoring(),
         }
     }
 
@@ -76,6 +80,17 @@ impl AppState {
         if let Ok(json) = serde_json::to_string_pretty(&*self.prefs.lock().unwrap()) {
             let _ = std::fs::write(&self.prefs_path, json);
         }
+    }
+}
+
+fn input_monitoring() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        hotkey::input_monitoring_granted()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
     }
 }
 
@@ -264,16 +279,37 @@ fn copy_as_list(app: AppHandle, ids: Vec<u64>) -> String {
     text
 }
 
+/// Two separate prompts. Accessibility is not enough on its own: watching the
+/// keyboard needs Input Monitoring, and macOS grants them independently.
 #[tauri::command]
-fn request_accessibility() -> bool {
+fn request_permissions(app: AppHandle) {
     #[cfg(target_os = "macos")]
     {
-        selection::request_trust()
+        // The panel floats above everything, which includes the system prompt
+        // we are about to trigger. Get out of its way first.
+        panel::set_floating(&app, false);
+        // These prompts are one-shot per app. Once macOS has asked and been
+        // answered, or dismissed, calling again does nothing at all, which
+        // leaves a button that looks broken. So ask, then send the user
+        // somewhere they can actually change the answer.
+        selection::request_trust();
+        hotkey::request_input_monitoring();
+
+        let pane = if !hotkey::input_monitoring_granted() {
+            Some("Privacy_ListenEvent")
+        } else if !selection::is_trusted() {
+            Some("Privacy_Accessibility")
+        } else {
+            None
+        };
+        if let Some(pane) = pane {
+            let _ = tauri_plugin_opener::open_url(
+                format!("x-apple.systempreferences:com.apple.preference.security?{pane}"),
+                None::<&str>,
+            );
+        }
     }
-    #[cfg(not(target_os = "macos"))]
-    {
-        true
-    }
+    let _ = app.emit("notes", app.state::<AppState>().snapshot());
 }
 
 #[tauri::command]
@@ -357,16 +393,55 @@ fn spawn_hotkey_listener(app: AppHandle) {
     // then install, and try again if the tap ever goes away.
     std::thread::spawn({
         let app = app.clone();
-        move || loop {
-            while !selection::is_trusted() {
+        move || {
+            // Both grants usually arrive after launch, so wait rather than
+            // installing a tap that would be handed back looking healthy and
+            // then never deliver an event.
+            let mut seen = None;
+            let mut waited = false;
+            let mut asked = false;
+            loop {
+                let now = (selection::is_trusted(), hotkey::input_monitoring_granted());
+
+                // Input Monitoring stays denied until the app actually asks,
+                // even though holding Accessibility is enough for macOS to
+                // grant it without a prompt. Ask once rather than making the
+                // user find a banner for a permission it will hand over
+                // silently.
+                if now.0 && !now.1 && !asked {
+                    asked = true;
+                    hotkey::request_input_monitoring();
+                    // Granting it here still counts as arriving mid-life, so
+                    // the restart below is needed even though nothing waited.
+                    waited = true;
+                    continue;
+                }
+                if Some(now) != seen {
+                    seen = Some(now);
+                    let _ = app.emit("notes", app.state::<AppState>().snapshot());
+                }
+                if now == (true, true) {
+                    #[cfg(target_os = "macos")]
+                    panel::restore_floating(&app);
+                    break;
+                }
+                waited = true;
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
-            // Clears the "needs Accessibility" banner without a restart.
-            let _ = app.emit("notes", app.state::<AppState>().snapshot());
 
-            // Blocks on its own CFRunLoop while the tap is alive.
-            hotkey::listen(tx.clone());
-            std::thread::sleep(std::time::Duration::from_secs(2));
+            if waited {
+                // A tap created inside a process that was already running when
+                // the grant arrived comes back looking healthy and then never
+                // delivers an event. Only a fresh process gets a live one, and
+                // everything is already on disk, so just start over.
+                app.restart();
+            }
+
+            loop {
+                // Blocks on its own CFRunLoop while the tap is alive.
+                hotkey::listen(tx.clone());
+                std::thread::sleep(std::time::Duration::from_secs(2));
+            }
         }
     });
 
@@ -410,6 +485,11 @@ pub fn run() {
                 api.prevent_close();
                 let _ = window.hide();
             }
+            // Coming back to the panel means any system dialog is done with.
+            tauri::WindowEvent::Focused(true) => {
+                #[cfg(target_os = "macos")]
+                crate::panel::restore_floating(window.app_handle());
+            }
             tauri::WindowEvent::Resized(size) => {
                 let app = window.app_handle();
                 let Some(state) = app.try_state::<AppState>() else {
@@ -420,9 +500,17 @@ pub fn run() {
                 if logical.width < 1.0 || logical.height < 1.0 {
                     return; // minimised
                 }
-                let mut prefs = state.prefs.lock().unwrap();
-                prefs.width = logical.width;
-                prefs.height = logical.height;
+                {
+                    let mut prefs = state.prefs.lock().unwrap();
+                    if prefs.width == logical.width && prefs.height == logical.height {
+                        return;
+                    }
+                    prefs.width = logical.width;
+                    prefs.height = logical.height;
+                }
+                // Quitting does not flush anything, so a resize with no
+                // following edit would otherwise be forgotten.
+                state.persist_prefs();
             }
             _ => {}
         })
@@ -438,7 +526,7 @@ pub fn run() {
             rename_section,
             delete_section,
             copy_as_list,
-            request_accessibility,
+            request_permissions,
             reveal_notes,
             hide_window,
             quit,
@@ -476,9 +564,16 @@ pub fn run() {
                 prefs: Mutex::new(prefs),
             });
 
-            // Write the file straight away so "reveal in Finder" has something
-            // to point at before the first capture.
-            app.state::<AppState>().persist();
+            // Create the file so "reveal in Finder" has a target, but never
+            // rewrite one that already exists. Doc::parse drops markdown it
+            // does not model, so writing on launch would silently delete
+            // anything a person had added by hand.
+            let state = app.state::<AppState>();
+            if !state.notes_path.exists() {
+                state.persist();
+            } else {
+                state.persist_prefs();
+            }
 
             let show = MenuItem::with_id(app, "show", "Show JogPad", true, None::<&str>)?;
             let hide = MenuItem::with_id(app, "hide", "Hide JogPad", true, None::<&str>)?;

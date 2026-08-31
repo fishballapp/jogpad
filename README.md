@@ -10,6 +10,11 @@ them as a numbered list into a prompt box.
 Everything is one markdown file under `~/Library/Application Support/com.ycmjason.jogpad/notes.md`.
 No account, no sync, no telemetry.
 
+JogPad owns the shape of that file: `##` headings are sections, task-list entries are
+items. It rewrites the whole file whenever you capture or edit, so freeform markdown it
+does not model will not survive. Reading it, copying from it and diffing it are all
+fine. Hand-editing it alongside JogPad is not.
+
 ## Shortcuts
 
 | Keys | What happens |
@@ -40,9 +45,14 @@ There is no title bar to carry that signal otherwise.
 Grab the DMG from [Releases](https://github.com/fishballapp/jogpad/releases). One
 universal build covers Apple silicon and Intel.
 
-Drag JogPad to `/Applications`, then open it and grant Accessibility access when
-asked. Install *before* granting: macOS keys the grant to the app's path and code
-signature, so moving it afterwards means granting again.
+Drag JogPad to `/Applications`, then open it and grant Accessibility access when asked.
+Install *before* granting: macOS keys the grant to the app's path and code signature, so
+moving it afterwards means granting again.
+
+Watching the keyboard actually needs two separate grants, Accessibility and Input
+Monitoring. JogPad asks for the second one itself once the first lands, and macOS hands
+it over without a prompt, so there is normally nothing to do. If the banner stays up,
+clicking it opens the right pane in System Settings.
 
 If macOS calls the app damaged, that build went out unsigned. Clear the quarantine
 flag and it will open:

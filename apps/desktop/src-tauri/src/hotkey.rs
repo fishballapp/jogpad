@@ -19,6 +19,28 @@ extern "C" {
     fn CGEventTapEnable(tap: CFMachPortRef, enable: bool);
 }
 
+// Watching the keyboard is gated on Input Monitoring, which is a different
+// TCC service from Accessibility. AXIsProcessTrusted says nothing about it,
+// and a tap created without it is handed back looking healthy but never
+// receives an event.
+#[link(name = "IOKit", kind = "framework")]
+extern "C" {
+    fn IOHIDCheckAccess(request: u32) -> u32;
+    fn IOHIDRequestAccess(request: u32) -> bool;
+}
+
+const LISTEN_EVENT: u32 = 1;
+const ACCESS_GRANTED: u32 = 0;
+
+pub fn input_monitoring_granted() -> bool {
+    unsafe { IOHIDCheckAccess(LISTEN_EVENT) == ACCESS_GRANTED }
+}
+
+/// Shows the system prompt the first time. Later calls just report status.
+pub fn request_input_monitoring() -> bool {
+    unsafe { IOHIDRequestAccess(LISTEN_EVENT) }
+}
+
 thread_local! {
     static TAP_PORT: Cell<CFMachPortRef> = const { Cell::new(std::ptr::null_mut()) };
 }

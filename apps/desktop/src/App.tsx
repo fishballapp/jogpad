@@ -232,6 +232,14 @@ export default function App() {
 
   if (!snap) return null;
 
+  // Two separate grants, and the app is useless without both. Naming the one
+  // that is actually missing beats a generic "check your settings".
+  const missing = [
+    !snap.input_monitoring && "Input Monitoring",
+    !snap.trusted && "Accessibility",
+  ].filter(Boolean);
+  const missingPermission = missing.length ? missing.join(" and ") : null;
+
   return (
     <TooltipProvider>
     <div
@@ -283,9 +291,9 @@ export default function App() {
               <DropdownMenuItem onClick={() => api.revealNotes()}>
                 <FolderOpen /> Show notes.md in Finder
               </DropdownMenuItem>
-              {!snap.trusted && (
-                <DropdownMenuItem onClick={() => api.requestAccessibility()}>
-                  <ShieldCheck /> Grant Accessibility access
+              {missingPermission && (
+                <DropdownMenuItem onClick={() => api.requestPermissions()}>
+                  <ShieldCheck /> Grant {missingPermission}
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
@@ -324,12 +332,12 @@ export default function App() {
         </div>
       )}
 
-      {!snap.trusted && (
+      {missingPermission && (
         <button
-          onClick={() => api.requestAccessibility()}
+          onClick={() => api.requestPermissions()}
           className="shrink-0 bg-amber-500/15 px-3 py-2 text-left text-xs text-amber-700 dark:text-amber-300"
         >
-          Double-tap Shift needs Accessibility access. Click to grant it.
+          Double-tap Shift needs {missingPermission}. Click to open Settings.
         </button>
       )}
 

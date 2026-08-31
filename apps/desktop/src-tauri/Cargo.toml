@@ -1,6 +1,6 @@
 [package]
 name = "jogpad"
-version = "0.1.1"
+version = "0.1.2"
 description = "Capture snippets and stage prompts while you work with AI"
 authors = ["ycmjason"]
 license = "MIT"
@@ -26,6 +26,7 @@ objc2-app-kit = { version = "0.3", features = [
   "NSApplication",
   "NSPanel",
   "NSPasteboard",
+  "NSPasteboardItem",
   "NSResponder",
   "NSRunningApplication",
   "NSWindow",
