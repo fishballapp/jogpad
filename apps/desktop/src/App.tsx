@@ -400,14 +400,6 @@ export default function App() {
         </button>
         <span className="text-xs text-muted-foreground">{rows.length}</span>
         <div className="ml-auto flex items-center gap-0.5">
-          {update && (
-            <IconButton
-              label={`Update to v${update.version}`}
-              onClick={() => setUpdateDialogOpen(true)}
-            >
-              <ArrowCircleDown className="text-primary" />
-            </IconButton>
-          )}
           <IconButton
             label="Search"
             hint="⌘F"
@@ -420,10 +412,13 @@ export default function App() {
           </IconButton>
           <DropdownMenu>
             <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon-sm" />}
-              aria-label="More"
+              render={<Button variant="ghost" size="icon-sm" className="relative" />}
+              aria-label={update ? `More (update to v${update.version} available)` : "More"}
             >
               <DotsThreeVertical />
+              {update && (
+                <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
+              )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-56 [&_[data-slot=dropdown-menu-item]]:whitespace-nowrap">
               <DropdownMenuItem onClick={() => api.revealNotes()}>
@@ -435,11 +430,13 @@ export default function App() {
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>Updates</DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={snap.update_channel}
                 onValueChange={(val) => void handleChannelChange(val)}
               >
+                {/* Base UI reads the group from context, so a label outside
+                    one throws and takes the whole app down with it. */}
+                <DropdownMenuLabel>Updates</DropdownMenuLabel>
                 <DropdownMenuRadioItem value="stable">Stable</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="beta">Beta</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
