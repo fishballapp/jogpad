@@ -60,14 +60,6 @@ const OTHER_MODIFIERS: u64 = CGEventFlags::CGEventFlagCommand.bits()
 
 const DOUBLE_TAP_WINDOW: Duration = Duration::from_millis(400);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Gesture {
-    /// Capture whatever is selected in the frontmost app.
-    LeftShiftDouble,
-    /// Bring JogPad's input forward so you can type a thought.
-    RightShiftDouble,
-}
-
 #[derive(Default)]
 struct Detector {
     last_key: Option<i64>,
@@ -80,7 +72,10 @@ impl Detector {
         self.last_at = None;
     }
 
-    fn press(&mut self, keycode: i64) -> Option<Gesture> {
+    /// True when this press completed a double-tap of the same Shift key.
+    /// Which key it was does not matter, but they are told apart so that
+    /// left-then-right is not mistaken for a double tap.
+    fn press(&mut self, keycode: i64) -> bool {
         let now = Instant::now();
         let repeat = self.last_key == Some(keycode)
             && self
@@ -89,20 +84,17 @@ impl Detector {
 
         if repeat {
             self.reset();
-            return Some(match keycode {
-                KEYCODE_RIGHT_SHIFT => Gesture::RightShiftDouble,
-                _ => Gesture::LeftShiftDouble,
-            });
+            return true;
         }
 
         self.last_key = Some(keycode);
         self.last_at = Some(now);
-        None
+        false
     }
 }
 
 /// Blocks forever. Run it on its own thread; it needs a CFRunLoop of its own.
-pub fn listen(tx: Sender<Gesture>) {
+pub fn listen(tx: Sender<()>) {
     let detector = Mutex::new(Detector::default());
 
     let tap = CGEventTap::new(
@@ -146,10 +138,8 @@ pub fn listen(tx: Sender<Gesture>) {
                     }
 
                     // Only the press edge counts; the release is the same event type.
-                    if bits & mask != 0 {
-                        if let Some(gesture) = detector.lock().unwrap().press(keycode) {
-                            let _ = tx.send(gesture);
-                        }
+                    if bits & mask != 0 && detector.lock().unwrap().press(keycode) {
+                        let _ = tx.send(());
                     }
                 }
                 _ => {}
@@ -181,28 +171,25 @@ mod tests {
     #[test]
     fn two_taps_of_the_same_key_fire() {
         let mut d = Detector::default();
-        assert_eq!(d.press(KEYCODE_LEFT_SHIFT), None);
-        assert_eq!(d.press(KEYCODE_LEFT_SHIFT), Some(Gesture::LeftShiftDouble));
+        assert!(!d.press(KEYCODE_LEFT_SHIFT));
+        assert!(d.press(KEYCODE_LEFT_SHIFT));
         // State cleared, so a third tap is a fresh first tap.
-        assert_eq!(d.press(KEYCODE_LEFT_SHIFT), None);
+        assert!(!d.press(KEYCODE_LEFT_SHIFT));
     }
 
     #[test]
     fn left_then_right_is_not_a_double_tap() {
         let mut d = Detector::default();
-        assert_eq!(d.press(KEYCODE_LEFT_SHIFT), None);
-        assert_eq!(d.press(KEYCODE_RIGHT_SHIFT), None);
-        assert_eq!(
-            d.press(KEYCODE_RIGHT_SHIFT),
-            Some(Gesture::RightShiftDouble)
-        );
+        assert!(!d.press(KEYCODE_LEFT_SHIFT));
+        assert!(!d.press(KEYCODE_RIGHT_SHIFT));
+        assert!(d.press(KEYCODE_RIGHT_SHIFT));
     }
 
     #[test]
     fn a_keystroke_between_taps_cancels() {
         let mut d = Detector::default();
-        assert_eq!(d.press(KEYCODE_LEFT_SHIFT), None);
+        assert!(!d.press(KEYCODE_LEFT_SHIFT));
         d.reset();
-        assert_eq!(d.press(KEYCODE_LEFT_SHIFT), None);
+        assert!(!d.press(KEYCODE_LEFT_SHIFT));
     }
 }

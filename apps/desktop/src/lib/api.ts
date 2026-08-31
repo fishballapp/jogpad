@@ -41,12 +41,17 @@ export const api = {
   setZoom: (zoom: number) => invoke<void>("set_zoom", { zoom }),
 };
 
-export const on = listen;
-
 // ponytail: running `pnpm vite` on its own opens the UI in a browser with
 // fixture data, so front-end work does not need a Rust rebuild. Drop this
 // block if the app ever gets a real dev harness.
 export const inTauri = "__TAURI_INTERNALS__" in window;
+
+// Tauri's `listen` reaches for internals the browser does not have, and it
+// runs before the first snapshot, so leaving it unstubbed failed the whole
+// screen rather than one event.
+export const on: typeof listen = inTauri
+  ? listen
+  : ((async () => () => {}) as typeof listen);
 
 if (!inTauri) {
   const fixture: Snapshot = {

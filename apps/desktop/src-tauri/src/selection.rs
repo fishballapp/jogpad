@@ -145,10 +145,12 @@ fn synthetic_copy() -> Option<String> {
         }
     }
 
-    // Only put things back if the change we are undoing is still the most
-    // recent one. Another app may have written to the pasteboard while we
-    // were polling, and clobbering that would be worse than leaving ours.
-    if copied.is_some() && pb.changeCount() == before_count + 1 {
+    // Put things back whenever our synthetic copy is the most recent change,
+    // even if nothing readable came of it: an app that answers Cmd+C on an
+    // empty selection by clearing the pasteboard would otherwise take the
+    // clipboard with it. Another app writing while we polled leaves the count
+    // further ahead, and clobbering that would be worse than leaving ours.
+    if pb.changeCount() == before_count + 1 {
         restore_pasteboard(&pb, saved);
     }
     copied

@@ -3,9 +3,9 @@
 A clone of [Copper](https://shadcn.com/copper): a macOS sidebar for the snippets you
 want to keep and the prompts you want to send next while working with an AI.
 
-Select text in any app, tap `Shift` twice, and it lands in the sidebar without pulling
-focus away from what you were reading. Pick several items later, hit `⌘⇧C`, and paste
-them as a numbered list into a prompt box.
+Select text in any app, tap `Shift` twice, and it lands in the sidebar. The sidebar
+shows itself without taking the keyboard, so you keep reading where you were. Pick
+several items later, hit `⌘⇧C`, and paste them as a numbered list into a prompt box.
 
 <p align="center">
   <img src="assets/screenshot.png" alt="JogPad, a narrow sidebar listing captured snippets with checkboxes and a prompt input at the bottom" width="420">
@@ -23,18 +23,17 @@ fine. Hand-editing it alongside JogPad is not.
 
 | Keys | What happens |
 | --- | --- |
-| `Shift` `Shift` | Capture the selection in the frontmost app |
-| Right `Shift` twice | Bring JogPad forward with the input focused |
+| `Shift` `Shift` | With text selected: capture it and show the sidebar. With nothing selected: open the sidebar and focus the input. While JogPad has the keyboard: hide it |
 | `⌘K` | Switch or create a section |
 | `⌘⇧C` | Copy the selected items as a numbered list |
 | `⌘F` | Search across every section |
 | `⌘A` | Select everything visible |
-| `⌘M` | Merge the selected items into one |
+| `↑` / `↓` | Move the selection, `⇧` to extend it |
 | `⌫` | Delete the selected items |
 | `⌘-` / `⌘+` / `⌘0` | Zoom out, in, or back to 100%. The window resizes with it |
 | `⌘W` | Hide the sidebar. Capture keeps working while it is hidden |
 | `⌘Q` | Quit |
-| `# Name` in the input | Create a section and make it active |
+| `Enter` / `⇧Enter` | While editing an item: save, or start a new line |
 
 Clicking the menu bar icon toggles the sidebar; right-clicking it opens Show, Hide and
 Quit. The same commands live behind the ⋮ button in JogPad's own header, because an

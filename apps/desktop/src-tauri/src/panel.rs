@@ -58,6 +58,24 @@ pub fn set_floating(app: &tauri::AppHandle, floating: bool) {
     });
 }
 
+/// Show the panel without making it the key window. Tauri's `show` goes
+/// through `makeKeyAndOrderFront:`, which would pull the keyboard out of
+/// whatever you were reading when a capture fired.
+pub fn show_without_focus(app: &tauri::AppHandle) {
+    let app = app.clone();
+    let _ = app.clone().run_on_main_thread(move || {
+        let Some(window) = app.get_webview_window("main") else {
+            return;
+        };
+        let Ok(ptr) = window.ns_window() else {
+            return;
+        };
+        unsafe {
+            let _: () = msg_send![ptr as *mut AnyObject, orderFrontRegardless];
+        }
+    });
+}
+
 /// A borderless NSWindow answers NO to canBecomeKeyWindow, and stock NSPanel
 /// does not override that. Swapping to plain NSPanel therefore produced a
 /// window that could never take a keystroke, whatever the style mask said.

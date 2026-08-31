@@ -53,6 +53,13 @@ pub(crate) fn set_visible(app: &AppHandle, visible: bool) {
     }
 }
 
+/// Whether the panel is the key window, i.e. whether typing lands in JogPad.
+pub(crate) fn has_focus(app: &AppHandle) -> bool {
+    app.get_webview_window("main")
+        .and_then(|w| Some(w.is_visible().ok()? && w.is_focused().ok()?))
+        .unwrap_or(false)
+}
+
 pub(crate) fn is_visible(app: &AppHandle) -> bool {
     app.get_webview_window("main")
         .and_then(|w| w.is_visible().ok())

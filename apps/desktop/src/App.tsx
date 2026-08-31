@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowsMerge,
   Copy,
-  DotsThree,
   DotsThreeVertical,
   EyeSlash,
   FolderOpen,
@@ -64,7 +63,9 @@ export default function App() {
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  // Anchor is where a range selection started; cursor is the end that moves.
   const anchorRef = useRef<number | null>(null);
+  const cursorRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!inTauri) return;
@@ -89,7 +90,13 @@ export default function App() {
     // Subscribe before asking, or a change made in between is never seen.
     const unlisten = [
       on<Snapshot>("notes", (e) => apply(e.payload)),
-      on("captured", () => toast("Captured")),
+      // Capture lands in the active section, so drop any search that would
+      // hide the thing that was just captured, then point at it.
+      on<number>("captured", (e) => {
+        setQuery("");
+        setSearching(false);
+        setSelected([e.payload]);
+      }),
       on("focus-input", () => composerRef.current?.focus()),
     ];
     Promise.all(unlisten)
@@ -99,7 +106,7 @@ export default function App() {
     return () => {
       unlisten.forEach((p) => p.then((f) => f()));
     };
-  }, [toast]);
+  }, []);
 
   // Searching looks across every section; otherwise you see the active one.
   const rows: Row[] = useMemo(() => {
@@ -134,15 +141,18 @@ export default function App() {
         prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
       );
       anchorRef.current = index;
+      cursorRef.current = index;
       return;
     }
     if (e.shiftKey && anchorRef.current !== null) {
       const [from, to] = [anchorRef.current, index].sort((a, b) => a - b);
       setSelected(rows.slice(from, to + 1).map((r) => r.item.id));
+      cursorRef.current = index;
       return;
     }
     setSelected([id]);
     anchorRef.current = index;
+    cursorRef.current = index;
   };
 
   const copySelection = useCallback(
@@ -163,14 +173,7 @@ export default function App() {
     const value = composerRef.current?.value ?? "";
     const text = value.trim();
     if (!text) return;
-    // `# Name` is how you make and switch sections, same as Copper.
-    if (text.startsWith("# ")) {
-      await api.setActive(text.slice(2).trim());
-      setQuery("");
-      setSearching(false);
-    } else {
-      await api.addItem(text);
-    }
+    await api.addItem(text);
     if (composerRef.current) {
       composerRef.current.value = "";
       composerRef.current.style.height = "auto";
@@ -228,18 +231,33 @@ export default function App() {
       if (e.metaKey && e.key.toLowerCase() === "a") {
         e.preventDefault();
         setSelected(rows.map((r) => r.item.id));
-      } else if (e.metaKey && e.key.toLowerCase() === "m") {
-        e.preventDefault();
-        if (selected.length > 1) void api.mergeItems(selected);
       } else if (e.key === "Backspace" || e.key === "Delete") {
         e.preventDefault();
         if (selected.length > 0) void api.deleteItems(selected);
       } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
         const step = e.key === "ArrowDown" ? 1 : -1;
-        const current = anchorRef.current ?? (step > 0 ? -1 : rows.length);
-        const next = Math.max(0, Math.min(rows.length - 1, current + step));
-        if (rows[next]) {
+        // The refs are indices into the visible rows, so a capture, a section
+        // switch or a search leaves them pointing at whatever now sits at that
+        // position. Trust them only while they still hold a selected row.
+        let cursor = cursorRef.current;
+        if (cursor === null || !rows[cursor] || !selected.includes(rows[cursor].item.id)) {
+          const hit = rows.flatMap((r, i) => (selected.includes(r.item.id) ? [i] : []));
+          cursor = hit.length
+            ? (step > 0 ? hit[hit.length - 1] : hit[0])
+            : step > 0
+              ? -1
+              : rows.length;
+          anchorRef.current = hit.length ? cursor : null;
+        }
+        const next = Math.max(0, Math.min(rows.length - 1, cursor + step));
+        if (!rows[next]) return;
+        cursorRef.current = next;
+        // Shift grows the range from the anchor; a bare arrow moves both ends.
+        if (e.shiftKey && anchorRef.current !== null) {
+          const [from, to] = [anchorRef.current, next].sort((a, b) => a - b);
+          setSelected(rows.slice(from, to + 1).map((r) => r.item.id));
+        } else {
           anchorRef.current = next;
           setSelected([rows[next].item.id]);
         }
@@ -288,12 +306,13 @@ export default function App() {
         <button
           onClick={() => setPalette(true)}
           className={cn(
-            "truncate rounded-md px-1.5 py-0.5 text-sm font-medium hover:bg-accent",
+            "flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-sm font-medium hover:bg-accent",
             !focused && "text-muted-foreground",
           )}
-          title="Switch section (⌘K)"
+          aria-label="Switch section"
         >
-          {snap.active}
+          <span className="truncate">{snap.active}</span>
+          <Kbd>⌘K</Kbd>
         </button>
         <span className="text-xs text-muted-foreground">{rows.length}</span>
         <div className="ml-auto flex items-center gap-0.5">
@@ -395,6 +414,7 @@ export default function App() {
               selected={selected.includes(row.item.id)}
               editing={editing === row.item.id}
               onEdit={() => setEditing(row.item.id)}
+              onWarn={toast}
               onEndEdit={() => setEditing(null)}
               onClick={(e) => selectRow(index, e)}
               selectionCount={selected.length}
@@ -415,12 +435,11 @@ export default function App() {
           <span className="px-1 text-muted-foreground">{selected.length} selected</span>
           <div className="ml-auto flex items-center gap-0.5">
             <Button variant="ghost" size="sm" onClick={() => copySelection()}>
-              <Copy /> Copy as list
+              <Copy /> Copy as list <Kbd>⌘⇧C</Kbd>
             </Button>
             {selected.length > 1 && (
               <IconButton
                 label="Merge into one item"
-                hint="⌘M"
                 onClick={() => api.mergeItems(selected)}
               >
                 <ArrowsMerge />
@@ -437,7 +456,7 @@ export default function App() {
         <textarea
           ref={composerRef}
           rows={1}
-          placeholder="Next prompt, or # to switch section"
+          placeholder="Next prompt"
           onInput={(e) => {
             const el = e.currentTarget;
             el.style.height = "auto";
@@ -508,6 +527,7 @@ type RowProps = {
   selectionCount: number;
   onEdit: () => void;
   onEndEdit: () => void;
+  onWarn: (message: string) => void;
   onClick: (e: React.MouseEvent) => void;
   onCopy: () => void;
   onMerge: () => void;
@@ -522,35 +542,29 @@ function ItemRow({
   selectionCount,
   onEdit,
   onEndEdit,
+  onWarn,
   onClick,
   onCopy,
   onMerge,
   onDelete,
 }: RowProps) {
   const { item } = row;
+  const editRef = useRef<HTMLParagraphElement>(null);
+  // Esc discards, so it asks once before throwing typing away.
+  const discardArmed = useRef(false);
 
-  if (editing) {
-    return (
-      <textarea
-        autoFocus
-        defaultValue={item.text}
-        onBlur={(e) => {
-          void api.updateItem(item.id, e.currentTarget.value);
-          onEndEdit();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            onEndEdit();
-          } else if (e.key === "Enter" && e.metaKey) {
-            e.currentTarget.blur();
-          }
-        }}
-        className="my-0.5 w-full resize-y rounded-md bg-muted px-2 py-1.5 text-sm outline-none"
-        rows={Math.min(item.text.split("\n").length + 1, 10)}
-      />
-    );
-  }
+  useEffect(() => {
+    const el = editRef.current;
+    if (!editing || !el) return;
+    discardArmed.current = false;
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const selection = getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, [editing]);
 
   return (
     <ContextMenu>
@@ -560,7 +574,7 @@ function ItemRow({
             onClick={onClick}
             onDoubleClick={onEdit}
             className={cn(
-              "group flex cursor-default gap-2 rounded-md px-2 py-1.5",
+              "flex cursor-default gap-2 rounded-md px-2 py-1.5",
               selected
                 ? "bg-accent shadow-[inset_2px_0_0_0_var(--primary)]"
                 : "hover:bg-accent/50",
@@ -576,9 +590,36 @@ function ItemRow({
         />
         <div className="min-w-0 flex-1">
           <p
+            ref={editRef}
+            contentEditable={editing}
+            suppressContentEditableWarning
+            onClick={(e) => editing && e.stopPropagation()}
+            onBlur={(e) => {
+              const text = e.currentTarget.innerText;
+              if (text !== item.text) void api.updateItem(item.id, text);
+              onEndEdit();
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== "Escape") discardArmed.current = false;
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                e.currentTarget.blur();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                const el = e.currentTarget;
+                if (el.innerText !== item.text && !discardArmed.current) {
+                  discardArmed.current = true;
+                  onWarn("Esc again to discard changes");
+                  return;
+                }
+                el.innerText = item.text;
+                el.blur();
+              }
+            }}
             className={cn(
               "text-sm break-words whitespace-pre-wrap",
-              item.done && "text-muted-foreground line-through",
+              item.done && !editing && "text-muted-foreground line-through",
+              editing && "-mx-1 -my-0.5 rounded-sm px-1 py-0.5 outline-2 outline-ring",
             )}
           >
             {item.text}
@@ -587,7 +628,6 @@ function ItemRow({
             <span className="text-[11px] text-muted-foreground">{row.section}</span>
           )}
         </div>
-        <DotsThree className="mt-0.5 size-4 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100" />
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onClick={onCopy}>
@@ -596,10 +636,7 @@ function ItemRow({
         </ContextMenuItem>
         <ContextMenuItem onClick={onEdit}>Edit</ContextMenuItem>
         {selectionCount > 1 && (
-          <ContextMenuItem onClick={onMerge}>
-            Merge
-            <ContextMenuShortcut>⌘M</ContextMenuShortcut>
-          </ContextMenuItem>
+          <ContextMenuItem onClick={onMerge}>Merge</ContextMenuItem>
         )}
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onClick={onDelete}>
