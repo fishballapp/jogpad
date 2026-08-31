@@ -13,6 +13,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager};
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum UpdateChannel {
+    #[default]
+    Stable,
+    Beta,
+}
+
 /// Everything that is not a note: which section captures land in, and how big
 /// and how zoomed the panel was when you last touched it.
 #[derive(Serialize, Deserialize, Clone)]
@@ -21,6 +29,24 @@ pub struct Prefs {
     pub zoom: f64,
     pub width: f64,
     pub height: f64,
+    /// Read leniently. The updater makes downgrading a real path, and an older
+    /// build must not throw away the whole preferences file because a newer one
+    /// wrote a channel name it has never heard of.
+    #[serde(default, deserialize_with = "channel_or_default")]
+    pub update_channel: UpdateChannel,
+}
+
+fn channel_or_default<'de, D>(d: D) -> Result<UpdateChannel, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    // Deserialize to a Value first. Failing on the enum itself would abort the
+    // whole struct, and the caller treats that as "no preferences at all",
+    // silently resetting the active section, zoom and window size.
+    Ok(match serde_json::Value::deserialize(d)?.as_str() {
+        Some("beta") => UpdateChannel::Beta,
+        _ => UpdateChannel::Stable,
+    })
 }
 
 impl Default for Prefs {
@@ -30,6 +56,7 @@ impl Default for Prefs {
             zoom: 1.0,
             width: 380.0,
             height: 720.0,
+            update_channel: UpdateChannel::default(),
         }
     }
 }
@@ -61,6 +88,7 @@ pub struct Snapshot {
     pub sections: Vec<Section>,
     pub active: String,
     pub zoom: f64,
+    pub update_channel: UpdateChannel,
     pub notes_path: String,
     pub read_only: bool,
     pub error: Option<String>,
@@ -119,6 +147,7 @@ impl AppState {
             sections: model.doc.sections.clone(),
             active: model.prefs.active.clone(),
             zoom: model.prefs.zoom,
+            update_channel: model.prefs.update_channel,
             notes_path: self.notes_path.display().to_string(),
             read_only: model.read_only,
             error: model.error.clone(),
@@ -186,4 +215,43 @@ pub fn commit_prefs(app: &AppHandle) {
     let state = app.state::<AppState>();
     state.save_prefs();
     let _ = app.emit("notes", state.snapshot());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn old_prefs_without_update_channel_preserves_fields_and_defaults_to_stable() {
+        let json = r#"{"active":"Work","zoom":1.2,"width":400.0,"height":800.0}"#;
+        let prefs: Prefs = serde_json::from_str(json).expect("should deserialize old prefs");
+        assert_eq!(prefs.active, "Work");
+        assert_eq!(prefs.zoom, 1.2);
+        assert_eq!(prefs.width, 400.0);
+        assert_eq!(prefs.height, 800.0);
+        assert_eq!(prefs.update_channel, UpdateChannel::Stable);
+    }
+
+    #[test]
+    fn beta_channel_serializes_and_round_trips() {
+        let json = serde_json::to_string(&UpdateChannel::Beta).expect("serialize beta");
+        assert_eq!(json, "\"beta\"");
+        let deserialized: UpdateChannel = serde_json::from_str(&json).expect("deserialize beta");
+        assert_eq!(deserialized, UpdateChannel::Beta);
+
+        let json = serde_json::to_string(&UpdateChannel::Stable).expect("serialize stable");
+        assert_eq!(json, "\"stable\"");
+        let deserialized: UpdateChannel = serde_json::from_str(&json).expect("deserialize stable");
+        assert_eq!(deserialized, UpdateChannel::Stable);
+    }
+
+    #[test]
+    fn a_channel_this_build_does_not_know_falls_back_without_losing_the_rest() {
+        // What a downgrade sees after a newer build wrote a third channel.
+        let json = r#"{"active":"Work","zoom":1.2,"width":400.0,"height":800.0,"update_channel":"nightly"}"#;
+        let prefs: Prefs = serde_json::from_str(json).expect("should still deserialize");
+        assert_eq!(prefs.update_channel, UpdateChannel::Stable);
+        assert_eq!(prefs.active, "Work");
+        assert_eq!(prefs.zoom, 1.2);
+    }
 }

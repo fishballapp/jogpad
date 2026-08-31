@@ -42,6 +42,11 @@ jobs:
       - name: Build the front end
         run: pnpm --filter @jogpad/desktop vite:build
 
+      - name: Build the site
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm --filter @jogpad/site build
+
       - name: cargo fmt
         run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
 
@@ -50,3 +55,74 @@ jobs:
 
       - name: cargo test
         run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+  build-app:
+    if: github.event_name == 'push'
+    needs: check
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Prepare Developer ID credentials
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for req in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_TEAM_ID; do
+            if [ -z "${!req}" ]; then
+              echo "Error: Required Developer ID secret $req is missing or empty" >&2
+              exit 1
+            fi
+          done
+
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_TEAM_ID; do
+            printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
+          done
+
+          echo "KEYCHAIN_PASSWORD=${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
+
+      - name: Build universal app
+        run: pnpm --filter @jogpad/desktop tauri build --target universal-apple-darwin --bundles app
+
+      - name: Verify signed application
+        run: |
+          APP_PATH="apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/JogPad.app"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          codesign -dv --verbose=2 "$APP_PATH" 2>&1 | grep -F "$APPLE_SIGNING_IDENTITY"
+          lipo -archs "$APP_PATH/Contents/MacOS/jogpad" | grep -q arm64
+          lipo -archs "$APP_PATH/Contents/MacOS/jogpad" | grep -q x86_64
+
+      - name: Archive application
+        run: |
+          APP_PATH="apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/JogPad.app"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$APP_PATH" \
+            "$RUNNER_TEMP/JogPad-${{ github.sha }}.zip"
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JogPad-${{ github.sha }}
+          path: ${{ runner.temp }}/JogPad-${{ github.sha }}.zip
+          retention-days: 14
+          if-no-files-found: error

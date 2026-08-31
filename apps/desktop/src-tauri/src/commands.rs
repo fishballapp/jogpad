@@ -2,11 +2,14 @@
 //! model under one lock, and commit. Domain logic belongs in `store`, and
 //! anything durable belongs behind `AppState`.
 
-use crate::state::{commit, commit_prefs, AppState, Snapshot};
+use crate::state::{commit, commit_prefs, AppState, Snapshot, UpdateChannel};
 use crate::store::{normalise_section_name, Item, DEFAULT_SECTION};
 use crate::{is_visible, set_visible};
+use serde::Serialize;
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
+use tauri_plugin_updater::{Update, UpdaterExt};
 
 #[tauri::command]
 pub fn snapshot(state: State<AppState>) -> Snapshot {
@@ -273,4 +276,112 @@ pub fn set_zoom(app: AppHandle, zoom: f64) {
 #[tauri::command]
 pub fn quit(app: AppHandle) {
     app.exit(0);
+}
+
+/// The update found by the last check, tagged with the channel it came from.
+/// The tag is what stops a switch to Beta installing a build that was found on
+/// Stable: checks are network calls that can land out of order, so the channel
+/// is compared against the live preference at install time rather than trusted
+/// to still be whatever it was when the check started.
+#[derive(Default)]
+pub(crate) struct PendingUpdate(pub Mutex<Option<(UpdateChannel, Update)>>);
+
+#[derive(Serialize, Clone, Debug)]
+pub struct UpdateInfo {
+    pub version: String,
+    pub notes: Option<String>,
+}
+
+const STABLE_ENDPOINT: &str = "https://jogpad.fishball.app/latest.json";
+const BETA_ENDPOINT: &str = "https://jogpad.fishball.app/beta.json";
+
+#[tauri::command]
+pub fn set_update_channel(
+    app: AppHandle,
+    channel: UpdateChannel,
+    pending: State<'_, PendingUpdate>,
+) {
+    let changed = app.state::<AppState>().with(|m| {
+        if m.prefs.update_channel == channel {
+            return false;
+        }
+        m.prefs.update_channel = channel;
+        true
+    });
+    if !changed {
+        return;
+    }
+    // Drop whatever the old channel offered before anything can install it. The
+    // model lock is already released here: taking it while holding this one is
+    // the shape of the deadlock this codebase fixed once already.
+    *pending.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    commit_prefs(&app);
+}
+
+#[tauri::command]
+pub async fn check_update(
+    app: AppHandle,
+    pending: State<'_, PendingUpdate>,
+) -> Result<Option<UpdateInfo>, String> {
+    let channel = app.state::<AppState>().with(|m| m.prefs.update_channel);
+    let endpoint_url = match channel {
+        UpdateChannel::Stable => STABLE_ENDPOINT,
+        UpdateChannel::Beta => BETA_ENDPOINT,
+    };
+    let endpoint = endpoint_url
+        .parse()
+        .map_err(|e| format!("Invalid endpoint URL: {e}"))?;
+
+    // Clear before asking, so a check that fails or finds nothing cannot leave
+    // the previous answer sitting there installable.
+    *pending.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
+
+    let update = app
+        .updater_builder()
+        .endpoints(vec![endpoint])
+        .map_err(|e| e.to_string())?
+        .build()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let info = update.as_ref().map(|u| UpdateInfo {
+        version: u.version.clone(),
+        notes: u.body.clone(),
+    });
+
+    let mut guard = pending.0.lock().unwrap_or_else(|e| e.into_inner());
+    *guard = update.map(|u| (channel, u));
+
+    Ok(info)
+}
+
+#[tauri::command]
+pub async fn install_update(
+    app: AppHandle,
+    pending: State<'_, PendingUpdate>,
+) -> Result<(), String> {
+    let channel = app.state::<AppState>().with(|m| m.prefs.update_channel);
+    let update = {
+        let mut guard = pending.0.lock().unwrap_or_else(|e| e.into_inner());
+        // A check that started before a channel switch can land after it, so the
+        // tag is the only thing that proves this update belongs to the channel
+        // the user is actually on.
+        match guard.take() {
+            Some((found_on, update)) if found_on == channel => update,
+            _ => return Err("That update was found on a different channel. Check again.".into()),
+        }
+    };
+
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // WHY: app.restart() creates a new process after Accessibility and Input
+    // Monitoring are already granted. In that fresh process wait_for_permissions
+    // observes (true, true) immediately with waited == false, does not restart again,
+    // and creates the event tap in a process born after the grants.
+    app.restart();
 }

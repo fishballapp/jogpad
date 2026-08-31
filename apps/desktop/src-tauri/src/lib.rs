@@ -193,6 +193,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(on_window_event)
         .invoke_handler(tauri::generate_handler![
             commands::snapshot,
@@ -212,6 +213,9 @@ pub fn run() {
             commands::toggle_window,
             commands::quit,
             commands::set_zoom,
+            commands::set_update_channel,
+            commands::check_update,
+            commands::install_update,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -222,6 +226,7 @@ pub fn run() {
             // does not model, so writing on launch would silently delete
             // anything a person had added by hand.
             let create_notes = !state.notes_path.exists();
+            app.manage(commands::PendingUpdate::default());
             app.manage(state);
             {
                 let state = handle.state::<AppState>();

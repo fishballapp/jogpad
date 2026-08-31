@@ -1,0 +1,20 @@
+{
+  "name": "@jogpad/site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "typecheck": "astro check",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "catalog:",
+    "semver": "catalog:"
+  },
+  "devDependencies": {
+    "@astrojs/check": "catalog:",
+    "@types/semver": "catalog:",
+    "typescript": "catalog:"
+  }
+}

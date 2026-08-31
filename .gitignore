@@ -32,3 +32,6 @@ apps/desktop/src-tauri/gen/schemas
 
 # Local research and setup notes, not part of the published repo
 docs/
+
+# Updater signing key. Losing it means no installed app can ever update again.
+.updater/

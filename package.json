@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter @jogpad/desktop dev",
     "build": "pnpm --filter @jogpad/desktop build",
-    "typecheck": "pnpm --filter @jogpad/desktop typecheck",
+    "typecheck": "pnpm --recursive typecheck",
     "test": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml"
   },
   "license": "MIT"

@@ -41,10 +41,27 @@ jobs:
 
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 
-      # Signing and notarisation are optional. With no secrets set the build
-      # falls back to ad-hoc signing, which still produces a working DMG,
-      # just one macOS calls damaged on download.
-      - name: Prepare Apple credentials
+      # Any SemVer prerelease, not just -beta. An -rc or -alpha tag marked as a
+      # normal release would be served to every stable client.
+      - name: Check prerelease tag
+        id: flags
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Error: tag $TAG is not a SemVer version tag" >&2
+            exit 1
+          fi
+          # Strip build metadata first, or a dash inside +build reads as a
+          # prerelease.
+          VERSION="${TAG#v}"
+          if [[ "${VERSION%%+*}" == *-* ]]; then
+            echo "is_beta=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_beta=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare Apple and updater credentials
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -55,12 +72,35 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          # Tauri tests for presence, not truthiness. A missing secret arrives
-          # as an empty string, which would read as configured credentials and
-          # fail the notarisation call, so only non-empty values get through.
+          # Validate that required updater and signing secrets are present.
+          # APPLE_ID and APPLE_PASSWORD are deliberately absent: this repo
+          # notarises with the App Store Connect API key, checked separately
+          # below, and requiring an Apple ID here would fail every tag.
+          for req in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
+                     APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                     APPLE_TEAM_ID; do
+            if [ -z "${!req}" ]; then
+              echo "Error: Required secret $req is missing or empty" >&2
+              exit 1
+            fi
+          done
+
+          if [ -z "$APPLE_API_KEY" ] && [ -z "$APPLE_API_KEY_P8" ]; then
+            echo "Error: Apple notarization API key (APPLE_API_KEY or APPLE_API_KEY_P8) is missing or empty" >&2
+            exit 1
+          fi
+
+          if [ -n "$APPLE_API_KEY" ] && [ -z "$APPLE_API_ISSUER" ]; then
+            echo "Error: APPLE_API_ISSUER is required when APPLE_API_KEY is set" >&2
+            exit 1
+          fi
+
           for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
-                      APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER; do
+                      APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER \
+                      TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
             if [ -n "${!name}" ]; then
               printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
             fi
@@ -79,23 +119,20 @@ jobs:
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
           args: --target universal-apple-darwin
           tagName: v__VERSION__
           releaseName: JogPad v__VERSION__
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ steps.flags.outputs.is_beta == 'true' }}
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
           releaseBody: |
             Download `JogPad_<version>_universal.dmg` below and drag JogPad to
             Applications. Runs on Apple silicon and Intel.
 
             On first launch, grant Accessibility access when asked. Without it
             double-tapping Shift cannot read the selection in other apps.
-
-            If macOS says the app is damaged, this build went out unsigned.
-            Clear the quarantine flag and it will open:
-
-            ```sh
-            xattr -dr com.apple.quarantine /Applications/JogPad.app
-            ```

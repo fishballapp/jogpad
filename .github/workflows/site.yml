@@ -1,0 +1,84 @@
+name: site
+
+on:
+  # Unpublishing or deleting a bad release has to redeploy too, or the live
+  # manifest keeps pointing at assets that have stopped being downloadable.
+  release:
+    types: [published, unpublished, deleted, edited]
+  push:
+    branches: [main]
+    paths:
+      - "apps/site/**"
+      - ".github/workflows/site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      # A release event checks out the tag by default, which would rebuild the
+      # site from whatever the landing page looked like when that tag was cut.
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build site
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm --filter @jogpad/site build
+
+      # A build that quietly produces no manifests is indistinguishable from a
+      # healthy one, and it would take updates away from everyone already
+      # installed. Only tolerate their absence when no release could supply one.
+      - name: Assert the manifests exist if a release can supply them
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          releases=$(gh api "repos/${{ github.repository }}/releases?per_page=100")
+          has_manifest='select(.draft == false) | select(any(.assets[]; .name == "latest.json"))'
+          stable=$(jq "[.[] | $has_manifest | select(.prerelease == false)] | length" <<< "$releases")
+          any=$(jq "[.[] | $has_manifest] | length" <<< "$releases")
+          echo "releases carrying a manifest: stable=$stable any=$any"
+          if [ "$stable" -gt 0 ] && [ ! -s apps/site/dist/latest.json ]; then
+            echo "Error: a published stable release carries a manifest but dist/latest.json is missing" >&2
+            exit 1
+          fi
+          if [ "$any" -gt 0 ] && [ ! -s apps/site/dist/beta.json ]; then
+            echo "Error: a published release carries a manifest but dist/beta.json is missing" >&2
+            exit 1
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/site/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -3,6 +3,9 @@ import { listen } from "@tauri-apps/api/event";
 
 export type Item = { id: number; text: string; done: boolean };
 export type Section = { name: string; items: Item[] };
+export type UpdateChannel = "stable" | "beta";
+export type UpdateInfo = { version: string; notes: string | null };
+
 export type Snapshot = {
   /// Increases with every snapshot. Rust emits them from commands, the hotkey
   /// thread and the permission poller, so they can arrive out of order.
@@ -10,6 +13,7 @@ export type Snapshot = {
   sections: Section[];
   active: string;
   zoom: number;
+  update_channel: UpdateChannel;
   notes_path: string;
   /// The notes file could not be read, so nothing is being written to it.
   read_only: boolean;
@@ -39,6 +43,10 @@ export const api = {
   hideWindow: () => invoke<void>("hide_window"),
   quit: () => invoke<void>("quit"),
   setZoom: (zoom: number) => invoke<void>("set_zoom", { zoom }),
+  setUpdateChannel: (channel: UpdateChannel) =>
+    invoke<void>("set_update_channel", { channel }),
+  checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
+  installUpdate: () => invoke<void>("install_update"),
 };
 
 // ponytail: running `pnpm vite` on its own opens the UI in a browser with
@@ -58,6 +66,7 @@ if (!inTauri) {
     rev: 0,
     active: "Inbox",
     zoom: 1,
+    update_channel: "stable",
     read_only: false,
     error: null,
     notes_path: "~/Library/Application Support/com.ycmjason.jogpad/notes.md",
@@ -99,5 +108,8 @@ if (!inTauri) {
     quit: async () => {},
     toggleWindow: async () => {},
     setZoom: async () => {},
+    setUpdateChannel: async () => {},
+    checkUpdate: async () => null,
+    installUpdate: async () => {},
   });
 }

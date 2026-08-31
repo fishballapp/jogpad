@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowCircleDown,
   ArrowsMerge,
   Copy,
   DotsThreeVertical,
@@ -12,11 +13,27 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, inTauri, on, type Item, type Snapshot } from "@/lib/api";
+import {
+  api,
+  inTauri,
+  on,
+  type Item,
+  type Snapshot,
+  type UpdateChannel,
+  type UpdateInfo,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Kbd } from "@/components/ui/kbd";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -35,6 +52,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
@@ -61,11 +81,19 @@ export default function App() {
   // Without this a rejected initial snapshot leaves a permanently blank window.
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   // Anchor is where a range selection started; cursor is the end that moves.
   const anchorRef = useRef<number | null>(null);
   const cursorRef = useRef<number | null>(null);
+  // Bumped per check. A check that is no longer the newest one drops its
+  // result instead of overwriting a fresher channel's answer.
+  const checkGenRef = useRef(0);
 
   useEffect(() => {
     if (!inTauri) return;
@@ -79,6 +107,46 @@ export default function App() {
     setFlash(message);
     window.setTimeout(() => setFlash((f) => (f === message ? null : f)), 1600);
   }, []);
+
+  const checkForUpdate = useCallback(
+    async (userInitiated = false) => {
+      const generation = ++checkGenRef.current;
+      setChecking(true);
+      try {
+        const info = await api.checkUpdate();
+        if (generation !== checkGenRef.current) return;
+        setUpdate(info);
+        if (userInitiated && !info) {
+          toast("JogPad is up to date");
+        }
+      } catch (e) {
+        if (generation !== checkGenRef.current) return;
+        // The check on launch is silent. An offline machine, or a beta channel
+        // with nothing published on it yet, would otherwise greet you with a
+        // failure every time the app starts.
+        if (userInitiated) toast(`Update check failed: ${e}`);
+      } finally {
+        if (generation === checkGenRef.current) setChecking(false);
+      }
+    },
+    [toast],
+  );
+
+  const handleChannelChange = useCallback(
+    async (value: string) => {
+      const channel = value as UpdateChannel;
+      if (snap && snap.update_channel === channel) return;
+      setUpdate(null);
+      setUpdateDialogOpen(false);
+      try {
+        await api.setUpdateChannel(channel);
+        await checkForUpdate(false);
+      } catch (e) {
+        toast(`Could not change update channel: ${e}`);
+      }
+    },
+    [checkForUpdate, snap, toast],
+  );
 
   useEffect(() => {
     // Keep the newest snapshot seen. Rust emits them from commands, from the
@@ -101,12 +169,15 @@ export default function App() {
     ];
     Promise.all(unlisten)
       .then(() => api.snapshot())
-      .then(apply)
+      .then((s) => {
+        apply(s);
+        void checkForUpdate(false);
+      })
       .catch((e) => setLoadError(String(e)));
     return () => {
       unlisten.forEach((p) => p.then((f) => f()));
     };
-  }, []);
+  }, [checkForUpdate]);
 
   // Searching looks across every section; otherwise you see the active one.
   const rows: Row[] = useMemo(() => {
@@ -182,6 +253,9 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A dialog covers the list, so a stray Delete would destroy a selection
+      // the user cannot even see. Each dialog handles its own Escape.
+      if (palette || updateDialogOpen) return;
       const typing = isTypingTarget(e.target);
 
       if (e.metaKey && e.key.toLowerCase() === "k") {
@@ -265,7 +339,17 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [copySelection, editing, query, rows, searching, selected, snap?.zoom]);
+  }, [
+    copySelection,
+    editing,
+    palette,
+    query,
+    rows,
+    searching,
+    selected,
+    snap?.zoom,
+    updateDialogOpen,
+  ]);
 
   if (loadError) {
     return (
@@ -316,6 +400,14 @@ export default function App() {
         </button>
         <span className="text-xs text-muted-foreground">{rows.length}</span>
         <div className="ml-auto flex items-center gap-0.5">
+          {update && (
+            <IconButton
+              label={`Update to v${update.version}`}
+              onClick={() => setUpdateDialogOpen(true)}
+            >
+              <ArrowCircleDown className="text-primary" />
+            </IconButton>
+          )}
           <IconButton
             label="Search"
             hint="⌘F"
@@ -340,6 +432,29 @@ export default function App() {
               {missingPermission && (
                 <DropdownMenuItem onClick={() => api.requestPermissions()}>
                   <ShieldCheck /> Grant {missingPermission}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Updates</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={snap.update_channel}
+                onValueChange={(val) => void handleChannelChange(val)}
+              >
+                <DropdownMenuRadioItem value="stable">Stable</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="beta">Beta</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+              <DropdownMenuItem
+                disabled={checking}
+                onClick={() => void checkForUpdate(true)}
+              >
+                <ArrowCircleDown /> {checking ? "Checking for Updates…" : "Check for Updates…"}
+              </DropdownMenuItem>
+              {update && (
+                <DropdownMenuItem
+                  onClick={() => setUpdateDialogOpen(true)}
+                  className="text-primary font-medium focus:text-primary"
+                >
+                  <ArrowCircleDown /> Update to v{update.version}…
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
@@ -479,6 +594,47 @@ export default function App() {
         active={snap.active}
         onPick={(name) => api.setActive(name)}
       />
+
+      <Dialog open={updateDialogOpen && update !== null} onOpenChange={setUpdateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              JogPad {update?.version} is available
+            </DialogTitle>
+            <DialogDescription className="max-h-60 overflow-y-auto whitespace-pre-wrap text-left text-foreground">
+              {update?.notes?.trim() || "No release notes."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setUpdateDialogOpen(false)}
+              disabled={installing}
+            >
+              Later
+            </Button>
+            <Button
+              disabled={installing}
+              onClick={async () => {
+                setInstalling(true);
+                try {
+                  await api.installUpdate();
+                } catch (e) {
+                  setInstalling(false);
+                  setUpdateDialogOpen(false);
+                  // Rust took the pending update before installing, so the
+                  // offer is spent whether or not it worked. Leaving it on
+                  // screen would only ever produce the same failure again.
+                  setUpdate(null);
+                  toast(`Installation failed: ${e}`);
+                }
+              }}
+            >
+              {installing ? "Installing…" : "Install and Restart"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {flash && (
         <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">

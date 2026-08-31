@@ -14,14 +14,18 @@ catalog:
   "@tauri-apps/cli": ^2.11.4
   "@tauri-apps/plugin-clipboard-manager": ^2.3.2
   "@tauri-apps/plugin-opener": ^2.5.0
+  "@astrojs/check": ^0.9.4
   "@types/node": ^26.4.0
   "@types/react": ^19.1.8
   "@types/react-dom": ^19.1.6
+  "@types/semver": ^7.5.8
   "@vitejs/plugin-react": ^4.6.0
+  astro: ^5.4.2
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
   react: ^19.1.0
   react-dom: ^19.1.0
+  semver: ^7.7.1
   shadcn: ^4.19.0
   tailwind-merge: ^3.6.0
   tailwindcss: ^4.3.3
@@ -31,3 +35,6 @@ catalog:
 
 allowBuilds:
   esbuild: true
+  # Astro depends on sharp whether or not the site uses astro:assets. pnpm
+  # fails the install outright without this.
+  sharp: true
