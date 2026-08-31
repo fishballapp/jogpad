@@ -1,0 +1,101 @@
+name: release
+
+# Tag a version to cut a release: git tag v0.1.0 && git push --tags
+# The DMG lands on a draft release, so nothing goes public until you say so.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    # DMGs need hdiutil, codesign and the AppleScript that styles the mount
+    # window. None of that exists off macOS. Free for public repos.
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # A universal binary means one download that runs on both Apple
+          # silicon and Intel, rather than asking people which Mac they have.
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+      # Signing and notarisation are optional. With no secrets set the build
+      # falls back to ad-hoc signing, which still produces a working DMG,
+      # just one macOS calls damaged on download.
+      - name: Prepare Apple credentials
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          # Tauri tests for presence, not truthiness. A missing secret arrives
+          # as an empty string, which would read as configured credentials and
+          # fail the notarisation call, so only non-empty values get through.
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                      APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER; do
+            if [ -n "${!name}" ]; then
+              printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
+            fi
+          done
+
+          # The App Store Connect key is a file rather than a variable.
+          if [ -n "$APPLE_API_KEY_P8" ]; then
+            mkdir -p "$RUNNER_TEMP/private_keys"
+            printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/private_keys/AuthKey.p8"
+            echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
+          fi
+
+          # Throwaway password for the temporary keychain on this runner.
+          echo "KEYCHAIN_PASSWORD=${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          args: --target universal-apple-darwin
+          tagName: v__VERSION__
+          releaseName: JogPad v__VERSION__
+          releaseDraft: true
+          prerelease: false
+          releaseBody: |
+            Download `JogPad_<version>_universal.dmg` below and drag JogPad to
+            Applications. Runs on Apple silicon and Intel.
+
+            On first launch, grant Accessibility access when asked. Without it
+            double-tapping Shift cannot read the selection in other apps.
+
+            If macOS says the app is damaged, this build went out unsigned.
+            Clear the quarantine flag and it will open:
+
+            ```sh
+            xattr -dr com.apple.quarantine /Applications/JogPad.app
+            ```

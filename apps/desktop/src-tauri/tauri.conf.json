@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "JogPad",
+  "version": "0.1.0",
+  "identifier": "com.ycmjason.jogpad",
+  "build": {
+    "beforeDevCommand": "pnpm vite",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm vite:build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "JogPad",
+        "width": 380,
+        "height": 720,
+        "minWidth": 220,
+        "minHeight": 260,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": true,
+        "shadow": true,
+        "backgroundColor": "#00000000",
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "macOSPrivateApi": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "14.0"
+    }
+  }
+}
