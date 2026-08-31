@@ -136,3 +136,34 @@ jobs:
 
             On first launch, grant Accessibility access when asked. Without it
             double-tapping Shift cannot read the selection in other apps.
+
+      # Tauri notarises and staples the .app, then wraps it in a disk image it
+      # does not notarise. Gatekeeper judges the container a browser downloaded,
+      # so an unnotarised dmg is refused with "Apple cannot check it for
+      # malicious software" even though the app inside is fine. Updates are
+      # unaffected either way: they fetch the .app.tar.gz, never the dmg.
+      - name: Notarise and staple the disk image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          DMG=$(ls apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
+          echo "notarising $DMG"
+          xcrun notarytool submit "$DMG" \
+            --key "$APPLE_API_KEY_PATH" \
+            --key-id "$APPLE_API_KEY" \
+            --issuer "$APPLE_API_ISSUER" \
+            --wait
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+
+          # Judge it the way a downloaded copy is judged, not the way a local
+          # build is. Without the quarantine flag this passes even unnotarised.
+          COPY="$RUNNER_TEMP/gatekeeper-check.dmg"
+          cp "$DMG" "$COPY"
+          xattr -w com.apple.quarantine "0083;00000000;Safari;" "$COPY"
+          spctl -a -vvv -t open --context context:primary-signature "$COPY"
+
+          # tauri-action already attached the unnotarised one.
+          gh release upload "$TAG" "$DMG" --clobber --repo "${{ github.repository }}"
