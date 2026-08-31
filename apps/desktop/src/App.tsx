@@ -59,6 +59,8 @@ export default function App() {
   // The panel has no title bar, so nothing else tells you whether typing will
   // land here or in the app behind it.
   const [focused, setFocused] = useState(true);
+  // Without this a rejected initial snapshot leaves a permanently blank window.
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -78,12 +80,22 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    api.snapshot().then(setSnap);
+    // Keep the newest snapshot seen. Rust emits them from commands, from the
+    // hotkey thread and from the permission poller, so a slow reply can land
+    // after a newer event and would otherwise put stale notes back on screen.
+    const apply = (next: Snapshot) =>
+      setSnap((prev) => (prev && prev.rev > next.rev ? prev : next));
+
+    // Subscribe before asking, or a change made in between is never seen.
     const unlisten = [
-      on<Snapshot>("notes", (e) => setSnap(e.payload)),
+      on<Snapshot>("notes", (e) => apply(e.payload)),
       on("captured", () => toast("Captured")),
       on("focus-input", () => composerRef.current?.focus()),
     ];
+    Promise.all(unlisten)
+      .then(() => api.snapshot())
+      .then(apply)
+      .catch((e) => setLoadError(String(e)));
     return () => {
       unlisten.forEach((p) => p.then((f) => f()));
     };
@@ -104,7 +116,9 @@ export default function App() {
     return (section?.items ?? []).map((item) => ({ item, section: snap.active }));
   }, [snap, query]);
 
-  // A deleted item must not stay selected, or the toolbar lies about the count.
+  // Selection is pruned against what is currently visible, so switching
+  // section or typing a search also clears it. Deliberate: acting on rows you
+  // cannot see is worse than losing a selection.
   useEffect(() => {
     const live = new Set(rows.map((r) => r.item.id));
     setSelected((prev) => {
@@ -134,7 +148,12 @@ export default function App() {
   const copySelection = useCallback(
     async (ids = selected) => {
       if (ids.length === 0) return;
-      await api.copyAsList(ids);
+      try {
+        await api.copyAsList(ids);
+      } catch (e) {
+        toast(`Could not copy: ${e}`);
+        return;
+      }
       toast(ids.length > 1 ? `Copied ${ids.length} as a list` : "Copied");
     },
     [selected, toast],
@@ -230,6 +249,13 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [copySelection, editing, query, rows, searching, selected, snap?.zoom]);
 
+  if (loadError) {
+    return (
+      <div className="flex h-screen items-center justify-center rounded-xl border bg-background p-6 text-center text-sm text-destructive">
+        JogPad could not start: {loadError}
+      </div>
+    );
+  }
   if (!snap) return null;
 
   // Accessibility is the prerequisite, and Input Monitoring follows from it
@@ -330,6 +356,13 @@ export default function App() {
           >
             <X className="size-3.5" />
           </button>
+        </div>
+      )}
+
+      {snap.error && (
+        <div className="shrink-0 bg-destructive/15 px-3 py-2 text-xs text-destructive">
+          {snap.error}
+          {snap.read_only && " Nothing is being saved until this is resolved."}
         </div>
       )}
 

@@ -4,10 +4,16 @@ import { listen } from "@tauri-apps/api/event";
 export type Item = { id: number; text: string; done: boolean };
 export type Section = { name: string; items: Item[] };
 export type Snapshot = {
+  /// Increases with every snapshot. Rust emits them from commands, the hotkey
+  /// thread and the permission poller, so they can arrive out of order.
+  rev: number;
   sections: Section[];
   active: string;
   zoom: number;
   notes_path: string;
+  /// The notes file could not be read, so nothing is being written to it.
+  read_only: boolean;
+  error: string | null;
   trusted: boolean;
   input_monitoring: boolean;
 };
@@ -27,6 +33,7 @@ export const api = {
     invoke<void>("rename_section", { from, to }),
   deleteSection: (section: string) => invoke<void>("delete_section", { section }),
   copyAsList: (ids: number[]) => invoke<string>("copy_as_list", { ids }),
+  toggleWindow: () => invoke<void>("toggle_window"),
   requestPermissions: () => invoke<void>("request_permissions"),
   revealNotes: () => invoke<void>("reveal_notes"),
   hideWindow: () => invoke<void>("hide_window"),
@@ -43,8 +50,11 @@ export const inTauri = "__TAURI_INTERNALS__" in window;
 
 if (!inTauri) {
   const fixture: Snapshot = {
+    rev: 0,
     active: "Inbox",
     zoom: 1,
+    read_only: false,
+    error: null,
     notes_path: "~/Library/Application Support/com.ycmjason.jogpad/notes.md",
     trusted: false,
     input_monitoring: false,
@@ -82,6 +92,7 @@ if (!inTauri) {
     revealNotes: async () => {},
     hideWindow: async () => {},
     quit: async () => {},
+    toggleWindow: async () => {},
     setZoom: async () => {},
   });
 }

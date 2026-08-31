@@ -99,8 +99,13 @@ pub fn convert(window: &tauri::WebviewWindow) {
     let ptr = ptr as *mut AnyObject;
 
     unsafe {
-        // Neither NSPanel nor the subclass adds instance variables over
-        // NSWindow, so swapping the class on a live object is safe.
+        // Swapping the class of a live window. Neither NSPanel nor the
+        // subclass adds instance variables over NSWindow, which is what makes
+        // the memory layout compatible. That is necessary but not sufficient:
+        // it does not prove the class Tauri built had no overrides worth
+        // keeping. This is what tauri-nspanel does and it holds on Tauri 2.11
+        // with macOS 15, so treat it as tested rather than proven, and suspect
+        // it first if a Tauri upgrade breaks the window.
         object_setClass(ptr, panel_class());
 
         let mask: usize = msg_send![ptr, styleMask];

@@ -2,6 +2,7 @@
 //! items are task-list entries. Continuation lines are indented two spaces.
 
 use serde::Serialize;
+use std::io::{self, ErrorKind, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -42,6 +43,48 @@ pub struct Doc {
 }
 
 pub const DEFAULT_SECTION: &str = "Inbox";
+
+/// Section names are written straight into `## ` headings, so a name carrying
+/// a newline would inject arbitrary lines into the file and parse back as
+/// something else entirely. The composer is multiline, so this is reachable by
+/// pasting rather than by anything exotic.
+pub fn normalise_section_name(name: &str) -> Option<String> {
+    let name = name.trim();
+    if name.is_empty() || name.contains(['\n', '\r']) {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+/// Write through a temporary file in the same directory and rename over the
+/// target. A plain write truncates first, so an interrupted one leaves the
+/// only copy of someone's notes empty.
+pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let tmp = path.with_extension(format!(
+        "{}.tmp",
+        path.extension().and_then(|e| e.to_str()).unwrap_or("")
+    ));
+    {
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(bytes)?;
+        // Rename is atomic, but only guarantees the new name points at
+        // whatever made it to disk.
+        file.sync_all()?;
+    }
+    std::fs::rename(&tmp, path)?;
+    // Syncing the directory is what makes the rename itself survive a crash.
+    // Best effort: a filesystem that refuses this is not a reason to report
+    // the write as failed when the data is already there.
+    if let Some(dir) = path.parent() {
+        if let Ok(handle) = std::fs::File::open(dir) {
+            let _ = handle.sync_all();
+        }
+    }
+    Ok(())
+}
 
 impl Doc {
     pub fn parse(md: &str) -> Doc {
@@ -138,18 +181,15 @@ impl Doc {
         out
     }
 
-    pub fn load(path: &Path) -> Doc {
+    /// A missing file is an empty document. Anything else is a real failure
+    /// and must not be reported as "no notes", because the caller would then
+    /// write that emptiness back over a file it simply could not read.
+    pub fn load(path: &Path) -> io::Result<Doc> {
         match std::fs::read_to_string(path) {
-            Ok(md) => Doc::parse(&md),
-            Err(_) => Doc::parse(""),
+            Ok(md) => Ok(Doc::parse(&md)),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(Doc::parse("")),
+            Err(e) => Err(e),
         }
-    }
-
-    pub fn save(&self, path: &Path) -> std::io::Result<()> {
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        std::fs::write(path, self.to_markdown())
     }
 
     pub fn section_mut(&mut self, name: &str) -> &mut Section {
@@ -239,6 +279,51 @@ mod tests {
     #[test]
     fn empty_file_still_has_a_section() {
         assert_eq!(Doc::parse("").sections.len(), 1);
+    }
+
+    #[test]
+    fn section_names_reject_anything_that_would_break_the_file() {
+        assert_eq!(
+            normalise_section_name("  Inbox  ").as_deref(),
+            Some("Inbox")
+        );
+        assert_eq!(normalise_section_name(""), None);
+        assert_eq!(normalise_section_name("   "), None);
+        // A multiline composer makes this reachable by pasting.
+        assert_eq!(normalise_section_name("Inbox\n## Injected"), None);
+        assert_eq!(normalise_section_name("Inbox\rInjected"), None);
+    }
+
+    #[test]
+    fn a_missing_file_is_empty_but_an_unreadable_one_is_an_error() {
+        let dir = std::env::temp_dir().join(format!("jogpad-load-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let missing = dir.join("does-not-exist.md");
+        assert!(Doc::load(&missing).is_ok());
+
+        // A directory where a file is expected stands in for any read failure
+        // that is not "not found".
+        let unreadable = dir.join("notes.md");
+        std::fs::create_dir_all(&unreadable).unwrap();
+        assert!(Doc::load(&unreadable).is_err());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn writing_replaces_the_file_without_truncating_it_first() {
+        let dir = std::env::temp_dir().join(format!("jogpad-write-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("notes.md");
+
+        write_atomic(&path, b"first").unwrap();
+        write_atomic(&path, b"second").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "second");
+        // The temporary file must not be left lying next to the real one.
+        assert!(!dir.join("notes.md.tmp").exists());
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
