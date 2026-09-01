@@ -257,6 +257,11 @@ pub fn run() {
                 if let Some(window) = app.get_webview_window("main") {
                     panel::convert(&window);
                 }
+                // Opened from a full-screen app, a plain window would land on
+                // the desktop Space, out of sight. Let it follow the panel.
+                if let Some(window) = app.get_webview_window("settings") {
+                    panel::join_all_spaces(&window);
+                }
                 capture::spawn(handle.clone());
             }
 
@@ -270,6 +275,9 @@ pub fn run() {
                 let _ = window.set_zoom(zoom);
                 let _ = window.center();
                 let _ = window.show();
+                if let Some(settings) = app.get_webview_window("settings") {
+                    let _ = settings.set_zoom(zoom);
+                }
             }
 
             Ok(())

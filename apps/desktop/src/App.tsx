@@ -12,11 +12,11 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowCircleDown,
   ArrowsMerge,
+  CaretRight,
   CheckSquare,
   Copy,
   DotsThreeVertical,
   EyeSlash,
-  FolderOpen,
   GearSix,
   MagnifyingGlass,
   Power,
@@ -72,6 +72,8 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [palette, setPalette] = useState(false);
+  // Done items start folded away under their heading. Per session, not saved.
+  const [doneCollapsed, setDoneCollapsed] = useState(true);
   const [flash, setFlash] = useState<string | null>(null);
   // The panel has no title bar, so nothing else tells you whether typing will
   // land here or in the app behind it.
@@ -160,24 +162,31 @@ export default function App() {
     };
   }, [checkForUpdate]);
 
+  const q = query.trim().toLowerCase();
+  const activeItems = useMemo(
+    () => snap?.pages.find(s => s.name === snap.active)?.items ?? [],
+    [snap],
+  );
+  // How many rows the Done heading stands for. Zero means no heading at all.
+  const doneCount = snap?.group_done && !q ? activeItems.filter(i => i.done).length : 0;
+
   // Searching looks across every page; otherwise you see the active one.
   const rows: Row[] = useMemo(() => {
     if (!snap) return [];
-    const q = query.trim().toLowerCase();
     if (q) {
       return snap.pages.flatMap(s =>
         s.items.filter(i => i.text.toLowerCase().includes(q)).map(item => ({ item, page: s.name })),
       );
     }
-    const page = snap.pages.find(s => s.name === snap.active);
-    const items = page?.items ?? [];
+    if (!snap.group_done) return activeItems.map(item => ({ item, page: snap.active }));
     // Grouping is display-only: the markdown file keeps its real order, so
-    // unchecking an item sends it back where it always was.
-    const ordered = snap.group_done
-      ? [...items.filter(i => !i.done), ...items.filter(i => i.done)]
-      : items;
-    return ordered.map(item => ({ item, page: snap.active }));
-  }, [snap, query]);
+    // unchecking an item sends it back where it always was. Collapsed done
+    // items leave the rows entirely, so keys and selection cannot reach them.
+    const shown = doneCollapsed
+      ? activeItems.filter(i => !i.done)
+      : [...activeItems.filter(i => !i.done), ...activeItems.filter(i => i.done)];
+    return shown.map(item => ({ item, page: snap.active }));
+  }, [snap, q, activeItems, doneCollapsed]);
 
   // Selection is pruned against what is currently visible, so switching
   // page or typing a search also clears it. Deliberate: acting on rows you
@@ -378,6 +387,18 @@ export default function App() {
   const allSelectedDone =
     selected.length > 0 && rows.every(r => !selected.includes(r.item.id) || r.item.done);
 
+  const doneHeader = doneCount > 0 && (
+    <button
+      onClick={() => setDoneCollapsed(c => !c)}
+      aria-expanded={!doneCollapsed}
+      className="mx-2 mt-2 mb-1 flex w-[calc(100%-1rem)] items-center gap-1 border-t pt-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+    >
+      <CaretRight className={cn('size-3 transition-transform', !doneCollapsed && 'rotate-90')} />
+      Done
+      <span className="font-normal">{doneCount}</span>
+    </button>
+  );
+
   if (loadError) {
     return (
       <div className="flex h-screen items-center justify-center rounded-xl border bg-background p-6 text-center text-sm text-destructive">
@@ -451,9 +472,6 @@ export default function App() {
                 align="end"
                 className="min-w-56 [&_[data-slot=dropdown-menu-item]]:whitespace-nowrap"
               >
-                <DropdownMenuItem onClick={() => api.revealNotes()}>
-                  <FolderOpen /> Show notes.md in Finder
-                </DropdownMenuItem>
                 {missingPermission && (
                   <DropdownMenuItem onClick={() => api.requestPermissions()}>
                     <ShieldCheck /> Grant {missingPermission}
@@ -527,7 +545,7 @@ export default function App() {
         )}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
-          {rows.length === 0 ? (
+          {rows.length === 0 && doneCount === 0 ? (
             <p className="px-2 py-8 text-center text-xs text-muted-foreground">
               {query ? (
                 'Nothing matches.'
@@ -550,11 +568,7 @@ export default function App() {
               >
                 {rows.map((row, index) => (
                   <Fragment key={row.item.id}>
-                    {snap.group_done && !query && row.item.done && !rows[index - 1]?.item.done && (
-                      <div className="mx-2 mt-2 mb-1 border-t pt-1 text-[11px] font-medium text-muted-foreground">
-                        Done
-                      </div>
-                    )}
+                    {row.item.done && !rows[index - 1]?.item.done && doneHeader}
                     <ItemRow
                       row={row}
                       showPage={Boolean(query)}
@@ -579,6 +593,9 @@ export default function App() {
                     />
                   </Fragment>
                 ))}
+                {/* Collapsed done rows are not in `rows`, so the heading
+                    has no row to sit above and goes at the end instead. */}
+                {doneCollapsed && doneHeader}
               </SortableContext>
             </DndContext>
           )}

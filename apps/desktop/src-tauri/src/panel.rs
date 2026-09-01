@@ -147,8 +147,20 @@ pub fn convert(window: &tauri::WebviewWindow) {
         let _: () = msg_send![ptr, setFloatingPanel: true];
         let _: () = msg_send![ptr, setHidesOnDeactivate: false];
         let _: () = msg_send![ptr, setLevel: NS_FLOATING_WINDOW_LEVEL];
+    }
+    join_all_spaces(window);
+}
+
+/// Show on every Space, including over a full-screen app. Without this a
+/// window opened while a full-screen app is up appears on the desktop Space
+/// instead, and macOS swaps you over to it, or leaves it out of sight.
+pub fn join_all_spaces(window: &tauri::WebviewWindow) {
+    let Ok(ptr) = window.ns_window() else {
+        return;
+    };
+    unsafe {
         let _: () = msg_send![
-            ptr,
+            ptr as *mut AnyObject,
             setCollectionBehavior: NS_COLLECTION_BEHAVIOR_CAN_JOIN_ALL_SPACES
                 | NS_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY
         ];

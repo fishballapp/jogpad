@@ -348,6 +348,10 @@ pub fn set_zoom(app: AppHandle, zoom: f64) {
         let _ = window.set_size(LogicalSize::new(width, height));
     }
     let _ = window.set_zoom(zoom);
+    // Content only: the settings window keeps its size and scrolls instead.
+    if let Some(settings) = app.get_webview_window("settings") {
+        let _ = settings.set_zoom(zoom);
+    }
     commit_prefs(&app);
 }
 

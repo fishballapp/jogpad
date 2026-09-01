@@ -1,4 +1,4 @@
-import { ArrowCircleDown, SlidersHorizontal } from '@phosphor-icons/react';
+import { ArrowCircleDown, FolderOpen, SlidersHorizontal } from '@phosphor-icons/react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -140,6 +140,49 @@ export default function SettingsWindow() {
                 </span>
               </span>
             </label>
+
+            <div>
+              <p className="mb-1.5 font-medium">Zoom</p>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  aria-label="Zoom out"
+                  disabled={snap.zoom <= 0.6}
+                  onClick={() => void api.setZoom(snap.zoom - 0.1)}
+                >
+                  −
+                </Button>
+                <span className="w-12 text-center tabular-nums">
+                  {Math.round(snap.zoom * 100)}%
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  aria-label="Zoom in"
+                  disabled={snap.zoom >= 2}
+                  onClick={() => void api.setZoom(snap.zoom + 0.1)}
+                >
+                  +
+                </Button>
+                {snap.zoom !== 1 && (
+                  <Button size="sm" variant="ghost" onClick={() => void api.setZoom(1)}>
+                    Reset
+                  </Button>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                ⌘− and ⌘+ in the panel do the same. Applies to this window too.
+              </p>
+            </div>
+
+            <div>
+              <p className="mb-1.5 font-medium">Notes file</p>
+              <p className="mb-1.5 text-xs break-all text-muted-foreground">{snap.notes_path}</p>
+              <Button size="sm" variant="outline" onClick={() => void api.revealNotes()}>
+                <FolderOpen /> Show in Finder
+              </Button>
+            </div>
           </div>
         )}
 

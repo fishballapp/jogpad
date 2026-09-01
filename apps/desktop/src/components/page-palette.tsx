@@ -27,7 +27,7 @@ export function PagePalette({
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
   // The page being renamed, and the one whose delete is armed. Deleting takes
-  // the page's items with it, so it asks twice.
+  // the page's items with it, so it asks twice, unless there are none to take.
   const [renaming, setRenaming] = useState<string | null>(null);
   const [armed, setArmed] = useState<string | null>(null);
 
@@ -154,7 +154,7 @@ export function PagePalette({
                                 : `Delete ${row.name}`
                             }
                             onClick={() => {
-                              if (armed === row.name) {
+                              if (armed === row.name || row.items.length === 0) {
                                 setArmed(null);
                                 onDelete(row.name);
                               } else {
