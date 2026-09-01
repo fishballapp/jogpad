@@ -1,4 +1,4 @@
-//! The markdown file is the source of truth. Sections are `## headings`,
+//! The markdown file is the source of truth. Pages are `## headings`,
 //! items are task-list entries. Continuation lines are indented two spaces.
 
 use serde::Serialize;
@@ -32,23 +32,23 @@ impl Item {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
-pub struct Section {
+pub struct Page {
     pub name: String,
     pub items: Vec<Item>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Default)]
 pub struct Doc {
-    pub sections: Vec<Section>,
+    pub pages: Vec<Page>,
 }
 
-pub const DEFAULT_SECTION: &str = "Inbox";
+pub const DEFAULT_PAGE: &str = "Inbox";
 
-/// Section names are written straight into `## ` headings, so a name carrying
+/// Page names are written straight into `## ` headings, so a name carrying
 /// a newline would inject arbitrary lines into the file and parse back as
 /// something else entirely. The composer is multiline, so this is reachable by
 /// pasting rather than by anything exotic.
-pub fn normalise_section_name(name: &str) -> Option<String> {
+pub fn normalise_page_name(name: &str) -> Option<String> {
     let name = name.trim();
     if name.is_empty() || name.contains(['\n', '\r']) {
         return None;
@@ -88,13 +88,13 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
 
 impl Doc {
     pub fn parse(md: &str) -> Doc {
-        let mut sections: Vec<Section> = Vec::new();
+        let mut pages: Vec<Page> = Vec::new();
         // Lines before the first heading still need somewhere to go.
         let mut pending_blanks = 0usize;
 
         for line in md.lines() {
             if let Some(name) = line.strip_prefix("## ") {
-                sections.push(Section {
+                pages.push(Page {
                     name: name.trim().to_string(),
                     items: Vec::new(),
                 });
@@ -110,13 +110,13 @@ impl Doc {
                 .or_else(|| line.strip_prefix("- ").map(|t| (false, t)));
 
             if let Some((done, text)) = bullet {
-                if sections.is_empty() {
-                    sections.push(Section {
-                        name: DEFAULT_SECTION.to_string(),
+                if pages.is_empty() {
+                    pages.push(Page {
+                        name: DEFAULT_PAGE.to_string(),
                         items: Vec::new(),
                     });
                 }
-                sections.last_mut().unwrap().items.push(Item {
+                pages.last_mut().unwrap().items.push(Item {
                     id: next_id(),
                     text: text.to_string(),
                     done,
@@ -132,7 +132,7 @@ impl Doc {
 
             // Two-space indent continues the item above it.
             if let Some(rest) = line.strip_prefix("  ") {
-                if let Some(item) = sections.last_mut().and_then(|s| s.items.last_mut()) {
+                if let Some(item) = pages.last_mut().and_then(|s| s.items.last_mut()) {
                     for _ in 0..pending_blanks {
                         item.text.push('\n');
                     }
@@ -146,22 +146,22 @@ impl Doc {
             pending_blanks = 0;
         }
 
-        if sections.is_empty() {
-            sections.push(Section {
-                name: DEFAULT_SECTION.to_string(),
+        if pages.is_empty() {
+            pages.push(Page {
+                name: DEFAULT_PAGE.to_string(),
                 items: Vec::new(),
             });
         }
-        Doc { sections }
+        Doc { pages }
     }
 
     pub fn to_markdown(&self) -> String {
         let mut out = String::new();
-        for section in &self.sections {
+        for page in &self.pages {
             out.push_str("## ");
-            out.push_str(&section.name);
+            out.push_str(&page.name);
             out.push_str("\n\n");
-            for item in &section.items {
+            for item in &page.items {
                 out.push_str(if item.done { "- [x] " } else { "- [ ] " });
                 let mut lines = item.text.split('\n');
                 if let Some(first) = lines.next() {
@@ -192,19 +192,19 @@ impl Doc {
         }
     }
 
-    pub fn section_mut(&mut self, name: &str) -> &mut Section {
-        if let Some(i) = self.sections.iter().position(|s| s.name == name) {
-            return &mut self.sections[i];
+    pub fn page_mut(&mut self, name: &str) -> &mut Page {
+        if let Some(i) = self.pages.iter().position(|s| s.name == name) {
+            return &mut self.pages[i];
         }
-        self.sections.push(Section {
+        self.pages.push(Page {
             name: name.to_string(),
             items: Vec::new(),
         });
-        self.sections.last_mut().unwrap()
+        self.pages.last_mut().unwrap()
     }
 
     pub fn item_mut(&mut self, id: u64) -> Option<&mut Item> {
-        self.sections
+        self.pages
             .iter_mut()
             .find_map(|s| s.items.iter_mut().find(|i| i.id == id))
     }
@@ -212,58 +212,58 @@ impl Doc {
     /// Returns the removed items in document order.
     pub fn take_items(&mut self, ids: &[u64]) -> Vec<Item> {
         let mut taken = Vec::new();
-        for section in &mut self.sections {
-            let mut kept = Vec::with_capacity(section.items.len());
-            for item in section.items.drain(..) {
+        for page in &mut self.pages {
+            let mut kept = Vec::with_capacity(page.items.len());
+            for item in page.items.drain(..) {
                 if ids.contains(&item.id) {
                     taken.push(item);
                 } else {
                     kept.push(item);
                 }
             }
-            section.items = kept;
+            page.items = kept;
         }
         taken
     }
 
     /// Pull items out (keeping their document order) and drop them back in
-    /// front of `before`, or at the end of `section` when `before` is None or
+    /// front of `before`, or at the end of `page` when `before` is None or
     /// gone. Returns whether anything actually ended up somewhere new: the
     /// file order is only known here, so this is where a no-op drop is caught.
-    pub fn move_items_before(&mut self, ids: &[u64], before: Option<u64>, section: &str) -> bool {
-        let layout = |sections: &[Section]| -> Vec<Vec<u64>> {
-            sections
+    pub fn move_items_before(&mut self, ids: &[u64], before: Option<u64>, page: &str) -> bool {
+        let layout = |pages: &[Page]| -> Vec<Vec<u64>> {
+            pages
                 .iter()
                 .map(|s| s.items.iter().map(|i| i.id).collect())
                 .collect()
         };
-        let original = layout(&self.sections);
+        let original = layout(&self.pages);
 
         let taken = self.take_items(ids);
         if taken.is_empty() {
             return false;
         }
-        // `before` wins over `section`: dropping onto a row means "in front of
+        // `before` wins over `page`: dropping onto a row means "in front of
         // that row", wherever it lives.
         let home = before.and_then(|b| {
-            self.sections
+            self.pages
                 .iter()
                 .position(|s| s.items.iter().any(|i| i.id == b))
         });
         let target = match home {
-            Some(i) => &mut self.sections[i],
-            None => self.section_mut(section),
+            Some(i) => &mut self.pages[i],
+            None => self.page_mut(page),
         };
         let index = before
             .and_then(|b| target.items.iter().position(|i| i.id == b))
             .unwrap_or(target.items.len());
         target.items.splice(index..index, taken);
 
-        layout(&self.sections) != original
+        layout(&self.pages) != original
     }
 
     pub fn items_in_order(&self, ids: &[u64]) -> Vec<&Item> {
-        self.sections
+        self.pages
             .iter()
             .flat_map(|s| s.items.iter())
             .filter(|i| ids.contains(&i.id))
@@ -276,7 +276,7 @@ mod tests {
     use super::*;
 
     fn strip_ids(doc: &Doc) -> Vec<(String, Vec<(String, bool)>)> {
-        doc.sections
+        doc.pages
             .iter()
             .map(|s| {
                 (
@@ -294,40 +294,37 @@ mod tests {
     fn round_trips() {
         let md = "## Inbox\n\n- [ ] plain\n- [x] done\n- [ ] multi\n  second line\n\n  after a blank\n\n## Refactor\n\n- [ ] only one\n\n";
         let doc = Doc::parse(md);
-        assert_eq!(doc.sections.len(), 2);
-        assert_eq!(doc.sections[0].items.len(), 3);
+        assert_eq!(doc.pages.len(), 2);
+        assert_eq!(doc.pages[0].items.len(), 3);
         assert_eq!(
-            doc.sections[0].items[2].text,
+            doc.pages[0].items[2].text,
             "multi\nsecond line\n\nafter a blank"
         );
-        assert!(doc.sections[0].items[1].done);
+        assert!(doc.pages[0].items[1].done);
         assert_eq!(md, doc.to_markdown());
         assert_eq!(strip_ids(&doc), strip_ids(&Doc::parse(&doc.to_markdown())));
     }
 
     #[test]
-    fn headless_bullets_land_in_the_default_section() {
+    fn headless_bullets_land_in_the_default_page() {
         let doc = Doc::parse("- loose note\n");
-        assert_eq!(doc.sections[0].name, DEFAULT_SECTION);
-        assert_eq!(doc.sections[0].items[0].text, "loose note");
+        assert_eq!(doc.pages[0].name, DEFAULT_PAGE);
+        assert_eq!(doc.pages[0].items[0].text, "loose note");
     }
 
     #[test]
-    fn empty_file_still_has_a_section() {
-        assert_eq!(Doc::parse("").sections.len(), 1);
+    fn empty_file_still_has_a_page() {
+        assert_eq!(Doc::parse("").pages.len(), 1);
     }
 
     #[test]
-    fn section_names_reject_anything_that_would_break_the_file() {
-        assert_eq!(
-            normalise_section_name("  Inbox  ").as_deref(),
-            Some("Inbox")
-        );
-        assert_eq!(normalise_section_name(""), None);
-        assert_eq!(normalise_section_name("   "), None);
+    fn page_names_reject_anything_that_would_break_the_file() {
+        assert_eq!(normalise_page_name("  Inbox  ").as_deref(), Some("Inbox"));
+        assert_eq!(normalise_page_name(""), None);
+        assert_eq!(normalise_page_name("   "), None);
         // A multiline composer makes this reachable by pasting.
-        assert_eq!(normalise_section_name("Inbox\n## Injected"), None);
-        assert_eq!(normalise_section_name("Inbox\rInjected"), None);
+        assert_eq!(normalise_page_name("Inbox\n## Injected"), None);
+        assert_eq!(normalise_page_name("Inbox\rInjected"), None);
     }
 
     #[test]
@@ -363,14 +360,14 @@ mod tests {
     }
 
     #[test]
-    fn move_items_before_reorders_within_and_across_sections() {
+    fn move_items_before_reorders_within_and_across_pages() {
         let mut doc = Doc::parse("## A\n\n- [ ] one\n- [ ] two\n- [ ] three\n\n## B\n\n");
-        let (one, three) = (doc.sections[0].items[0].id, doc.sections[0].items[2].id);
+        let (one, three) = (doc.pages[0].items[0].id, doc.pages[0].items[2].id);
 
-        // Within a section: "one" in front of "three".
+        // Within a page: "one" in front of "three".
         assert!(doc.move_items_before(&[one], Some(three), "A"));
         assert_eq!(
-            doc.sections[0]
+            doc.pages[0]
                 .items
                 .iter()
                 .map(|i| i.text.as_str())
@@ -378,13 +375,13 @@ mod tests {
             vec!["two", "one", "three"]
         );
 
-        // No `before`: lands at the end of the named section, even another one.
+        // No `before`: lands at the end of the named page, even another one.
         assert!(doc.move_items_before(&[one], None, "B"));
-        assert_eq!(doc.sections[1].items[0].text, "one");
+        assert_eq!(doc.pages[1].items[0].text, "one");
 
-        // A `before` that exists elsewhere wins over the named section.
+        // A `before` that exists elsewhere wins over the named page.
         assert!(doc.move_items_before(&[three], Some(one), "A"));
-        assert_eq!(doc.sections[1].items[0].text, "three");
+        assert_eq!(doc.pages[1].items[0].text, "three");
 
         // A vanished item moves nothing.
         assert!(!doc.move_items_before(&[999], None, "A"));
@@ -393,13 +390,13 @@ mod tests {
     #[test]
     fn moving_several_items_keeps_their_order_and_a_noop_reports_false() {
         let mut doc = Doc::parse("## A\n\n- [ ] one\n- [ ] two\n- [ ] three\n- [ ] four\n\n");
-        let ids: Vec<u64> = doc.sections[0].items.iter().map(|i| i.id).collect();
+        let ids: Vec<u64> = doc.pages[0].items.iter().map(|i| i.id).collect();
 
         // "one" and "three" in front of "four": document order wins over the
         // order the ids were passed in.
         assert!(doc.move_items_before(&[ids[2], ids[0]], Some(ids[3]), "A"));
         assert_eq!(
-            doc.sections[0]
+            doc.pages[0]
                 .items
                 .iter()
                 .map(|i| i.text.as_str())
@@ -415,13 +412,13 @@ mod tests {
     #[test]
     fn take_items_preserves_document_order() {
         let mut doc = Doc::parse("## A\n\n- [ ] one\n- [ ] two\n\n## B\n\n- [ ] three\n\n");
-        let ids: Vec<u64> = vec![doc.sections[1].items[0].id, doc.sections[0].items[0].id];
+        let ids: Vec<u64> = vec![doc.pages[1].items[0].id, doc.pages[0].items[0].id];
         let taken = doc.take_items(&ids);
         assert_eq!(
             taken.iter().map(|i| i.text.as_str()).collect::<Vec<_>>(),
             vec!["one", "three"]
         );
-        assert_eq!(doc.sections[0].items.len(), 1);
-        assert!(doc.sections[1].items.is_empty());
+        assert_eq!(doc.pages[0].items.len(), 1);
+        assert!(doc.pages[1].items.is_empty());
     }
 }

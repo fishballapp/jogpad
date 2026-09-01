@@ -4,6 +4,14 @@ The release workflow reads these sections. A tag whose version has no section
 here fails before it builds anything, which is the point: notes written after
 the fact never get written.
 
+## 0.1.5-beta.4
+
+Sections are now called pages, everywhere. The markdown file is unchanged:
+they are still `##` headings, so nothing needed migrating.
+
+Pages can be renamed and deleted from ⌘K. Hover a page for the pencil and the
+trash. Deleting takes the page's items with it, so it asks twice, in place.
+
 ## 0.1.5-beta.3
 
 Settings moved out of the panel into their own window, with a sidebar:

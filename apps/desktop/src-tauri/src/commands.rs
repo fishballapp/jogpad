@@ -3,7 +3,7 @@
 //! anything durable belongs behind `AppState`.
 
 use crate::state::{commit, commit_prefs, AppState, Snapshot, UpdateChannel};
-use crate::store::{normalise_section_name, Item, DEFAULT_SECTION};
+use crate::store::{normalise_page_name, Item, DEFAULT_PAGE};
 use crate::{is_visible, set_visible};
 use serde::Serialize;
 use std::sync::Mutex;
@@ -17,21 +17,21 @@ pub fn snapshot(state: State<AppState>) -> Snapshot {
 }
 
 #[tauri::command]
-pub fn add_item(app: AppHandle, text: String, section: Option<String>) {
+pub fn add_item(app: AppHandle, text: String, page: Option<String>) {
     let text = text.trim().to_string();
     if text.is_empty() {
         return;
     }
-    let section = match section {
-        Some(name) => match normalise_section_name(&name) {
+    let page = match page {
+        Some(name) => match normalise_page_name(&name) {
             Some(name) => Some(name),
             None => return,
         },
         None => None,
     };
     app.state::<AppState>().with(|m| {
-        let name = section.unwrap_or_else(|| m.prefs.active.clone());
-        m.doc.section_mut(&name).items.push(Item::new(text));
+        let name = page.unwrap_or_else(|| m.prefs.active.clone());
+        m.doc.page_mut(&name).items.push(Item::new(text));
     });
     commit(&app);
 }
@@ -96,13 +96,13 @@ pub fn delete_items(app: AppHandle, ids: Vec<u64>) {
 }
 
 #[tauri::command]
-pub fn move_items(app: AppHandle, ids: Vec<u64>, section: String) {
-    let Some(section) = normalise_section_name(&section) else {
+pub fn move_items(app: AppHandle, ids: Vec<u64>, page: String) {
+    let Some(page) = normalise_page_name(&page) else {
         return;
     };
     app.state::<AppState>().with(|m| {
         let moved = m.doc.take_items(&ids);
-        m.doc.section_mut(&section).items.extend(moved);
+        m.doc.page_mut(&page).items.extend(moved);
     });
     commit(&app);
 }
@@ -136,32 +136,32 @@ pub fn merge_items(app: AppHandle, ids: Vec<u64>) {
 }
 
 #[tauri::command]
-pub fn set_active(app: AppHandle, section: String) {
-    let Some(section) = normalise_section_name(&section) else {
+pub fn set_active(app: AppHandle, page: String) {
+    let Some(page) = normalise_page_name(&page) else {
         return;
     };
     app.state::<AppState>().with(|m| {
-        m.doc.section_mut(&section);
-        m.prefs.active = section;
+        m.doc.page_mut(&page);
+        m.prefs.active = page;
     });
     commit(&app);
 }
 
 #[tauri::command]
-pub fn rename_section(app: AppHandle, from: String, to: String) {
-    let Some(to) = normalise_section_name(&to) else {
+pub fn rename_page(app: AppHandle, from: String, to: String) {
+    let Some(to) = normalise_page_name(&to) else {
         return;
     };
     let renamed = app.state::<AppState>().with(|m| {
-        if m.doc.sections.iter().any(|s| s.name == to) {
+        if m.doc.pages.iter().any(|s| s.name == to) {
             return false;
         }
-        let Some(section) = m.doc.sections.iter_mut().find(|s| s.name == from) else {
+        let Some(page) = m.doc.pages.iter_mut().find(|s| s.name == from) else {
             // Renaming something that is not there must not move the active
-            // preference onto a section that was never created.
+            // preference onto a page that was never created.
             return false;
         };
-        section.name = to.clone();
+        page.name = to.clone();
         if m.prefs.active == from {
             m.prefs.active = to;
         }
@@ -173,14 +173,14 @@ pub fn rename_section(app: AppHandle, from: String, to: String) {
 }
 
 #[tauri::command]
-pub fn delete_section(app: AppHandle, section: String) {
+pub fn delete_page(app: AppHandle, page: String) {
     app.state::<AppState>().with(|m| {
-        m.doc.sections.retain(|s| s.name != section);
-        if m.doc.sections.is_empty() {
-            m.doc.section_mut(DEFAULT_SECTION);
+        m.doc.pages.retain(|s| s.name != page);
+        if m.doc.pages.is_empty() {
+            m.doc.page_mut(DEFAULT_PAGE);
         }
-        if m.prefs.active == section {
-            m.prefs.active = m.doc.sections[0].name.clone();
+        if m.prefs.active == page {
+            m.prefs.active = m.doc.pages[0].name.clone();
         }
     });
     commit(&app);
@@ -231,15 +231,15 @@ pub fn copy_as_list(app: AppHandle, ids: Vec<u64>) -> Result<String, String> {
 }
 
 /// Pull items out and drop them back in front of `before`, or at the end of
-/// `section` when `before` is None. Drag and drop in the front end lands here.
+/// `page` when `before` is None. Drag and drop in the front end lands here.
 #[tauri::command]
-pub fn move_items_before(app: AppHandle, ids: Vec<u64>, before: Option<u64>, section: String) {
-    let Some(section) = normalise_section_name(&section) else {
+pub fn move_items_before(app: AppHandle, ids: Vec<u64>, before: Option<u64>, page: String) {
+    let Some(page) = normalise_page_name(&page) else {
         return;
     };
     let moved = app
         .state::<AppState>()
-        .with(|m| m.doc.move_items_before(&ids, before, &section));
+        .with(|m| m.doc.move_items_before(&ids, before, &page));
     if moved {
         commit(&app);
     }

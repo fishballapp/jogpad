@@ -102,7 +102,7 @@ fn capture(app: &AppHandle, text: String) {
         let name = m.prefs.active.clone();
         let item = Item::new(text);
         let id = item.id;
-        m.doc.section_mut(&name).items.push(item);
+        m.doc.page_mut(&name).items.push(item);
         id
     });
     commit(app);

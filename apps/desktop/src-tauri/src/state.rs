@@ -2,11 +2,11 @@
 //!
 //! Notes and preferences were previously two mutexes, and the code took them
 //! in opposite orders in different places, which is a deadlock waiting for the
-//! right interleaving. They are also not independent: renaming a section has
-//! to move the active-section preference with it. One lock over both is
+//! right interleaving. They are also not independent: renaming a page has
+//! to move the active-page preference with it. One lock over both is
 //! simpler and makes those operations atomic rather than merely ordered.
 
-use crate::store::{self, Doc, Section, DEFAULT_SECTION};
+use crate::store::{self, Doc, Page, DEFAULT_PAGE};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -21,7 +21,7 @@ pub enum UpdateChannel {
     Beta,
 }
 
-/// Everything that is not a note: which section captures land in, and how big
+/// Everything that is not a note: which page captures land in, and how big
 /// and how zoomed the panel was when you last touched it.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Prefs {
@@ -53,7 +53,7 @@ where
 {
     // Deserialize to a Value first. Failing on the enum itself would abort the
     // whole struct, and the caller treats that as "no preferences at all",
-    // silently resetting the active section, zoom and window size.
+    // silently resetting the active page, zoom and window size.
     Ok(match serde_json::Value::deserialize(d)?.as_str() {
         Some("beta") => UpdateChannel::Beta,
         _ => UpdateChannel::Stable,
@@ -63,7 +63,7 @@ where
 impl Default for Prefs {
     fn default() -> Self {
         Prefs {
-            active: DEFAULT_SECTION.to_string(),
+            active: DEFAULT_PAGE.to_string(),
             zoom: 1.0,
             width: 380.0,
             height: 720.0,
@@ -98,7 +98,7 @@ pub struct AppState {
 #[derive(Serialize, Clone)]
 pub struct Snapshot {
     pub rev: u64,
-    pub sections: Vec<Section>,
+    pub pages: Vec<Page>,
     pub active: String,
     pub zoom: f64,
     pub update_channel: UpdateChannel,
@@ -159,7 +159,7 @@ impl AppState {
         let model = lock(&self.model);
         Snapshot {
             rev: self.rev.fetch_add(1, Ordering::Relaxed),
-            sections: model.doc.sections.clone(),
+            pages: model.doc.pages.clone(),
             active: model.prefs.active.clone(),
             zoom: model.prefs.zoom,
             update_channel: model.prefs.update_channel,

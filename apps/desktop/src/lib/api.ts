@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 export type Item = { id: number; text: string; done: boolean };
-export type Section = { name: string; items: Item[] };
+export type Page = { name: string; items: Item[] };
 export type UpdateChannel = 'stable' | 'beta';
 export type UpdateInfo = { version: string; notes: string | null };
 
@@ -10,7 +10,7 @@ export type Snapshot = {
   /// Increases with every snapshot. Rust emits them from commands, the hotkey
   /// thread and the permission poller, so they can arrive out of order.
   rev: number;
-  sections: Section[];
+  pages: Page[];
   active: string;
   zoom: number;
   update_channel: UpdateChannel;
@@ -26,19 +26,18 @@ export type Snapshot = {
 
 export const api = {
   snapshot: () => invoke<Snapshot>('snapshot'),
-  addItem: (text: string, section?: string) =>
-    invoke<void>('add_item', { text, section: section ?? null }),
+  addItem: (text: string, page?: string) => invoke<void>('add_item', { text, page: page ?? null }),
   updateItem: (id: number, text: string) => invoke<void>('update_item', { id, text }),
   toggleItem: (id: number) => invoke<void>('toggle_item', { id }),
   setDone: (ids: number[], done: boolean) => invoke<void>('set_done', { ids, done }),
   deleteItems: (ids: number[]) => invoke<void>('delete_items', { ids }),
-  moveItemsBefore: (ids: number[], before: number | null, section: string) =>
-    invoke<void>('move_items_before', { ids, before, section }),
-  moveItems: (ids: number[], section: string) => invoke<void>('move_items', { ids, section }),
+  moveItemsBefore: (ids: number[], before: number | null, page: string) =>
+    invoke<void>('move_items_before', { ids, before, page }),
+  moveItems: (ids: number[], page: string) => invoke<void>('move_items', { ids, page }),
   mergeItems: (ids: number[]) => invoke<void>('merge_items', { ids }),
-  setActive: (section: string) => invoke<void>('set_active', { section }),
-  renameSection: (from: string, to: string) => invoke<void>('rename_section', { from, to }),
-  deleteSection: (section: string) => invoke<void>('delete_section', { section }),
+  setActive: (page: string) => invoke<void>('set_active', { page }),
+  renamePage: (from: string, to: string) => invoke<void>('rename_page', { from, to }),
+  deletePage: (page: string) => invoke<void>('delete_page', { page }),
   copyAsList: (ids: number[]) => invoke<string>('copy_as_list', { ids }),
   toggleWindow: () => invoke<void>('toggle_window'),
   requestPermissions: () => invoke<void>('request_permissions'),
@@ -77,7 +76,7 @@ if (!inTauri) {
     notes_path: '~/Library/Application Support/com.ycmjason.jogpad/notes.md',
     trusted: false,
     input_monitoring: false,
-    sections: [
+    pages: [
       {
         name: 'Inbox',
         items: [
@@ -106,8 +105,8 @@ if (!inTauri) {
     moveItems: async () => {},
     mergeItems: async () => {},
     setActive: async () => {},
-    renameSection: async () => {},
-    deleteSection: async () => {},
+    renamePage: async () => {},
+    deletePage: async () => {},
     copyAsList: async () => '',
     requestPermissions: async () => {},
     revealNotes: async () => {},

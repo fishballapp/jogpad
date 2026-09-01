@@ -14,7 +14,7 @@ several items later, hit `⌘⇧C`, and paste them as a numbered list into a pro
 Everything is one markdown file under `~/Library/Application Support/com.ycmjason.jogpad/notes.md`.
 No account, no sync, no telemetry.
 
-JogPad owns the shape of that file: `##` headings are sections, task-list entries are
+JogPad owns the shape of that file: `##` headings are pages, task-list entries are
 items. It rewrites the whole file whenever you capture or edit, so freeform markdown it
 does not model will not survive. Reading it, copying from it and diffing it are all
 fine. Hand-editing it alongside JogPad is not.
@@ -24,9 +24,9 @@ fine. Hand-editing it alongside JogPad is not.
 | Keys | What happens |
 | --- | --- |
 | `Shift` `Shift` | With text selected: capture it and show the sidebar. With nothing selected: open the sidebar and focus the input. While JogPad has the keyboard: hide it |
-| `⌘K` | Switch or create a section |
+| `⌘K` | Switch or create a page. Hover a page to rename or delete it |
 | `⌘⇧C` | Copy the selected items as a numbered list |
-| `⌘F` | Search across every section |
+| `⌘F` | Search across every page |
 | `⌘A` | Select everything visible |
 | `↑` / `↓` | Move the selection, `⇧` to extend it |
 | `⌫` | Delete the selected items |

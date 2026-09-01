@@ -27,7 +27,7 @@ import {
 } from '@phosphor-icons/react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { SectionPalette } from '@/components/section-palette';
+import { PagePalette } from '@/components/page-palette';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -59,7 +59,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { api, type Item, inTauri, on, type Snapshot, type UpdateInfo } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
-type Row = { item: Item; section: string };
+type Row = { item: Item; page: string };
 
 const isTypingTarget = (el: EventTarget | null) =>
   el instanceof HTMLElement &&
@@ -139,7 +139,7 @@ export default function App() {
     // Subscribe before asking, or a change made in between is never seen.
     const unlisten = [
       on<Snapshot>('notes', e => apply(e.payload)),
-      // Capture lands in the active section, so drop any search that would
+      // Capture lands in the active page, so drop any search that would
       // hide the thing that was just captured, then point at it.
       on<number>('captured', e => {
         setQuery('');
@@ -160,29 +160,27 @@ export default function App() {
     };
   }, [checkForUpdate]);
 
-  // Searching looks across every section; otherwise you see the active one.
+  // Searching looks across every page; otherwise you see the active one.
   const rows: Row[] = useMemo(() => {
     if (!snap) return [];
     const q = query.trim().toLowerCase();
     if (q) {
-      return snap.sections.flatMap(s =>
-        s.items
-          .filter(i => i.text.toLowerCase().includes(q))
-          .map(item => ({ item, section: s.name })),
+      return snap.pages.flatMap(s =>
+        s.items.filter(i => i.text.toLowerCase().includes(q)).map(item => ({ item, page: s.name })),
       );
     }
-    const section = snap.sections.find(s => s.name === snap.active);
-    const items = section?.items ?? [];
+    const page = snap.pages.find(s => s.name === snap.active);
+    const items = page?.items ?? [];
     // Grouping is display-only: the markdown file keeps its real order, so
     // unchecking an item sends it back where it always was.
     const ordered = snap.group_done
       ? [...items.filter(i => !i.done), ...items.filter(i => i.done)]
       : items;
-    return ordered.map(item => ({ item, section: snap.active }));
+    return ordered.map(item => ({ item, page: snap.active }));
   }, [snap, query]);
 
   // Selection is pruned against what is currently visible, so switching
-  // section or typing a search also clears it. Deliberate: acting on rows you
+  // page or typing a search also clears it. Deliberate: acting on rows you
   // cannot see is worse than losing a selection.
   useEffect(() => {
     const live = new Set(rows.map(r => r.item.id));
@@ -305,7 +303,7 @@ export default function App() {
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         const step = e.key === 'ArrowDown' ? 1 : -1;
-        // The refs are indices into the visible rows, so a capture, a section
+        // The refs are indices into the visible rows, so a capture, a page
         // switch or a search leaves them pointing at whatever now sits at that
         // position. Trust them only while they still hold a selected row.
         let cursor = cursorRef.current;
@@ -422,7 +420,7 @@ export default function App() {
               'flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-sm font-medium hover:bg-accent',
               !focused && 'text-muted-foreground',
             )}
-            aria-label="Switch section"
+            aria-label="Switch page"
           >
             <span className="truncate">{snap.active}</span>
             <Kbd>⌘K</Kbd>
@@ -497,7 +495,7 @@ export default function App() {
               ref={searchRef}
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search every section"
+              placeholder="Search every page"
               className="w-full bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
             />
             <button
@@ -559,7 +557,7 @@ export default function App() {
                     )}
                     <ItemRow
                       row={row}
-                      showSection={Boolean(query)}
+                      showPage={Boolean(query)}
                       selected={selected.includes(row.item.id)}
                       editing={editing === row.item.id}
                       onEdit={() => setEditing(row.item.id)}
@@ -574,7 +572,7 @@ export default function App() {
                       onDelete={() =>
                         api.deleteItems(selected.includes(row.item.id) ? selected : [row.item.id])
                       }
-                      // Search shows rows from several sections, where "drop
+                      // Search shows rows from several pages, where "drop
                       // above this row" has no one meaning, so dragging is off
                       // there. Editing needs the pointer for text selection.
                       canDrag={!query && editing !== row.item.id}
@@ -633,12 +631,14 @@ export default function App() {
           />
         </div>
 
-        <SectionPalette
+        <PagePalette
           open={palette}
           onOpenChange={setPalette}
-          sections={snap.sections}
+          pages={snap.pages}
           active={snap.active}
           onPick={name => api.setActive(name)}
+          onRename={(from, to) => api.renamePage(from, to)}
+          onDelete={name => api.deletePage(name)}
         />
 
         <Dialog open={updateDialogOpen && update !== null} onOpenChange={setUpdateDialogOpen}>
@@ -721,7 +721,7 @@ function IconButton({
 
 type RowProps = {
   row: Row;
-  showSection: boolean;
+  showPage: boolean;
   selected: boolean;
   editing: boolean;
   selectionCount: number;
@@ -737,7 +737,7 @@ type RowProps = {
 
 function ItemRow({
   row,
-  showSection,
+  showPage,
   selected,
   editing,
   selectionCount,
@@ -834,7 +834,7 @@ function ItemRow({
           >
             {item.text}
           </p>
-          {showSection && <span className="text-[11px] text-muted-foreground">{row.section}</span>}
+          {showPage && <span className="text-[11px] text-muted-foreground">{row.page}</span>}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

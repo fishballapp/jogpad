@@ -88,7 +88,7 @@ fn load_state(app: &AppHandle) -> tauri::Result<AppState> {
         .ok()
         .and_then(|json| serde_json::from_str(&json).ok())
         .or_else(|| {
-            // Older builds kept only the section name, in its own file.
+            // Older builds kept only the page name, in its own file.
             let active = std::fs::read_to_string(&legacy_active).ok()?;
             let _ = std::fs::remove_file(&legacy_active);
             Some(Prefs {
@@ -98,8 +98,8 @@ fn load_state(app: &AppHandle) -> tauri::Result<AppState> {
         })
         .unwrap_or_default();
 
-    if !doc.sections.iter().any(|s| s.name == prefs.active) {
-        prefs.active = doc.sections[0].name.clone();
+    if !doc.pages.iter().any(|s| s.name == prefs.active) {
+        prefs.active = doc.pages[0].name.clone();
     }
     prefs.zoom = prefs.zoom.clamp(0.6, 2.0);
 
@@ -213,8 +213,8 @@ pub fn run() {
             commands::move_items,
             commands::merge_items,
             commands::set_active,
-            commands::rename_section,
-            commands::delete_section,
+            commands::rename_page,
+            commands::delete_page,
             commands::copy_as_list,
             commands::request_permissions,
             commands::reveal_notes,
