@@ -1,6 +1,6 @@
 [package]
 name = "jogpad"
-version = "0.1.4"
+version = "0.1.5-beta.1"
 description = "Capture snippets and stage prompts while you work with AI"
 authors = ["ycmjason"]
 license = "MIT"
