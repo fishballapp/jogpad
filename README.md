@@ -43,10 +43,18 @@ double-tapping Shift still files captures away.
 The panel border brightens while JogPad has keyboard focus and dims when it does not.
 There is no title bar to carry that signal otherwise.
 
+## Updating
+
+JogPad updates itself. It checks on launch and offers the update in the ⋮ menu; nothing
+downloads until you click. Stable and Beta are a toggle in that same menu, not separate
+builds, so switching costs you no permissions. Beta gets prerelease tags and folds back
+into stable when stable is newer.
+
 ## Installing
 
-Grab the DMG from [Releases](https://github.com/fishballapp/jogpad/releases). One
-universal build covers Apple silicon and Intel.
+Download it from [jogpad.fishball.app](https://jogpad.fishball.app), or grab the DMG
+straight from [Releases](https://github.com/fishballapp/jogpad/releases). One universal
+build covers Apple silicon and Intel.
 
 Drag JogPad to `/Applications`, then open it and grant Accessibility access when asked.
 Install *before* granting: macOS keys the grant to the app's path and code signature, so
