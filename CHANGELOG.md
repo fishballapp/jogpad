@@ -4,6 +4,18 @@ The release workflow reads these sections. A tag whose version has no section
 here fails before it builds anything, which is the point: notes written after
 the fact never get written.
 
+## 0.1.5-beta.5
+
+Done items start folded away under a "Done N" heading. Click it to open them.
+While folded they are out of reach of the arrow keys, select-all and Delete.
+
+Settings › General has a zoom stepper and the Show in Finder button, which
+has left the panel's ⋮ menu. Zoom now applies to the settings window as
+well, and the settings window follows you onto a full-screen app's Space
+instead of opening on the desktop behind it.
+
+Deleting an empty page from ⌘K no longer asks twice.
+
 ## 0.1.5-beta.4
 
 Sections are now called pages, everywhere. The markdown file is unchanged:
