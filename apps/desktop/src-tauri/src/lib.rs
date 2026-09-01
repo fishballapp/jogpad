@@ -161,6 +161,11 @@ fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
             panel::restore_floating(window.app_handle());
         }
         tauri::WindowEvent::Resized(size) => {
+            // Only the panel's size is a preference. Without this, resizing
+            // the settings window would overwrite the panel's saved size.
+            if window.label() != "main" {
+                return;
+            }
             let app = window.app_handle();
             let Some(state) = app.try_state::<AppState>() else {
                 return;
@@ -214,6 +219,7 @@ pub fn run() {
             commands::request_permissions,
             commands::reveal_notes,
             commands::hide_window,
+            commands::open_settings,
             commands::toggle_window,
             commands::quit,
             commands::set_zoom,

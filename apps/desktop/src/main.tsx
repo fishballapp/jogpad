@@ -1,7 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import SettingsWindow from './SettingsWindow';
 import './index.css';
+
+// One bundle serves both windows; the settings window is this same page
+// loaded with ?window=settings (see tauri.conf.json).
+const Root =
+  new URLSearchParams(location.search).get('window') === 'settings' ? SettingsWindow : App;
 
 /// A render error used to unmount everything and leave a blank panel, which
 /// looks exactly like a crash: the process is still alive, no report is
@@ -39,7 +45,7 @@ class ErrorBoundary extends React.Component<
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      <Root />
     </ErrorBoundary>
   </React.StrictMode>,
 );

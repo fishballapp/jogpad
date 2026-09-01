@@ -35,12 +35,16 @@ pub struct Prefs {
     #[serde(default, deserialize_with = "channel_or_default")]
     pub update_channel: UpdateChannel,
     /// Copying items also checks them off, like ticking a shopping list.
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub check_on_copy: bool,
     /// Show done items gathered at the bottom of the list. Display only: the
     /// markdown file keeps its real order.
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub group_done: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn channel_or_default<'de, D>(d: D) -> Result<UpdateChannel, D::Error>
@@ -64,8 +68,8 @@ impl Default for Prefs {
             width: 380.0,
             height: 720.0,
             update_channel: UpdateChannel::default(),
-            check_on_copy: false,
-            group_done: false,
+            check_on_copy: true,
+            group_done: true,
         }
     }
 }
@@ -243,6 +247,9 @@ mod tests {
         assert_eq!(prefs.width, 400.0);
         assert_eq!(prefs.height, 800.0);
         assert_eq!(prefs.update_channel, UpdateChannel::Stable);
+        // Behaviours a build this old never heard of arrive switched on.
+        assert!(prefs.check_on_copy);
+        assert!(prefs.group_done);
     }
 
     #[test]

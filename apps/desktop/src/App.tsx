@@ -56,15 +56,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Kbd } from '@/components/ui/kbd';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-  api,
-  type Item,
-  inTauri,
-  on,
-  type Snapshot,
-  type UpdateChannel,
-  type UpdateInfo,
-} from '@/lib/api';
+import { api, type Item, inTauri, on, type Snapshot, type UpdateInfo } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 type Row = { item: Item; section: string };
@@ -91,7 +83,6 @@ export default function App() {
   const [checking, setChecking] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -137,21 +128,6 @@ export default function App() {
       }
     },
     [toast],
-  );
-
-  const handleChannelChange = useCallback(
-    async (channel: UpdateChannel) => {
-      if (snap && snap.update_channel === channel) return;
-      setUpdate(null);
-      setUpdateDialogOpen(false);
-      try {
-        await api.setUpdateChannel(channel);
-        await checkForUpdate(false);
-      } catch (e) {
-        toast(`Could not change update channel: ${e}`);
-      }
-    },
-    [checkForUpdate, snap, toast],
   );
 
   useEffect(() => {
@@ -273,7 +249,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       // A dialog covers the list, so a stray Delete would destroy a selection
       // the user cannot even see. Each dialog handles its own Escape.
-      if (palette || updateDialogOpen || settingsOpen) return;
+      if (palette || updateDialogOpen) return;
       const typing = isTypingTarget(e.target);
 
       if (e.metaKey && e.key.toLowerCase() === 'k') {
@@ -365,7 +341,6 @@ export default function App() {
     rows,
     searching,
     selected,
-    settingsOpen,
     snap?.zoom,
     updateDialogOpen,
   ]);
@@ -486,7 +461,7 @@ export default function App() {
                     <ShieldCheck /> Grant {missingPermission}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                <DropdownMenuItem onClick={() => api.openSettings()}>
                   <GearSix /> Settings…
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -621,7 +596,7 @@ export default function App() {
               {/* A mixed selection checks everything rather than flipping each
                 item, which would only swap the mix around. */}
               <IconButton
-                label={allSelectedDone ? 'Uncheck all' : 'Check all'}
+                label={allSelectedDone ? 'Unmark done' : 'Mark done'}
                 onClick={() => api.setDone(selected, !allSelectedDone)}
               >
                 {allSelectedDone ? <Square /> : <CheckSquare />}
@@ -702,59 +677,6 @@ export default function App() {
                 {installing ? 'Installing…' : 'Install and Restart'}
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Settings</DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col gap-4 text-left text-sm">
-              <label htmlFor="check-on-copy" className="flex cursor-default items-start gap-2.5">
-                <Checkbox
-                  id="check-on-copy"
-                  checked={snap.check_on_copy}
-                  onCheckedChange={checked => void api.setCheckOnCopy(checked === true)}
-                  className="mt-0.5"
-                />
-                <span>
-                  Check off items when copying
-                  <span className="block text-xs text-muted-foreground">
-                    Copied items are marked as done.
-                  </span>
-                </span>
-              </label>
-              <label htmlFor="group-done" className="flex cursor-default items-start gap-2.5">
-                <Checkbox
-                  id="group-done"
-                  checked={snap.group_done}
-                  onCheckedChange={checked => void api.setGroupDone(checked === true)}
-                  className="mt-0.5"
-                />
-                <span>
-                  Group done items at the bottom
-                  <span className="block text-xs text-muted-foreground">
-                    Done items gather under a divider. notes.md keeps its order.
-                  </span>
-                </span>
-              </label>
-              <div>
-                <p className="mb-1.5 font-medium">Update channel</p>
-                <div className="flex gap-1">
-                  {(['stable', 'beta'] as const).map(channel => (
-                    <Button
-                      key={channel}
-                      size="sm"
-                      variant={snap.update_channel === channel ? 'default' : 'outline'}
-                      onClick={() => void handleChannelChange(channel)}
-                    >
-                      {channel === 'stable' ? 'Stable' : 'Beta'}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
           </DialogContent>
         </Dialog>
 

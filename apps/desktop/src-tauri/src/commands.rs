@@ -310,6 +310,16 @@ pub fn hide_window(app: AppHandle) {
     set_visible(&app, false);
 }
 
+/// The settings window exists from launch and closing it only hides it, so
+/// opening is always a show, never a create.
+#[tauri::command]
+pub fn open_settings(app: AppHandle) {
+    if let Some(window) = app.get_webview_window("settings") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 #[tauri::command]
 pub fn toggle_window(app: AppHandle) {
     set_visible(&app, !is_visible(&app));
