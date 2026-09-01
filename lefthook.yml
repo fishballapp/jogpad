@@ -1,0 +1,28 @@
+pre-commit:
+  jobs:
+    # Alone and first: it rewrites the staged files every check below reads.
+    - name: biome
+      run: pnpm exec biome check --write {staged_files}
+      glob: "*.{js,jsx,mjs,cjs,ts,tsx,cts,mts,json,jsonc,css}"
+      stage_fixed: true
+
+    - name: checks
+      group:
+        parallel: true
+        jobs:
+          - name: repojj
+            run: pnpm repojj:check
+
+          - name: typecheck
+            run: pnpm typecheck
+
+          # Unconditional: astro check is the only thing that reads .astro
+          # files, and they break on changes to the .ts they import.
+          - name: astro check
+            run: pnpm check:astro
+
+          # Formats the whole crate, so this only reports. Run `cargo fmt`
+          # yourself.
+          - name: cargo fmt
+            run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
+            glob: "*.rs"

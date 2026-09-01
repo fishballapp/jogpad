@@ -6,9 +6,8 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "APPLE_SIGNING_IDENTITY=\"${APPLE_SIGNING_IDENTITY:--}\" tauri build",
-    "typecheck": "tsc --noEmit",
     "vite": "vite",
-    "vite:build": "tsc && vite build",
+    "vite:build": "tsc -b && vite build",
     "tauri": "tauri"
   },
   "dependencies": {

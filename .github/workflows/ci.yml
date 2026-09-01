@@ -37,7 +37,16 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: repojj
+        run: pnpm repojj:check
+
+      - name: biome
+        run: pnpm check
+
       - run: pnpm typecheck
+
+      - name: astro check
+        run: pnpm check:astro
 
       - name: Build the front end
         run: pnpm --filter @jogpad/desktop vite:build

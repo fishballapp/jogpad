@@ -1,4 +1,4 @@
-import semver from "semver";
+import semver from 'semver';
 
 export type GitHubAsset = {
   name: string;
@@ -13,13 +13,13 @@ export type GitHubRelease = {
   html_url: string;
 };
 
-const REPO = "fishballapp/jogpad";
-const MANIFEST_ASSET = "latest.json";
+const REPO = 'fishballapp/jogpad';
+const MANIFEST_ASSET = 'latest.json';
 
 function headers(): Record<string, string> {
   const h: Record<string, string> = {
-    Accept: "application/vnd.github+json",
-    "User-Agent": "jogpad-site-builder",
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'jogpad-site-builder',
   };
   // Only for the API. Sending it to the asset CDN would hand a token to a
   // redirect target that has no business seeing it.
@@ -33,10 +33,9 @@ function headers(): Record<string, string> {
 /// and nowhere else: their assets are not publicly reachable, so a draft that
 /// reached a manifest would advertise an update nobody can install.
 export async function fetchPublishedReleases(): Promise<GitHubRelease[]> {
-  const res = await fetch(
-    `https://api.github.com/repos/${REPO}/releases?per_page=100`,
-    { headers: headers() },
-  );
+  const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
+    headers: headers(),
+  });
   // Including 404: an empty repository answers 200 with [], so a 404 means the
   // repository moved or the token cannot see it. Serving no manifest because
   // of that would take updates away from everyone already installed.
@@ -44,7 +43,7 @@ export async function fetchPublishedReleases(): Promise<GitHubRelease[]> {
     throw new Error(`GitHub releases API returned ${res.status} ${res.statusText}`);
   }
   const releases = (await res.json()) as GitHubRelease[];
-  return releases.filter((r) => !r.draft);
+  return releases.filter(r => !r.draft);
 }
 
 /// Highest by SemVer, which is the same order the updater compares in. A
@@ -55,8 +54,8 @@ export function highestRelease(
   { stableOnly }: { stableOnly: boolean },
 ): GitHubRelease | null {
   const ranked = releases
-    .flatMap((release) => {
-      const version = semver.parse(release.tag_name.replace(/^v/, ""));
+    .flatMap(release => {
+      const version = semver.parse(release.tag_name.replace(/^v/, ''));
       return version ? [{ release, version }] : [];
     })
     // GitHub's prerelease flag is a checkbox a human can untick, so the tag
@@ -77,10 +76,10 @@ export function manifestRelease(
 ): GitHubRelease | null {
   const highest = highestRelease(releases, options);
   if (!highest) return null;
-  if (highest.assets.some((a) => a.name === MANIFEST_ASSET)) return highest;
+  if (highest.assets.some(a => a.name === MANIFEST_ASSET)) return highest;
   // Releases cut before the updater existed legitimately carry no manifest, and
   // that is not an error, it just means no channel can be served yet.
-  if (!releases.some((r) => r.assets.some((a) => a.name === MANIFEST_ASSET))) return null;
+  if (!releases.some(r => r.assets.some(a => a.name === MANIFEST_ASSET))) return null;
   throw new Error(
     `Release ${highest.tag_name} is the newest but has no ${MANIFEST_ASSET}, while older releases do`,
   );
@@ -89,7 +88,7 @@ export function manifestRelease(
 /// The manifest `tauri-action` attached at build time, returned verbatim so the
 /// inline minisign signatures stay intact. Never synthesised here.
 export async function manifestFor(release: GitHubRelease): Promise<string> {
-  const asset = release.assets.find((a) => a.name === MANIFEST_ASSET);
+  const asset = release.assets.find(a => a.name === MANIFEST_ASSET);
   // Loudly, rather than falling back to an older release: silently advertising
   // yesterday's version as the newest is the failure nobody would notice.
   if (!asset) {
@@ -97,7 +96,7 @@ export async function manifestFor(release: GitHubRelease): Promise<string> {
   }
 
   const res = await fetch(asset.browser_download_url, {
-    headers: { Accept: "application/octet-stream", "User-Agent": "jogpad-site-builder" },
+    headers: { Accept: 'application/octet-stream', 'User-Agent': 'jogpad-site-builder' },
   });
   if (!res.ok) {
     throw new Error(
@@ -113,13 +112,13 @@ export async function manifestFor(release: GitHubRelease): Promise<string> {
     throw new Error(`${MANIFEST_ASSET} for ${release.tag_name} is not JSON: ${e}`);
   }
 
-  if (typeof manifest.version !== "string" || manifest.version.trim() === "") {
+  if (typeof manifest.version !== 'string' || manifest.version.trim() === '') {
     throw new Error(`${MANIFEST_ASSET} for ${release.tag_name} has no version`);
   }
   // Shape is not correspondence. A manifest that parses but describes an older
   // build would advertise yesterday's version as the newest, which is exactly
   // the silent staleness this file exists to prevent.
-  const tagged = release.tag_name.replace(/^v/, "");
+  const tagged = release.tag_name.replace(/^v/, '');
   if (!semver.eq(manifest.version, tagged)) {
     throw new Error(
       `${MANIFEST_ASSET} for ${release.tag_name} declares version ${manifest.version}`,
@@ -130,7 +129,7 @@ export async function manifestFor(release: GitHubRelease): Promise<string> {
     throw new Error(`${MANIFEST_ASSET} for ${release.tag_name} lists no platforms`);
   }
   for (const [platform, record] of platforms) {
-    if (typeof record?.url !== "string" || !pinsToThisRelease(record.url, release.tag_name)) {
+    if (typeof record?.url !== 'string' || !pinsToThisRelease(record.url, release.tag_name)) {
       throw new Error(
         `${MANIFEST_ASSET} for ${release.tag_name}: platform ${platform} has a url that is not pinned to this release (${record?.url})`,
       );
@@ -147,7 +146,7 @@ export async function manifestFor(release: GitHubRelease): Promise<string> {
 /// What is not fine is `releases/latest/download`, which resolves to whatever
 /// happens to be newest and would hand a beta client the wrong build.
 function pinsToThisRelease(url: string, tag: string): boolean {
-  if (url.includes("/releases/latest/download")) return false;
+  if (url.includes('/releases/latest/download')) return false;
   return (
     url.includes(`https://github.com/${REPO}/releases/download/${tag}/`) ||
     new RegExp(`^https://api\\.github\\.com/repos/${REPO}/releases/assets/\\d+$`).test(url)
@@ -155,5 +154,5 @@ function pinsToThisRelease(url: string, tag: string): boolean {
 }
 
 export function dmgUrl(release: GitHubRelease | null): string | null {
-  return release?.assets.find((a) => a.name.endsWith(".dmg"))?.browser_download_url ?? null;
+  return release?.assets.find(a => a.name.endsWith('.dmg'))?.browser_download_url ?? null;
 }

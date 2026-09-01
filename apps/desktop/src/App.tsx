@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowCircleDown,
   ArrowsMerge,
@@ -11,29 +10,12 @@ import {
   ShieldCheck,
   Trash,
   X,
-} from "@phosphor-icons/react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import {
-  api,
-  inTauri,
-  on,
-  type Item,
-  type Snapshot,
-  type UpdateChannel,
-  type UpdateInfo,
-} from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Kbd } from "@/components/ui/kbd";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+} from '@phosphor-icons/react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { SectionPalette } from '@/components/section-palette';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -41,13 +23,15 @@ import {
   ContextMenuSeparator,
   ContextMenuShortcut,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+} from '@/components/ui/context-menu';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,20 +42,31 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { SectionPalette } from "@/components/section-palette";
+} from '@/components/ui/dropdown-menu';
+import { Kbd } from '@/components/ui/kbd';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  api,
+  type Item,
+  inTauri,
+  on,
+  type Snapshot,
+  type UpdateChannel,
+  type UpdateInfo,
+} from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 type Row = { item: Item; section: string };
 
 const isTypingTarget = (el: EventTarget | null) =>
   el instanceof HTMLElement &&
-  (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+  (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
 export default function App() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [palette, setPalette] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
@@ -99,13 +94,13 @@ export default function App() {
     if (!inTauri) return;
     const unlisten = getCurrentWindow().onFocusChanged(({ payload }) => setFocused(payload));
     return () => {
-      void unlisten.then((f) => f());
+      void unlisten.then(f => f());
     };
   }, []);
 
   const toast = useCallback((message: string) => {
     setFlash(message);
-    window.setTimeout(() => setFlash((f) => (f === message ? null : f)), 1600);
+    window.setTimeout(() => setFlash(f => (f === message ? null : f)), 1600);
   }, []);
 
   const checkForUpdate = useCallback(
@@ -117,7 +112,7 @@ export default function App() {
         if (generation !== checkGenRef.current) return;
         setUpdate(info);
         if (userInitiated && !info) {
-          toast("JogPad is up to date");
+          toast('JogPad is up to date');
         }
       } catch (e) {
         if (generation !== checkGenRef.current) return;
@@ -152,30 +147,29 @@ export default function App() {
     // Keep the newest snapshot seen. Rust emits them from commands, from the
     // hotkey thread and from the permission poller, so a slow reply can land
     // after a newer event and would otherwise put stale notes back on screen.
-    const apply = (next: Snapshot) =>
-      setSnap((prev) => (prev && prev.rev > next.rev ? prev : next));
+    const apply = (next: Snapshot) => setSnap(prev => (prev && prev.rev > next.rev ? prev : next));
 
     // Subscribe before asking, or a change made in between is never seen.
     const unlisten = [
-      on<Snapshot>("notes", (e) => apply(e.payload)),
+      on<Snapshot>('notes', e => apply(e.payload)),
       // Capture lands in the active section, so drop any search that would
       // hide the thing that was just captured, then point at it.
-      on<number>("captured", (e) => {
-        setQuery("");
+      on<number>('captured', e => {
+        setQuery('');
         setSearching(false);
         setSelected([e.payload]);
       }),
-      on("focus-input", () => composerRef.current?.focus()),
+      on('focus-input', () => composerRef.current?.focus()),
     ];
     Promise.all(unlisten)
       .then(() => api.snapshot())
-      .then((s) => {
+      .then(s => {
         apply(s);
         void checkForUpdate(false);
       })
-      .catch((e) => setLoadError(String(e)));
+      .catch(e => setLoadError(String(e)));
     return () => {
-      unlisten.forEach((p) => p.then((f) => f()));
+      for (const p of unlisten) void p.then(f => f());
     };
   }, [checkForUpdate]);
 
@@ -184,40 +178,41 @@ export default function App() {
     if (!snap) return [];
     const q = query.trim().toLowerCase();
     if (q) {
-      return snap.sections.flatMap((s) =>
+      return snap.sections.flatMap(s =>
         s.items
-          .filter((i) => i.text.toLowerCase().includes(q))
-          .map((item) => ({ item, section: s.name })),
+          .filter(i => i.text.toLowerCase().includes(q))
+          .map(item => ({ item, section: s.name })),
       );
     }
-    const section = snap.sections.find((s) => s.name === snap.active);
-    return (section?.items ?? []).map((item) => ({ item, section: snap.active }));
+    const section = snap.sections.find(s => s.name === snap.active);
+    return (section?.items ?? []).map(item => ({ item, section: snap.active }));
   }, [snap, query]);
 
   // Selection is pruned against what is currently visible, so switching
   // section or typing a search also clears it. Deliberate: acting on rows you
   // cannot see is worse than losing a selection.
   useEffect(() => {
-    const live = new Set(rows.map((r) => r.item.id));
-    setSelected((prev) => {
-      const next = prev.filter((id) => live.has(id));
+    const live = new Set(rows.map(r => r.item.id));
+    setSelected(prev => {
+      const next = prev.filter(id => live.has(id));
       return next.length === prev.length ? prev : next;
     });
   }, [rows]);
 
   const selectRow = (index: number, e: React.MouseEvent) => {
-    const id = rows[index].item.id;
+    const row = rows[index];
+    if (!row) return;
+    const id = row.item.id;
     if (e.metaKey) {
-      setSelected((prev) =>
-        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-      );
+      setSelected(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
       anchorRef.current = index;
       cursorRef.current = index;
       return;
     }
     if (e.shiftKey && anchorRef.current !== null) {
-      const [from, to] = [anchorRef.current, index].sort((a, b) => a - b);
-      setSelected(rows.slice(from, to + 1).map((r) => r.item.id));
+      const from = Math.min(anchorRef.current, index);
+      const to = Math.max(anchorRef.current, index);
+      setSelected(rows.slice(from, to + 1).map(r => r.item.id));
       cursorRef.current = index;
       return;
     }
@@ -235,19 +230,19 @@ export default function App() {
         toast(`Could not copy: ${e}`);
         return;
       }
-      toast(ids.length > 1 ? `Copied ${ids.length} as a list` : "Copied");
+      toast(ids.length > 1 ? `Copied ${ids.length} as a list` : 'Copied');
     },
     [selected, toast],
   );
 
   const submit = async () => {
-    const value = composerRef.current?.value ?? "";
+    const value = composerRef.current?.value ?? '';
     const text = value.trim();
     if (!text) return;
     await api.addItem(text);
     if (composerRef.current) {
-      composerRef.current.value = "";
-      composerRef.current.style.height = "auto";
+      composerRef.current.value = '';
+      composerRef.current.style.height = 'auto';
     }
   };
 
@@ -258,42 +253,42 @@ export default function App() {
       if (palette || updateDialogOpen) return;
       const typing = isTypingTarget(e.target);
 
-      if (e.metaKey && e.key.toLowerCase() === "k") {
+      if (e.metaKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setPalette(true);
         return;
       }
-      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === "c") {
+      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'c') {
         e.preventDefault();
         void copySelection();
         return;
       }
-      if (e.metaKey && e.key.toLowerCase() === "f") {
+      if (e.metaKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         setSearching(true);
         window.setTimeout(() => searchRef.current?.focus(), 0);
         return;
       }
-      if (e.metaKey && e.key.toLowerCase() === "q") {
+      if (e.metaKey && e.key.toLowerCase() === 'q') {
         e.preventDefault();
         void api.quit();
         return;
       }
-      if (e.metaKey && e.key.toLowerCase() === "w") {
+      if (e.metaKey && e.key.toLowerCase() === 'w') {
         e.preventDefault();
         void api.hideWindow();
         return;
       }
-      if (e.metaKey && (e.key === "-" || e.key === "=" || e.key === "0")) {
+      if (e.metaKey && (e.key === '-' || e.key === '=' || e.key === '0')) {
         e.preventDefault();
         const zoom = snap?.zoom ?? 1;
-        void api.setZoom(e.key === "0" ? 1 : zoom + (e.key === "-" ? -0.1 : 0.1));
+        void api.setZoom(e.key === '0' ? 1 : zoom + (e.key === '-' ? -0.1 : 0.1));
         return;
       }
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         if (editing !== null) return;
         if (query || searching) {
-          setQuery("");
+          setQuery('');
           setSearching(false);
         } else {
           setSelected([]);
@@ -302,43 +297,43 @@ export default function App() {
       }
       if (typing) return;
 
-      if (e.metaKey && e.key.toLowerCase() === "a") {
+      if (e.metaKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
-        setSelected(rows.map((r) => r.item.id));
-      } else if (e.key === "Backspace" || e.key === "Delete") {
+        setSelected(rows.map(r => r.item.id));
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault();
         if (selected.length > 0) void api.deleteItems(selected);
-      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
-        const step = e.key === "ArrowDown" ? 1 : -1;
+        const step = e.key === 'ArrowDown' ? 1 : -1;
         // The refs are indices into the visible rows, so a capture, a section
         // switch or a search leaves them pointing at whatever now sits at that
         // position. Trust them only while they still hold a selected row.
         let cursor = cursorRef.current;
-        if (cursor === null || !rows[cursor] || !selected.includes(rows[cursor].item.id)) {
+        const currentRow = cursor === null ? undefined : rows[cursor];
+        if (cursor === null || !currentRow || !selected.includes(currentRow.item.id)) {
           const hit = rows.flatMap((r, i) => (selected.includes(r.item.id) ? [i] : []));
-          cursor = hit.length
-            ? (step > 0 ? hit[hit.length - 1] : hit[0])
-            : step > 0
-              ? -1
-              : rows.length;
-          anchorRef.current = hit.length ? cursor : null;
+          const edge = step > 0 ? hit.at(-1) : hit[0];
+          cursor = edge ?? (step > 0 ? -1 : rows.length);
+          anchorRef.current = edge ?? null;
         }
         const next = Math.max(0, Math.min(rows.length - 1, cursor + step));
-        if (!rows[next]) return;
+        const nextRow = rows[next];
+        if (!nextRow) return;
         cursorRef.current = next;
         // Shift grows the range from the anchor; a bare arrow moves both ends.
         if (e.shiftKey && anchorRef.current !== null) {
-          const [from, to] = [anchorRef.current, next].sort((a, b) => a - b);
-          setSelected(rows.slice(from, to + 1).map((r) => r.item.id));
+          const from = Math.min(anchorRef.current, next);
+          const to = Math.max(anchorRef.current, next);
+          setSelected(rows.slice(from, to + 1).map(r => r.item.id));
         } else {
           anchorRef.current = next;
-          setSelected([rows[next].item.id]);
+          setSelected([nextRow.item.id]);
         }
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [
     copySelection,
     editing,
@@ -364,283 +359,278 @@ export default function App() {
   // without a prompt, so naming both at once would send people hunting for a
   // permission they never have to grant by hand.
   const missingPermission = !snap.trusted
-    ? "Accessibility"
+    ? 'Accessibility'
     : !snap.input_monitoring
-      ? "Input Monitoring"
+      ? 'Input Monitoring'
       : null;
 
   return (
     <TooltipProvider>
-    <div
-      className={cn(
-        "flex h-screen flex-col overflow-hidden rounded-xl border bg-background transition-colors",
-        focused ? "border-ring/80" : "border-border/30",
-      )}
-    >
-      <header
-        // The drag-region attribute only fires on the element under the
-        // pointer, so the gaps between buttons were the only grabbable
-        // pixels. Dragging from anywhere that is not a control is better.
-        onPointerDown={(e) => {
-          if ((e.target as HTMLElement).closest("button")) return;
-          if (inTauri) void getCurrentWindow().startDragging();
-        }}
-        className="flex shrink-0 cursor-grab items-center gap-1 px-3 py-2 active:cursor-grabbing"
-      >
-        <button
-          onClick={() => setPalette(true)}
-          className={cn(
-            "flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-sm font-medium hover:bg-accent",
-            !focused && "text-muted-foreground",
-          )}
-          aria-label="Switch section"
-        >
-          <span className="truncate">{snap.active}</span>
-          <Kbd>⌘K</Kbd>
-        </button>
-        <span className="text-xs text-muted-foreground">{rows.length}</span>
-        <div className="ml-auto flex items-center gap-0.5">
-          <IconButton
-            label="Search"
-            hint="⌘F"
-            onClick={() => {
-              setSearching((s) => !s);
-              window.setTimeout(() => searchRef.current?.focus(), 0);
-            }}
-          >
-            <MagnifyingGlass />
-          </IconButton>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon-sm" className="relative" />}
-              aria-label={update ? `More (update to v${update.version} available)` : "More"}
-            >
-              <DotsThreeVertical />
-              {update && (
-                <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
-              )}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-56 [&_[data-slot=dropdown-menu-item]]:whitespace-nowrap">
-              <DropdownMenuItem onClick={() => api.revealNotes()}>
-                <FolderOpen /> Show notes.md in Finder
-              </DropdownMenuItem>
-              {missingPermission && (
-                <DropdownMenuItem onClick={() => api.requestPermissions()}>
-                  <ShieldCheck /> Grant {missingPermission}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuRadioGroup
-                value={snap.update_channel}
-                onValueChange={(val) => void handleChannelChange(val)}
-              >
-                {/* Base UI reads the group from context, so a label outside
-                    one throws and takes the whole app down with it. */}
-                <DropdownMenuLabel>Updates</DropdownMenuLabel>
-                <DropdownMenuRadioItem value="stable">Stable</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="beta">Beta</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-              <DropdownMenuItem
-                disabled={checking}
-                onClick={() => void checkForUpdate(true)}
-              >
-                <ArrowCircleDown /> {checking ? "Checking for Updates…" : "Check for Updates…"}
-              </DropdownMenuItem>
-              {update && (
-                <DropdownMenuItem
-                  onClick={() => setUpdateDialogOpen(true)}
-                  className="text-primary font-medium focus:text-primary"
-                >
-                  <ArrowCircleDown /> Update to v{update.version}…
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => api.hideWindow()}>
-                <EyeSlash /> Hide
-                <DropdownMenuShortcut>⌘W</DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={() => api.quit()}>
-                <Power /> Quit JogPad
-                <DropdownMenuShortcut>⌘Q</DropdownMenuShortcut>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
-
-      {searching && (
-        <div className="flex shrink-0 items-center gap-2 border-b px-3 pb-2">
-          <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
-          <input
-            ref={searchRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search every section"
-            className="w-full bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
-          />
-          <button
-            onClick={() => {
-              setQuery("");
-              setSearching(false);
-            }}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <X className="size-3.5" />
-          </button>
-        </div>
-      )}
-
-      {snap.error && (
-        <div className="shrink-0 bg-destructive/15 px-3 py-2 text-xs text-destructive">
-          {snap.error}
-          {snap.read_only && " Nothing is being saved until this is resolved."}
-        </div>
-      )}
-
-      {missingPermission && (
-        <button
-          onClick={() => api.requestPermissions()}
-          className="shrink-0 bg-amber-500/15 px-3 py-2 text-left text-xs text-amber-700 dark:text-amber-300"
-        >
-          Double-tap Shift needs {missingPermission}. Click to open Settings.
-        </button>
-      )}
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
-        {rows.length === 0 ? (
-          <p className="px-2 py-8 text-center text-xs text-muted-foreground">
-            {query ? (
-              "Nothing matches."
-            ) : (
-              <>
-                Select text anywhere and tap <Kbd>Shift</Kbd> twice.
-              </>
-            )}
-          </p>
-        ) : (
-          rows.map((row, index) => (
-            <ItemRow
-              key={row.item.id}
-              row={row}
-              showSection={Boolean(query)}
-              selected={selected.includes(row.item.id)}
-              editing={editing === row.item.id}
-              onEdit={() => setEditing(row.item.id)}
-              onWarn={toast}
-              onEndEdit={() => setEditing(null)}
-              onClick={(e) => selectRow(index, e)}
-              selectionCount={selected.length}
-              onCopy={() => copySelection(selected.includes(row.item.id) ? selected : [row.item.id])}
-              onMerge={() => api.mergeItems(selected)}
-              onDelete={() =>
-                api.deleteItems(
-                  selected.includes(row.item.id) ? selected : [row.item.id],
-                )
-              }
-            />
-          ))
+      <div
+        className={cn(
+          'flex h-screen flex-col overflow-hidden rounded-xl border bg-background transition-colors',
+          focused ? 'border-ring/80' : 'border-border/30',
         )}
-      </div>
-
-      {selected.length > 0 && (
-        <div className="flex shrink-0 items-center gap-1 border-t px-2 py-1.5 text-xs">
-          <span className="px-1 text-muted-foreground">{selected.length} selected</span>
-          <div className="ml-auto flex items-center gap-0.5">
-            <Button variant="ghost" size="sm" onClick={() => copySelection()}>
-              <Copy /> Copy as list <Kbd>⌘⇧C</Kbd>
-            </Button>
-            {selected.length > 1 && (
-              <IconButton
-                label="Merge into one item"
-                onClick={() => api.mergeItems(selected)}
-              >
-                <ArrowsMerge />
-              </IconButton>
+      >
+        <header
+          // The drag-region attribute only fires on the element under the
+          // pointer, so the gaps between buttons were the only grabbable
+          // pixels. Dragging from anywhere that is not a control is better.
+          onPointerDown={e => {
+            if ((e.target as HTMLElement).closest('button')) return;
+            if (inTauri) void getCurrentWindow().startDragging();
+          }}
+          className="flex shrink-0 cursor-grab items-center gap-1 px-3 py-2 active:cursor-grabbing"
+        >
+          <button
+            onClick={() => setPalette(true)}
+            className={cn(
+              'flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-sm font-medium hover:bg-accent',
+              !focused && 'text-muted-foreground',
             )}
-            <IconButton label="Delete" hint="⌫" onClick={() => api.deleteItems(selected)}>
-              <Trash />
-            </IconButton>
-          </div>
-        </div>
-      )}
-
-      <div className="shrink-0 border-t p-2">
-        <textarea
-          ref={composerRef}
-          rows={1}
-          placeholder="Next prompt"
-          onInput={(e) => {
-            const el = e.currentTarget;
-            el.style.height = "auto";
-            el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void submit();
-            }
-          }}
-          className="max-h-40 w-full resize-none rounded-lg bg-muted/50 px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus:bg-muted"
-        />
-      </div>
-
-      <SectionPalette
-        open={palette}
-        onOpenChange={setPalette}
-        sections={snap.sections}
-        active={snap.active}
-        onPick={(name) => api.setActive(name)}
-      />
-
-      <Dialog open={updateDialogOpen && update !== null} onOpenChange={setUpdateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              JogPad {update?.version} is available
-            </DialogTitle>
-            <DialogDescription className="max-h-60 overflow-y-auto whitespace-pre-wrap text-left text-foreground">
-              {update?.notes?.trim() || "No release notes."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setUpdateDialogOpen(false)}
-              disabled={installing}
-            >
-              Later
-            </Button>
-            <Button
-              disabled={installing}
-              onClick={async () => {
-                setInstalling(true);
-                try {
-                  await api.installUpdate();
-                } catch (e) {
-                  setInstalling(false);
-                  setUpdateDialogOpen(false);
-                  // Rust took the pending update before installing, so the
-                  // offer is spent whether or not it worked. Leaving it on
-                  // screen would only ever produce the same failure again.
-                  setUpdate(null);
-                  toast(`Installation failed: ${e}`);
-                }
+            aria-label="Switch section"
+          >
+            <span className="truncate">{snap.active}</span>
+            <Kbd>⌘K</Kbd>
+          </button>
+          <span className="text-xs text-muted-foreground">{rows.length}</span>
+          <div className="ml-auto flex items-center gap-0.5">
+            <IconButton
+              label="Search"
+              hint="⌘F"
+              onClick={() => {
+                setSearching(s => !s);
+                window.setTimeout(() => searchRef.current?.focus(), 0);
               }}
             >
-              {installing ? "Installing…" : "Install and Restart"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <MagnifyingGlass />
+            </IconButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button variant="ghost" size="icon-sm" className="relative" />}
+                aria-label={update ? `More (update to v${update.version} available)` : 'More'}
+              >
+                <DotsThreeVertical />
+                {update && (
+                  <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
+                )}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="min-w-56 [&_[data-slot=dropdown-menu-item]]:whitespace-nowrap"
+              >
+                <DropdownMenuItem onClick={() => api.revealNotes()}>
+                  <FolderOpen /> Show notes.md in Finder
+                </DropdownMenuItem>
+                {missingPermission && (
+                  <DropdownMenuItem onClick={() => api.requestPermissions()}>
+                    <ShieldCheck /> Grant {missingPermission}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup
+                  value={snap.update_channel}
+                  onValueChange={val => void handleChannelChange(val)}
+                >
+                  {/* Base UI reads the group from context, so a label outside
+                    one throws and takes the whole app down with it. */}
+                  <DropdownMenuLabel>Updates</DropdownMenuLabel>
+                  <DropdownMenuRadioItem value="stable">Stable</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="beta">Beta</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                <DropdownMenuItem disabled={checking} onClick={() => void checkForUpdate(true)}>
+                  <ArrowCircleDown /> {checking ? 'Checking for Updates…' : 'Check for Updates…'}
+                </DropdownMenuItem>
+                {update && (
+                  <DropdownMenuItem
+                    onClick={() => setUpdateDialogOpen(true)}
+                    className="text-primary font-medium focus:text-primary"
+                  >
+                    <ArrowCircleDown /> Update to v{update.version}…
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => api.hideWindow()}>
+                  <EyeSlash /> Hide
+                  <DropdownMenuShortcut>⌘W</DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={() => api.quit()}>
+                  <Power /> Quit JogPad
+                  <DropdownMenuShortcut>⌘Q</DropdownMenuShortcut>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
 
-      {flash && (
-        <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
-          <span className="rounded-full bg-foreground px-2.5 py-1 text-xs text-background shadow">
-            {flash}
-          </span>
+        {searching && (
+          <div className="flex shrink-0 items-center gap-2 border-b px-3 pb-2">
+            <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search every section"
+              className="w-full bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
+            />
+            <button
+              onClick={() => {
+                setQuery('');
+                setSearching(false);
+              }}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )}
+
+        {snap.error && (
+          <div className="shrink-0 bg-destructive/15 px-3 py-2 text-xs text-destructive">
+            {snap.error}
+            {snap.read_only && ' Nothing is being saved until this is resolved.'}
+          </div>
+        )}
+
+        {missingPermission && (
+          <button
+            onClick={() => api.requestPermissions()}
+            className="shrink-0 bg-amber-500/15 px-3 py-2 text-left text-xs text-amber-700 dark:text-amber-300"
+          >
+            Double-tap Shift needs {missingPermission}. Click to open Settings.
+          </button>
+        )}
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
+          {rows.length === 0 ? (
+            <p className="px-2 py-8 text-center text-xs text-muted-foreground">
+              {query ? (
+                'Nothing matches.'
+              ) : (
+                <>
+                  Select text anywhere and tap <Kbd>Shift</Kbd> twice.
+                </>
+              )}
+            </p>
+          ) : (
+            rows.map((row, index) => (
+              <ItemRow
+                key={row.item.id}
+                row={row}
+                showSection={Boolean(query)}
+                selected={selected.includes(row.item.id)}
+                editing={editing === row.item.id}
+                onEdit={() => setEditing(row.item.id)}
+                onWarn={toast}
+                onEndEdit={() => setEditing(null)}
+                onClick={e => selectRow(index, e)}
+                selectionCount={selected.length}
+                onCopy={() =>
+                  copySelection(selected.includes(row.item.id) ? selected : [row.item.id])
+                }
+                onMerge={() => api.mergeItems(selected)}
+                onDelete={() =>
+                  api.deleteItems(selected.includes(row.item.id) ? selected : [row.item.id])
+                }
+              />
+            ))
+          )}
         </div>
-      )}
-    </div>
+
+        {selected.length > 0 && (
+          <div className="flex shrink-0 items-center gap-1 border-t px-2 py-1.5 text-xs">
+            <span className="px-1 text-muted-foreground">{selected.length} selected</span>
+            <div className="ml-auto flex items-center gap-0.5">
+              <Button variant="ghost" size="sm" onClick={() => copySelection()}>
+                <Copy /> Copy as list <Kbd>⌘⇧C</Kbd>
+              </Button>
+              {selected.length > 1 && (
+                <IconButton label="Merge into one item" onClick={() => api.mergeItems(selected)}>
+                  <ArrowsMerge />
+                </IconButton>
+              )}
+              <IconButton label="Delete" hint="⌫" onClick={() => api.deleteItems(selected)}>
+                <Trash />
+              </IconButton>
+            </div>
+          </div>
+        )}
+
+        <div className="shrink-0 border-t p-2">
+          <textarea
+            ref={composerRef}
+            rows={1}
+            placeholder="Next prompt"
+            onInput={e => {
+              const el = e.currentTarget;
+              el.style.height = 'auto';
+              el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void submit();
+              }
+            }}
+            className="max-h-40 w-full resize-none rounded-lg bg-muted/50 px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus:bg-muted"
+          />
+        </div>
+
+        <SectionPalette
+          open={palette}
+          onOpenChange={setPalette}
+          sections={snap.sections}
+          active={snap.active}
+          onPick={name => api.setActive(name)}
+        />
+
+        <Dialog open={updateDialogOpen && update !== null} onOpenChange={setUpdateDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>JogPad {update?.version} is available</DialogTitle>
+              <DialogDescription className="max-h-60 overflow-y-auto whitespace-pre-wrap text-left text-foreground">
+                {update?.notes?.trim() || 'No release notes.'}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setUpdateDialogOpen(false)}
+                disabled={installing}
+              >
+                Later
+              </Button>
+              <Button
+                disabled={installing}
+                onClick={async () => {
+                  setInstalling(true);
+                  try {
+                    await api.installUpdate();
+                  } catch (e) {
+                    setInstalling(false);
+                    setUpdateDialogOpen(false);
+                    // Rust took the pending update before installing, so the
+                    // offer is spent whether or not it worked. Leaving it on
+                    // screen would only ever produce the same failure again.
+                    setUpdate(null);
+                    toast(`Installation failed: ${e}`);
+                  }
+                }}
+              >
+                {installing ? 'Installing…' : 'Install and Restart'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {flash && (
+          <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
+            <span className="rounded-full bg-foreground px-2.5 py-1 text-xs text-background shadow">
+              {flash}
+            </span>
+          </div>
+        )}
+      </div>
     </TooltipProvider>
   );
 }
@@ -727,10 +717,8 @@ function ItemRow({
             onClick={onClick}
             onDoubleClick={onEdit}
             className={cn(
-              "flex cursor-default gap-2 rounded-md px-2 py-1.5",
-              selected
-                ? "bg-accent shadow-[inset_2px_0_0_0_var(--primary)]"
-                : "hover:bg-accent/50",
+              'flex cursor-default gap-2 rounded-md px-2 py-1.5',
+              selected ? 'bg-accent shadow-[inset_2px_0_0_0_var(--primary)]' : 'hover:bg-accent/50',
             )}
           />
         }
@@ -738,7 +726,7 @@ function ItemRow({
         <Checkbox
           checked={item.done}
           onCheckedChange={() => api.toggleItem(item.id)}
-          onClick={(e) => e.stopPropagation()}
+          onClick={e => e.stopPropagation()}
           className="mt-0.5"
         />
         <div className="min-w-0 flex-1">
@@ -746,23 +734,23 @@ function ItemRow({
             ref={editRef}
             contentEditable={editing}
             suppressContentEditableWarning
-            onClick={(e) => editing && e.stopPropagation()}
-            onBlur={(e) => {
+            onClick={e => editing && e.stopPropagation()}
+            onBlur={e => {
               const text = e.currentTarget.innerText;
               if (text !== item.text) void api.updateItem(item.id, text);
               onEndEdit();
             }}
-            onKeyDown={(e) => {
-              if (e.key !== "Escape") discardArmed.current = false;
-              if (e.key === "Enter" && !e.shiftKey) {
+            onKeyDown={e => {
+              if (e.key !== 'Escape') discardArmed.current = false;
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 e.currentTarget.blur();
-              } else if (e.key === "Escape") {
+              } else if (e.key === 'Escape') {
                 e.preventDefault();
                 const el = e.currentTarget;
                 if (el.innerText !== item.text && !discardArmed.current) {
                   discardArmed.current = true;
-                  onWarn("Esc again to discard changes");
+                  onWarn('Esc again to discard changes');
                   return;
                 }
                 el.innerText = item.text;
@@ -770,16 +758,14 @@ function ItemRow({
               }
             }}
             className={cn(
-              "text-sm break-words whitespace-pre-wrap",
-              item.done && !editing && "text-muted-foreground line-through",
-              editing && "-mx-1 -my-0.5 rounded-sm px-1 py-0.5 outline-2 outline-ring",
+              'text-sm break-words whitespace-pre-wrap',
+              item.done && !editing && 'text-muted-foreground line-through',
+              editing && '-mx-1 -my-0.5 rounded-sm px-1 py-0.5 outline-2 outline-ring',
             )}
           >
             {item.text}
           </p>
-          {showSection && (
-            <span className="text-[11px] text-muted-foreground">{row.section}</span>
-          )}
+          {showSection && <span className="text-[11px] text-muted-foreground">{row.section}</span>}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -788,9 +774,7 @@ function ItemRow({
           <ContextMenuShortcut>⌘⇧C</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem onClick={onEdit}>Edit</ContextMenuItem>
-        {selectionCount > 1 && (
-          <ContextMenuItem onClick={onMerge}>Merge</ContextMenuItem>
-        )}
+        {selectionCount > 1 && <ContextMenuItem onClick={onMerge}>Merge</ContextMenuItem>}
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onClick={onDelete}>
           Delete

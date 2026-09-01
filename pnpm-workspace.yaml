@@ -6,6 +6,7 @@ packages:
 catalogMode: strict
 
 catalog:
+  "@biomejs/biome": ^2.4.15
   "@base-ui/react": ^1.7.0
   "@fontsource-variable/geist": ^5.3.0
   "@phosphor-icons/react": ^2.1.10
@@ -25,6 +26,8 @@ catalog:
   clsx: ^2.1.1
   react: ^19.1.0
   react-dom: ^19.1.0
+  lefthook: ^2.1.10
+  repojj: ^2026.1.35
   semver: ^7.7.1
   shadcn: ^4.19.0
   tailwind-merge: ^3.6.0
@@ -34,7 +37,11 @@ catalog:
   vite: ^7.0.4
 
 allowBuilds:
+  "@biomejs/biome": true
   esbuild: true
   # Astro depends on sharp whether or not the site uses astro:assets. pnpm
   # fails the install outright without this.
   sharp: true
+  # lefthook's binary ships via optionalDependencies; its postinstall only runs
+  # `lefthook install`, which the root prepare script already does.
+  lefthook: false

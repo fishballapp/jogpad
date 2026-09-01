@@ -39,6 +39,9 @@ jobs:
 
       - run: pnpm typecheck
 
+      - name: astro check
+        run: pnpm check:astro
+
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 
       # Any SemVer prerelease, not just -beta. An -rc or -alpha tag marked as a

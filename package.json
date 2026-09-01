@@ -4,10 +4,23 @@
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "scripts": {
+    "prepare": "lefthook install",
     "dev": "pnpm --filter @jogpad/desktop dev",
     "build": "pnpm --filter @jogpad/desktop build",
-    "typecheck": "pnpm --recursive typecheck",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "typecheck": "tsc -b",
+    "check:astro": "pnpm --filter @jogpad/site astro:check",
+    "repojj:check": "repojj check",
+    "repojj:check:fix": "repojj check --fix",
+    "repojj:postfix": "biome check --write .",
     "test": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "lefthook": "catalog:",
+    "repojj": "catalog:",
+    "typescript": "catalog:"
   },
   "license": "MIT"
 }

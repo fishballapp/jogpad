@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Kbd } from "@/components/ui/kbd";
-import { ArrowRight, Plus } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
-import type { Section } from "@/lib/api";
+import { ArrowRight, Plus } from '@phosphor-icons/react';
+import { useEffect, useMemo, useState } from 'react';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Kbd } from '@/components/ui/kbd';
+import type { Section } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 type Props = {
   open: boolean;
@@ -14,24 +14,23 @@ type Props = {
 };
 
 export function SectionPalette({ open, onOpenChange, sections, active, onPick }: Props) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
 
   useEffect(() => {
     if (open) {
-      setQuery("");
+      setQuery('');
       setCursor(0);
     }
   }, [open]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return sections.filter((s) => s.name.toLowerCase().includes(q));
+    return sections.filter(s => s.name.toLowerCase().includes(q));
   }, [sections, query]);
 
   // Offer to create the section only when nothing already has that exact name.
-  const creating =
-    query.trim().length > 0 && !sections.some((s) => s.name === query.trim());
+  const creating = query.trim().length > 0 && !sections.some(s => s.name === query.trim());
   const rows = creating ? [...matches, null] : matches;
 
   const commit = (index: number) => {
@@ -51,18 +50,18 @@ export function SectionPalette({ open, onOpenChange, sections, active, onPick }:
           autoFocus
           value={query}
           placeholder="Go to or create a section"
-          onChange={(e) => {
+          onChange={e => {
             setQuery(e.target.value);
             setCursor(0);
           }}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowDown") {
+          onKeyDown={e => {
+            if (e.key === 'ArrowDown') {
               e.preventDefault();
-              setCursor((c) => Math.min(c + 1, rows.length - 1));
-            } else if (e.key === "ArrowUp") {
+              setCursor(c => Math.min(c + 1, rows.length - 1));
+            } else if (e.key === 'ArrowUp') {
               e.preventDefault();
-              setCursor((c) => Math.max(c - 1, 0));
-            } else if (e.key === "Enter" && rows.length > 0) {
+              setCursor(c => Math.max(c - 1, 0));
+            } else if (e.key === 'Enter' && rows.length > 0) {
               e.preventDefault();
               commit(cursor);
             }
@@ -72,21 +71,19 @@ export function SectionPalette({ open, onOpenChange, sections, active, onPick }:
         <div className="max-h-64 overflow-y-auto border-t p-1">
           {rows.map((row, i) => (
             <button
-              key={row ? row.name : "__new"}
+              key={row ? row.name : '__new'}
               onMouseEnter={() => setCursor(i)}
               onClick={() => commit(i)}
               className={cn(
-                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                i === cursor && "bg-accent text-accent-foreground",
+                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm',
+                i === cursor && 'bg-accent text-accent-foreground',
               )}
             >
               {row ? (
                 <>
                   <ArrowRight className="size-3.5 opacity-50" />
                   <span className="truncate">{row.name}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {row.items.length}
-                  </span>
+                  <span className="ml-auto text-xs text-muted-foreground">{row.items.length}</span>
                   {row.name === active && <Kbd className="ml-1">now</Kbd>}
                 </>
               ) : (

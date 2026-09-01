@@ -1,5 +1,5 @@
-import type { APIRoute } from "astro";
-import { fetchPublishedReleases, manifestRelease, manifestFor } from "../lib/releases";
+import type { APIRoute } from 'astro';
+import { fetchPublishedReleases, manifestFor, manifestRelease } from '../lib/releases';
 
 export const prerender = true;
 
@@ -13,6 +13,6 @@ export const GET: APIRoute = async () => {
 
   return new Response(await manifestFor(release), {
     status: 200,
-    headers: { "Content-Type": "application/json" },
+    headers: { 'Content-Type': 'application/json' },
   });
 };
