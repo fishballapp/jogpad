@@ -4,6 +4,18 @@ The release workflow reads these sections. A tag whose version has no section
 here fails before it builds anything, which is the point: notes written after
 the fact never get written.
 
+## 0.1.5-beta.2
+
+Items can be dragged to reorder, with the list animating out of the way, and
+dragging a selected row brings the rest of the selection along.
+
+A settings screen (in the ⋮ menu) holds the update channel and two new
+behaviours: copying can tick items off as it goes, and done items can gather
+under a divider at the bottom of the list. Both are off by default, and the
+grouping is display-only, so notes.md keeps its real order.
+
+The selection bar can also check or uncheck everything selected at once.
+
 ## 0.1.5-beta.1
 
 Row selection no longer indexes past the end of the list when the visible rows
