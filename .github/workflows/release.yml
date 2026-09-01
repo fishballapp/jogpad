@@ -73,6 +73,39 @@ jobs:
             echo "is_beta=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Notes come from CHANGELOG.md, so they are reviewed in the commit that
+      # ships them rather than typed into a web form afterwards. This runs
+      # before the build: a missing section should cost seconds, not a
+      # notarisation round trip.
+      - name: Collect release notes
+        id: notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          # sed drops the blank line that follows the heading.
+          NOTES=$(awk -v v="## $VERSION" '$0 == v {found=1; next} /^## / && found {exit} found' CHANGELOG.md | sed '/./,$!d')
+          if [ -z "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ]; then
+            echo "Error: CHANGELOG.md has no '## $VERSION' section" >&2
+            exit 1
+          fi
+          {
+            echo 'body<<RELEASE_NOTES_EOF'
+            printf '%s\n' "$NOTES"
+            cat <<'INSTALL'
+
+          ## Installing
+
+          Download `JogPad_<version>_universal.dmg` below and drag JogPad to
+          Applications. Runs on Apple silicon and Intel.
+
+          On first launch, grant Accessibility access when asked. Without it
+          double-tapping Shift cannot read the selection in other apps.
+          INSTALL
+            echo 'RELEASE_NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Prepare Apple and updater credentials
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -142,12 +175,7 @@ jobs:
           prerelease: ${{ steps.flags.outputs.is_beta == 'true' }}
           uploadUpdaterJson: true
           uploadUpdaterSignatures: true
-          releaseBody: |
-            Download `JogPad_<version>_universal.dmg` below and drag JogPad to
-            Applications. Runs on Apple silicon and Intel.
-
-            On first launch, grant Accessibility access when asked. Without it
-            double-tapping Shift cannot read the selection in other apps.
+          releaseBody: ${{ steps.notes.outputs.body }}
 
       # Tauri notarises and staples the .app, then wraps it in a disk image it
       # does not notarise. Gatekeeper judges the container a browser downloaded,
