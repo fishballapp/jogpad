@@ -13,6 +13,7 @@ export type GitHubRelease = {
   html_url: string;
 };
 
+const REPO = "fishballapp/jogpad";
 const MANIFEST_ASSET = "latest.json";
 
 function headers(): Record<string, string> {
@@ -33,7 +34,7 @@ function headers(): Record<string, string> {
 /// reached a manifest would advertise an update nobody can install.
 export async function fetchPublishedReleases(): Promise<GitHubRelease[]> {
   const res = await fetch(
-    "https://api.github.com/repos/fishballapp/jogpad/releases?per_page=100",
+    `https://api.github.com/repos/${REPO}/releases?per_page=100`,
     { headers: headers() },
   );
   // Including 404: an empty repository answers 200 with [], so a 404 means the
@@ -115,6 +116,15 @@ export async function manifestFor(release: GitHubRelease): Promise<string> {
   if (typeof manifest.version !== "string" || manifest.version.trim() === "") {
     throw new Error(`${MANIFEST_ASSET} for ${release.tag_name} has no version`);
   }
+  // Shape is not correspondence. A manifest that parses but describes an older
+  // build would advertise yesterday's version as the newest, which is exactly
+  // the silent staleness this file exists to prevent.
+  const tagged = release.tag_name.replace(/^v/, "");
+  if (!semver.eq(manifest.version, tagged)) {
+    throw new Error(
+      `${MANIFEST_ASSET} for ${release.tag_name} declares version ${manifest.version}`,
+    );
+  }
   const platforms = Object.entries(manifest.platforms ?? {});
   if (platforms.length === 0) {
     throw new Error(`${MANIFEST_ASSET} for ${release.tag_name} lists no platforms`);
@@ -139,7 +149,8 @@ export async function manifestFor(release: GitHubRelease): Promise<string> {
 function pinsToThisRelease(url: string, tag: string): boolean {
   if (url.includes("/releases/latest/download")) return false;
   return (
-    url.includes(`/releases/download/${tag}/`) || /\/releases\/assets\/\d+$/.test(url)
+    url.includes(`https://github.com/${REPO}/releases/download/${tag}/`) ||
+    new RegExp(`^https://api\\.github\\.com/repos/${REPO}/releases/assets/\\d+$`).test(url)
   );
 }
 

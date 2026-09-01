@@ -52,6 +52,15 @@ jobs:
             echo "Error: tag $TAG is not a SemVer version tag" >&2
             exit 1
           fi
+          # tauri-action names the release from package.json, while the
+          # prerelease flag below comes from the tag. If they disagree, a beta
+          # tag can publish a plain stable release to everyone.
+          PKG=$(node -p "require('./apps/desktop/package.json').version")
+          if [ "$PKG" != "${TAG#v}" ]; then
+            echo "Error: tag $TAG does not match package.json version $PKG" >&2
+            exit 1
+          fi
+
           # Strip build metadata first, or a dash inside +build reads as a
           # prerelease.
           VERSION="${TAG#v}"

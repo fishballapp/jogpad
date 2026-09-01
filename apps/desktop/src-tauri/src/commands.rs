@@ -366,8 +366,8 @@ pub async fn install_update(
     let update = {
         let mut guard = pending.0.lock().unwrap_or_else(|e| e.into_inner());
         // A check that started before a channel switch can land after it, so the
-        // tag is the only thing that proves this update belongs to the channel
-        // the user is actually on.
+        // channel stored alongside the update is the only thing that proves it
+        // belongs to the channel the user is actually on.
         match guard.take() {
             Some((found_on, update)) if found_on == channel => update,
             _ => return Err("That update was found on a different channel. Check again.".into()),

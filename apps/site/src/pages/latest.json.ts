@@ -5,9 +5,10 @@ export const prerender = true;
 
 export const GET: APIRoute = async () => {
   const release = manifestRelease(await fetchPublishedReleases(), { stableOnly: true });
-  // An empty body means Astro writes no file, so the endpoint 404s. The app
-  // reads that as "no update available", which is the truth when no release on
-  // this channel can supply a manifest.
+  // An empty body means Astro writes no file, so the endpoint 404s. The updater
+  // treats any non-2XX as an error rather than "up to date", so this surfaces as
+  // a failed check. That only happens before the first release on this channel
+  // carries a manifest, and a failed check is better than a wrong one.
   if (!release) return new Response(null, { status: 404 });
 
   return new Response(await manifestFor(release), {
