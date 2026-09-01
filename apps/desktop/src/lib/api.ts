@@ -14,6 +14,8 @@ export type Snapshot = {
   active: string;
   zoom: number;
   update_channel: UpdateChannel;
+  check_on_copy: boolean;
+  group_done: boolean;
   notes_path: string;
   /// The notes file could not be read, so nothing is being written to it.
   read_only: boolean;
@@ -28,7 +30,10 @@ export const api = {
     invoke<void>('add_item', { text, section: section ?? null }),
   updateItem: (id: number, text: string) => invoke<void>('update_item', { id, text }),
   toggleItem: (id: number) => invoke<void>('toggle_item', { id }),
+  setDone: (ids: number[], done: boolean) => invoke<void>('set_done', { ids, done }),
   deleteItems: (ids: number[]) => invoke<void>('delete_items', { ids }),
+  moveItemsBefore: (ids: number[], before: number | null, section: string) =>
+    invoke<void>('move_items_before', { ids, before, section }),
   moveItems: (ids: number[], section: string) => invoke<void>('move_items', { ids, section }),
   mergeItems: (ids: number[]) => invoke<void>('merge_items', { ids }),
   setActive: (section: string) => invoke<void>('set_active', { section }),
@@ -42,6 +47,8 @@ export const api = {
   quit: () => invoke<void>('quit'),
   setZoom: (zoom: number) => invoke<void>('set_zoom', { zoom }),
   setUpdateChannel: (channel: UpdateChannel) => invoke<void>('set_update_channel', { channel }),
+  setCheckOnCopy: (value: boolean) => invoke<void>('set_check_on_copy', { value }),
+  setGroupDone: (value: boolean) => invoke<void>('set_group_done', { value }),
   checkUpdate: () => invoke<UpdateInfo | null>('check_update'),
   installUpdate: () => invoke<void>('install_update'),
 };
@@ -62,6 +69,8 @@ if (!inTauri) {
     active: 'Inbox',
     zoom: 1,
     update_channel: 'stable',
+    check_on_copy: false,
+    group_done: false,
     read_only: false,
     error: null,
     notes_path: '~/Library/Application Support/com.ycmjason.jogpad/notes.md',
@@ -90,7 +99,9 @@ if (!inTauri) {
     addItem: async () => {},
     updateItem: async () => {},
     toggleItem: async () => {},
+    setDone: async () => {},
     deleteItems: async () => {},
+    moveItemsBefore: async () => {},
     moveItems: async () => {},
     mergeItems: async () => {},
     setActive: async () => {},
@@ -104,6 +115,8 @@ if (!inTauri) {
     toggleWindow: async () => {},
     setZoom: async () => {},
     setUpdateChannel: async () => {},
+    setCheckOnCopy: async () => {},
+    setGroupDone: async () => {},
     checkUpdate: async () => null,
     installUpdate: async () => {},
   });

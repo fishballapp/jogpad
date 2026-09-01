@@ -68,6 +68,27 @@ pub fn toggle_item(app: AppHandle, id: u64) {
     }
 }
 
+/// Set several items to one state at once, unlike `toggle_item` which flips
+/// each. Toggling a mixed selection would only swap the mix around.
+#[tauri::command]
+pub fn set_done(app: AppHandle, ids: Vec<u64>, done: bool) {
+    let changed = app.state::<AppState>().with(|m| {
+        let mut changed = false;
+        for id in &ids {
+            if let Some(item) = m.doc.item_mut(*id) {
+                if item.done != done {
+                    item.done = done;
+                    changed = true;
+                }
+            }
+        }
+        changed
+    });
+    if changed {
+        commit(&app);
+    }
+}
+
 #[tauri::command]
 pub fn delete_items(app: AppHandle, ids: Vec<u64>) {
     app.state::<AppState>().with(|m| m.doc.take_items(&ids));
@@ -186,7 +207,55 @@ pub fn copy_as_list(app: AppHandle, ids: Vec<u64>) -> Result<String, String> {
     app.clipboard()
         .write_text(text.clone())
         .map_err(|e| e.to_string())?;
+    // Only after the clipboard write: checking off something that never made
+    // it to the clipboard would lose it twice over.
+    let checked = app.state::<AppState>().with(|m| {
+        if !m.prefs.check_on_copy {
+            return false;
+        }
+        let mut changed = false;
+        for id in &ids {
+            if let Some(item) = m.doc.item_mut(*id) {
+                if !item.done {
+                    item.done = true;
+                    changed = true;
+                }
+            }
+        }
+        changed
+    });
+    if checked {
+        commit(&app);
+    }
     Ok(text)
+}
+
+/// Pull items out and drop them back in front of `before`, or at the end of
+/// `section` when `before` is None. Drag and drop in the front end lands here.
+#[tauri::command]
+pub fn move_items_before(app: AppHandle, ids: Vec<u64>, before: Option<u64>, section: String) {
+    let Some(section) = normalise_section_name(&section) else {
+        return;
+    };
+    let moved = app
+        .state::<AppState>()
+        .with(|m| m.doc.move_items_before(&ids, before, &section));
+    if moved {
+        commit(&app);
+    }
+}
+
+#[tauri::command]
+pub fn set_check_on_copy(app: AppHandle, value: bool) {
+    app.state::<AppState>()
+        .with(|m| m.prefs.check_on_copy = value);
+    commit_prefs(&app);
+}
+
+#[tauri::command]
+pub fn set_group_done(app: AppHandle, value: bool) {
+    app.state::<AppState>().with(|m| m.prefs.group_done = value);
+    commit_prefs(&app);
 }
 
 /// Accessibility is not enough on its own: watching the keyboard needs Input

@@ -226,6 +226,42 @@ impl Doc {
         taken
     }
 
+    /// Pull items out (keeping their document order) and drop them back in
+    /// front of `before`, or at the end of `section` when `before` is None or
+    /// gone. Returns whether anything actually ended up somewhere new: the
+    /// file order is only known here, so this is where a no-op drop is caught.
+    pub fn move_items_before(&mut self, ids: &[u64], before: Option<u64>, section: &str) -> bool {
+        let layout = |sections: &[Section]| -> Vec<Vec<u64>> {
+            sections
+                .iter()
+                .map(|s| s.items.iter().map(|i| i.id).collect())
+                .collect()
+        };
+        let original = layout(&self.sections);
+
+        let taken = self.take_items(ids);
+        if taken.is_empty() {
+            return false;
+        }
+        // `before` wins over `section`: dropping onto a row means "in front of
+        // that row", wherever it lives.
+        let home = before.and_then(|b| {
+            self.sections
+                .iter()
+                .position(|s| s.items.iter().any(|i| i.id == b))
+        });
+        let target = match home {
+            Some(i) => &mut self.sections[i],
+            None => self.section_mut(section),
+        };
+        let index = before
+            .and_then(|b| target.items.iter().position(|i| i.id == b))
+            .unwrap_or(target.items.len());
+        target.items.splice(index..index, taken);
+
+        layout(&self.sections) != original
+    }
+
     pub fn items_in_order(&self, ids: &[u64]) -> Vec<&Item> {
         self.sections
             .iter()
@@ -324,6 +360,56 @@ mod tests {
         assert!(!dir.join("notes.md.tmp").exists());
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn move_items_before_reorders_within_and_across_sections() {
+        let mut doc = Doc::parse("## A\n\n- [ ] one\n- [ ] two\n- [ ] three\n\n## B\n\n");
+        let (one, three) = (doc.sections[0].items[0].id, doc.sections[0].items[2].id);
+
+        // Within a section: "one" in front of "three".
+        assert!(doc.move_items_before(&[one], Some(three), "A"));
+        assert_eq!(
+            doc.sections[0]
+                .items
+                .iter()
+                .map(|i| i.text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["two", "one", "three"]
+        );
+
+        // No `before`: lands at the end of the named section, even another one.
+        assert!(doc.move_items_before(&[one], None, "B"));
+        assert_eq!(doc.sections[1].items[0].text, "one");
+
+        // A `before` that exists elsewhere wins over the named section.
+        assert!(doc.move_items_before(&[three], Some(one), "A"));
+        assert_eq!(doc.sections[1].items[0].text, "three");
+
+        // A vanished item moves nothing.
+        assert!(!doc.move_items_before(&[999], None, "A"));
+    }
+
+    #[test]
+    fn moving_several_items_keeps_their_order_and_a_noop_reports_false() {
+        let mut doc = Doc::parse("## A\n\n- [ ] one\n- [ ] two\n- [ ] three\n- [ ] four\n\n");
+        let ids: Vec<u64> = doc.sections[0].items.iter().map(|i| i.id).collect();
+
+        // "one" and "three" in front of "four": document order wins over the
+        // order the ids were passed in.
+        assert!(doc.move_items_before(&[ids[2], ids[0]], Some(ids[3]), "A"));
+        assert_eq!(
+            doc.sections[0]
+                .items
+                .iter()
+                .map(|i| i.text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["two", "one", "three", "four"]
+        );
+
+        // Dropping them right back where they already sit changes nothing,
+        // and says so, so the caller does not rewrite the file.
+        assert!(!doc.move_items_before(&[ids[0], ids[2]], Some(ids[3]), "A"));
     }
 
     #[test]

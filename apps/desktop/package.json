@@ -1,7 +1,7 @@
 {
   "name": "@jogpad/desktop",
   "private": true,
-  "version": "0.1.5-beta.1",
+  "version": "0.1.5-beta.2",
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
@@ -12,6 +12,10 @@
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
+    "@dnd-kit/core": "catalog:",
+    "@dnd-kit/modifiers": "catalog:",
+    "@dnd-kit/sortable": "catalog:",
+    "@dnd-kit/utilities": "catalog:",
     "@fontsource-variable/geist": "catalog:",
     "@phosphor-icons/react": "catalog:",
     "@tauri-apps/api": "catalog:",

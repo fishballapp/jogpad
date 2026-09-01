@@ -1,18 +1,32 @@
 import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   ArrowCircleDown,
   ArrowsMerge,
+  CheckSquare,
   Copy,
   DotsThreeVertical,
   EyeSlash,
   FolderOpen,
+  GearSix,
   MagnifyingGlass,
   Power,
   ShieldCheck,
+  Square,
   Trash,
   X,
 } from '@phosphor-icons/react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SectionPalette } from '@/components/section-palette';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -36,9 +50,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
@@ -80,6 +91,7 @@ export default function App() {
   const [checking, setChecking] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -128,8 +140,7 @@ export default function App() {
   );
 
   const handleChannelChange = useCallback(
-    async (value: string) => {
-      const channel = value as UpdateChannel;
+    async (channel: UpdateChannel) => {
       if (snap && snap.update_channel === channel) return;
       setUpdate(null);
       setUpdateDialogOpen(false);
@@ -185,7 +196,13 @@ export default function App() {
       );
     }
     const section = snap.sections.find(s => s.name === snap.active);
-    return (section?.items ?? []).map(item => ({ item, section: snap.active }));
+    const items = section?.items ?? [];
+    // Grouping is display-only: the markdown file keeps its real order, so
+    // unchecking an item sends it back where it always was.
+    const ordered = snap.group_done
+      ? [...items.filter(i => !i.done), ...items.filter(i => i.done)]
+      : items;
+    return ordered.map(item => ({ item, section: snap.active }));
   }, [snap, query]);
 
   // Selection is pruned against what is currently visible, so switching
@@ -210,11 +227,17 @@ export default function App() {
       return;
     }
     if (e.shiftKey && anchorRef.current !== null) {
-      const from = Math.min(anchorRef.current, index);
-      const to = Math.max(anchorRef.current, index);
-      setSelected(rows.slice(from, to + 1).map(r => r.item.id));
-      cursorRef.current = index;
-      return;
+      // The anchor is an index into the visible rows, and checking an item
+      // while done-grouping is on reorders them under it. Trust it only while
+      // it still points at a selected row, like the arrow-key handler does.
+      const anchorRow = rows[anchorRef.current];
+      if (anchorRow && selected.includes(anchorRow.item.id)) {
+        const from = Math.min(anchorRef.current, index);
+        const to = Math.max(anchorRef.current, index);
+        setSelected(rows.slice(from, to + 1).map(r => r.item.id));
+        cursorRef.current = index;
+        return;
+      }
     }
     setSelected([id]);
     anchorRef.current = index;
@@ -250,7 +273,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       // A dialog covers the list, so a stray Delete would destroy a selection
       // the user cannot even see. Each dialog handles its own Escape.
-      if (palette || updateDialogOpen) return;
+      if (palette || updateDialogOpen || settingsOpen) return;
       const typing = isTypingTarget(e.target);
 
       if (e.metaKey && e.key.toLowerCase() === 'k') {
@@ -342,9 +365,45 @@ export default function App() {
     rows,
     searching,
     selected,
+    settingsOpen,
     snap?.zoom,
     updateDialogOpen,
   ]);
+
+  // Clicks must still select and double-clicks still edit, so a drag only
+  // starts once the pointer has actually travelled.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!snap || !over || active.id === over.id) return;
+    const oldIndex = rows.findIndex(r => r.item.id === active.id);
+    const newIndex = rows.findIndex(r => r.item.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const dragged = rows[oldIndex];
+    if (!dragged) return;
+    // Dragging a selected row brings the rest of the selection along, the
+    // same way copy and delete on a selected row already act on all of it.
+    const moving = selected.includes(dragged.item.id)
+      ? rows.filter(r => selected.includes(r.item.id)).map(r => r.item.id)
+      : [dragged.item.id];
+    // The dragged row lands at `newIndex`: dragging down pushes the row it
+    // passed upward, so the insert point sits just after it.
+    const displaced = oldIndex < newIndex ? newIndex + 1 : newIndex;
+    // Under grouping the display order is not the file order, so the drop
+    // resolves against rows in the dragged item's own done-partition: an
+    // "insert before" aimed at the other partition would rewrite the file
+    // and then re-partition back to exactly the picture it started from.
+    // Rows that are themselves moving cannot be landed on either.
+    const landable = (r: Row) =>
+      (!snap.group_done || r.item.done === dragged.item.done) && !moving.includes(r.item.id);
+    const before = rows.slice(displaced).find(landable)?.item.id ?? null;
+    // No adjacency guard here: the backend knows the file order, detects a
+    // drop that changes nothing and skips the rewrite itself.
+    void api.moveItemsBefore(moving, before, snap.active);
+  };
+
+  const allSelectedDone =
+    selected.length > 0 && rows.every(r => !selected.includes(r.item.id) || r.item.done);
 
   if (loadError) {
     return (
@@ -427,17 +486,10 @@ export default function App() {
                     <ShieldCheck /> Grant {missingPermission}
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                  <GearSix /> Settings…
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuRadioGroup
-                  value={snap.update_channel}
-                  onValueChange={val => void handleChannelChange(val)}
-                >
-                  {/* Base UI reads the group from context, so a label outside
-                    one throws and takes the whole app down with it. */}
-                  <DropdownMenuLabel>Updates</DropdownMenuLabel>
-                  <DropdownMenuRadioItem value="stable">Stable</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="beta">Beta</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
                 <DropdownMenuItem disabled={checking} onClick={() => void checkForUpdate(true)}>
                   <ArrowCircleDown /> {checking ? 'Checking for Updates…' : 'Check for Updates…'}
                 </DropdownMenuItem>
@@ -513,27 +565,49 @@ export default function App() {
               )}
             </p>
           ) : (
-            rows.map((row, index) => (
-              <ItemRow
-                key={row.item.id}
-                row={row}
-                showSection={Boolean(query)}
-                selected={selected.includes(row.item.id)}
-                editing={editing === row.item.id}
-                onEdit={() => setEditing(row.item.id)}
-                onWarn={toast}
-                onEndEdit={() => setEditing(null)}
-                onClick={e => selectRow(index, e)}
-                selectionCount={selected.length}
-                onCopy={() =>
-                  copySelection(selected.includes(row.item.id) ? selected : [row.item.id])
-                }
-                onMerge={() => api.mergeItems(selected)}
-                onDelete={() =>
-                  api.deleteItems(selected.includes(row.item.id) ? selected : [row.item.id])
-                }
-              />
-            ))
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              modifiers={[restrictToVerticalAxis]}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={rows.map(r => r.item.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {rows.map((row, index) => (
+                  <Fragment key={row.item.id}>
+                    {snap.group_done && !query && row.item.done && !rows[index - 1]?.item.done && (
+                      <div className="mx-2 mt-2 mb-1 border-t pt-1 text-[11px] font-medium text-muted-foreground">
+                        Done
+                      </div>
+                    )}
+                    <ItemRow
+                      row={row}
+                      showSection={Boolean(query)}
+                      selected={selected.includes(row.item.id)}
+                      editing={editing === row.item.id}
+                      onEdit={() => setEditing(row.item.id)}
+                      onWarn={toast}
+                      onEndEdit={() => setEditing(null)}
+                      onClick={e => selectRow(index, e)}
+                      selectionCount={selected.length}
+                      onCopy={() =>
+                        copySelection(selected.includes(row.item.id) ? selected : [row.item.id])
+                      }
+                      onMerge={() => api.mergeItems(selected)}
+                      onDelete={() =>
+                        api.deleteItems(selected.includes(row.item.id) ? selected : [row.item.id])
+                      }
+                      // Search shows rows from several sections, where "drop
+                      // above this row" has no one meaning, so dragging is off
+                      // there. Editing needs the pointer for text selection.
+                      canDrag={!query && editing !== row.item.id}
+                    />
+                  </Fragment>
+                ))}
+              </SortableContext>
+            </DndContext>
           )}
         </div>
 
@@ -544,6 +618,14 @@ export default function App() {
               <Button variant="ghost" size="sm" onClick={() => copySelection()}>
                 <Copy /> Copy as list <Kbd>⌘⇧C</Kbd>
               </Button>
+              {/* A mixed selection checks everything rather than flipping each
+                item, which would only swap the mix around. */}
+              <IconButton
+                label={allSelectedDone ? 'Uncheck all' : 'Check all'}
+                onClick={() => api.setDone(selected, !allSelectedDone)}
+              >
+                {allSelectedDone ? <Square /> : <CheckSquare />}
+              </IconButton>
               {selected.length > 1 && (
                 <IconButton label="Merge into one item" onClick={() => api.mergeItems(selected)}>
                   <ArrowsMerge />
@@ -623,6 +705,59 @@ export default function App() {
           </DialogContent>
         </Dialog>
 
+        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Settings</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-4 text-left text-sm">
+              <label htmlFor="check-on-copy" className="flex cursor-default items-start gap-2.5">
+                <Checkbox
+                  id="check-on-copy"
+                  checked={snap.check_on_copy}
+                  onCheckedChange={checked => void api.setCheckOnCopy(checked === true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Check off items when copying
+                  <span className="block text-xs text-muted-foreground">
+                    Copied items are marked as done.
+                  </span>
+                </span>
+              </label>
+              <label htmlFor="group-done" className="flex cursor-default items-start gap-2.5">
+                <Checkbox
+                  id="group-done"
+                  checked={snap.group_done}
+                  onCheckedChange={checked => void api.setGroupDone(checked === true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Group done items at the bottom
+                  <span className="block text-xs text-muted-foreground">
+                    Done items gather under a divider. notes.md keeps its order.
+                  </span>
+                </span>
+              </label>
+              <div>
+                <p className="mb-1.5 font-medium">Update channel</p>
+                <div className="flex gap-1">
+                  {(['stable', 'beta'] as const).map(channel => (
+                    <Button
+                      key={channel}
+                      size="sm"
+                      variant={snap.update_channel === channel ? 'default' : 'outline'}
+                      onClick={() => void handleChannelChange(channel)}
+                    >
+                      {channel === 'stable' ? 'Stable' : 'Beta'}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {flash && (
           <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
             <span className="rounded-full bg-foreground px-2.5 py-1 text-xs text-background shadow">
@@ -675,6 +810,7 @@ type RowProps = {
   onCopy: () => void;
   onMerge: () => void;
   onDelete: () => void;
+  canDrag: boolean;
 };
 
 function ItemRow({
@@ -690,8 +826,13 @@ function ItemRow({
   onCopy,
   onMerge,
   onDelete,
+  canDrag,
 }: RowProps) {
   const { item } = row;
+  const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({
+    id: item.id,
+    disabled: !canDrag,
+  });
   const editRef = useRef<HTMLParagraphElement>(null);
   // Esc discards, so it asks once before throwing typing away.
   const discardArmed = useRef(false);
@@ -714,11 +855,17 @@ function ItemRow({
       <ContextMenuTrigger
         render={
           <div
+            ref={setNodeRef}
+            style={{ transform: CSS.Transform.toString(transform), transition }}
+            {...listeners}
             onClick={onClick}
             onDoubleClick={onEdit}
             className={cn(
               'flex cursor-default gap-2 rounded-md px-2 py-1.5',
               selected ? 'bg-accent shadow-[inset_2px_0_0_0_var(--primary)]' : 'hover:bg-accent/50',
+              // The row itself follows the pointer, so lift it above its
+              // neighbours while it travels across them.
+              isDragging && 'relative z-10 bg-accent shadow-md',
             )}
           />
         }

@@ -34,6 +34,13 @@ pub struct Prefs {
     /// wrote a channel name it has never heard of.
     #[serde(default, deserialize_with = "channel_or_default")]
     pub update_channel: UpdateChannel,
+    /// Copying items also checks them off, like ticking a shopping list.
+    #[serde(default)]
+    pub check_on_copy: bool,
+    /// Show done items gathered at the bottom of the list. Display only: the
+    /// markdown file keeps its real order.
+    #[serde(default)]
+    pub group_done: bool,
 }
 
 fn channel_or_default<'de, D>(d: D) -> Result<UpdateChannel, D::Error>
@@ -57,6 +64,8 @@ impl Default for Prefs {
             width: 380.0,
             height: 720.0,
             update_channel: UpdateChannel::default(),
+            check_on_copy: false,
+            group_done: false,
         }
     }
 }
@@ -89,6 +98,8 @@ pub struct Snapshot {
     pub active: String,
     pub zoom: f64,
     pub update_channel: UpdateChannel,
+    pub check_on_copy: bool,
+    pub group_done: bool,
     pub notes_path: String,
     pub read_only: bool,
     pub error: Option<String>,
@@ -148,6 +159,8 @@ impl AppState {
             active: model.prefs.active.clone(),
             zoom: model.prefs.zoom,
             update_channel: model.prefs.update_channel,
+            check_on_copy: model.prefs.check_on_copy,
+            group_done: model.prefs.group_done,
             notes_path: self.notes_path.display().to_string(),
             read_only: model.read_only,
             error: model.error.clone(),
