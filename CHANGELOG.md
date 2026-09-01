@@ -4,6 +4,14 @@ The release workflow reads these sections. A tag whose version has no section
 here fails before it builds anything, which is the point: notes written after
 the fact never get written.
 
+## 0.1.5-beta.3
+
+Settings moved out of the panel into their own window, with a sidebar:
+General holds the copy and grouping behaviours, Updates holds the channel
+and a check-and-install flow. Both behaviours are now on by default.
+
+The selection bar's toggle is now labelled Mark done / Unmark done.
+
 ## 0.1.5-beta.2
 
 Items can be dragged to reorder, with the list animating out of the way, and
