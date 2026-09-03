@@ -1,7 +1,7 @@
 {
   "name": "@jogpad/desktop",
   "private": true,
-  "version": "0.1.5-beta.5",
+  "version": "0.1.5-beta.6",
   "type": "module",
   "scripts": {
     "dev": "tauri dev",

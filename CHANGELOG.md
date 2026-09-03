@@ -4,6 +4,16 @@ The release workflow reads these sections. A tag whose version has no section
 here fails before it builds anything, which is the point: notes written after
 the fact never get written.
 
+## 0.1.5-beta.6
+
+The settings window is now the same kind of floating panel as the pad, so it
+really does open over a full-screen app. The previous beta only asked it to
+join every Space, and showing it still switched you back to the desktop.
+Settings always sits above the pad.
+
+Double-tapping Shift while the settings window has the keyboard puts both
+windows away. The next double-tap brings back just the pad.
+
 ## 0.1.5-beta.5
 
 Done items start folded away under a "Done N" heading. Click it to open them.
