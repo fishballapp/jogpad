@@ -448,6 +448,14 @@ export default function App() {
           </button>
           <span className="text-xs text-muted-foreground">{rows.length}</span>
           <div className="ml-auto flex items-center gap-0.5">
+            {update && (
+              <IconButton
+                label={`Update to v${update.version}`}
+                onClick={() => setUpdateDialogOpen(true)}
+              >
+                <ArrowCircleDown className="text-primary" />
+              </IconButton>
+            )}
             <IconButton
               label="Search"
               hint="⌘F"
@@ -460,13 +468,10 @@ export default function App() {
             </IconButton>
             <DropdownMenu>
               <DropdownMenuTrigger
-                render={<Button variant="ghost" size="icon-sm" className="relative" />}
-                aria-label={update ? `More (update to v${update.version} available)` : 'More'}
+                render={<Button variant="ghost" size="icon-sm" />}
+                aria-label="More"
               >
                 <DotsThreeVertical />
-                {update && (
-                  <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
-                )}
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
@@ -484,14 +489,6 @@ export default function App() {
                 <DropdownMenuItem disabled={checking} onClick={() => void checkForUpdate(true)}>
                   <ArrowCircleDown /> {checking ? 'Checking for Updates…' : 'Check for Updates…'}
                 </DropdownMenuItem>
-                {update && (
-                  <DropdownMenuItem
-                    onClick={() => setUpdateDialogOpen(true)}
-                    className="text-primary font-medium focus:text-primary"
-                  >
-                    <ArrowCircleDown /> Update to v{update.version}…
-                  </DropdownMenuItem>
-                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => api.hideWindow()}>
                   <EyeSlash /> Hide
