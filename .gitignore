@@ -35,3 +35,5 @@ docs/
 
 # Updater signing key. Losing it means no installed app can ever update again.
 .updater/
+
+CLAUDE.md
