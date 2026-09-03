@@ -138,15 +138,11 @@ export function PagePalette({
                       <span className="w-8 shrink-0" />
                     )}
                     <span className="truncate">{row.name}</span>
-                    {row.name === active && <Kbd className="ml-1">now</Kbd>}
+                    {row.name === active && (
+                      <span className="ml-1 text-xs text-muted-foreground">Selected</span>
+                    )}
+                    {/* Actions sit before the count so it never shifts on hover. */}
                     <span className="ml-auto flex shrink-0 items-center gap-1">
-                      {armed === row.name ? (
-                        <span className="text-xs text-destructive">
-                          Delete {row.items.length} item{row.items.length === 1 ? '' : 's'}?
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{row.items.length}</span>
-                      )}
                       {i === cursor && (
                         <>
                           <RowAction
@@ -178,6 +174,13 @@ export function PagePalette({
                             />
                           </RowAction>
                         </>
+                      )}
+                      {armed === row.name ? (
+                        <span className="text-xs text-destructive">
+                          Delete {row.items.length} item{row.items.length === 1 ? '' : 's'}?
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{row.items.length}</span>
                       )}
                     </span>
                   </>
