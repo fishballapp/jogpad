@@ -4,6 +4,32 @@ The release workflow reads these sections. A tag whose version has no section
 here fails before it builds anything, which is the point: notes written after
 the fact never get written.
 
+## 0.1.5
+
+Everything from the 0.1.5 betas, for anyone on the stable channel coming
+from 0.1.4.
+
+Sections are now called pages. The markdown file is unchanged: they are
+still `##` headings. Pages can be renamed and deleted from ⌘K, where ⌘1 to
+⌘9 also jump straight to a page.
+
+Items can be dragged to reorder, and dragging a selected row brings the
+rest of the selection along. The selection bar can mark or unmark
+everything selected at once.
+
+Settings live in their own window, a floating panel like the pad, so it
+opens over full-screen apps. General holds Appearance (Dark, Light or
+system), a zoom stepper, Show in Finder, and two behaviours that are on by
+default: copying ticks items off as it goes, and done items gather under a
+"Done N" heading at the bottom, folded away until you click it. Updates
+holds the channel, including a new Dev channel built from every push to
+main, and a check-and-install flow. The pad checks for updates hourly, and
+an available update shows as a download icon in the top bar.
+
+Fixes: row selection no longer reads past the end of the list after a page
+switch or search, deleting an empty page from ⌘K asks once, and the
+permission prompt no longer hides behind the settings window.
+
 ## 0.1.5-beta.7
 
 Settings › General has an Appearance setting: Dark, Light, or follow the
