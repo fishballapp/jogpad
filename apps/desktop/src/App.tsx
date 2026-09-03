@@ -159,7 +159,11 @@ export default function App() {
         void checkForUpdate(false);
       })
       .catch(e => setLoadError(String(e)));
+    // The pad stays open for days, so a launch-only check would leave the
+    // Dev channel unaware of anything pushed since.
+    const hourly = window.setInterval(() => void checkForUpdate(false), 60 * 60 * 1000);
     return () => {
+      window.clearInterval(hourly);
       for (const p of unlisten) void p.then(f => f());
     };
   }, [checkForUpdate]);
