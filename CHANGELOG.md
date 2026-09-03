@@ -4,6 +4,22 @@ The release workflow reads these sections. A tag whose version has no section
 here fails before it builds anything, which is the point: notes written after
 the fact never get written.
 
+## 0.1.5-beta.7
+
+Settings › General has an Appearance setting: Dark, Light, or follow the
+system. Dark stays the default.
+
+A new Dev update channel under Settings › Updates follows every push to
+main. It is unreviewed by definition. The pad now checks for updates every
+hour as well as at launch, and an available update shows as a download
+icon in the top bar instead of an entry in the ⋮ menu.
+
+In the ⌘K palette, ⌘1 to ⌘9 jump straight to a page. The current page is
+labelled Selected, and the item count no longer moves when you hover a row.
+
+Opening the permission prompt while settings was open could leave the
+prompt behind the settings window. Settings now hides first.
+
 ## 0.1.5-beta.6
 
 The settings window is now the same kind of floating panel as the pad, so it
