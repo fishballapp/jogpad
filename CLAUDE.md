@@ -26,6 +26,11 @@ main means the dev track has stopped.
   in the file, then re-partitions on screen. Deliberate.
 - Rename and delete in the ⌘K page palette are pointer-only, for the same
   reason as drag-to-reorder: the palette's input owns every key.
+- The notes parser keeps only `## ` headings and `- ` bullets and drops every
+  other line on the next save. With a Dev channel, any change to the file
+  format makes switching back to Beta lossy. Put new constructs inside item
+  text, where an old build keeps them as words, or make the parser carry
+  unknown lines through first.
 - `docs/` is gitignored. Edits there are local notes, never part of a diff or a
   review. `docs/product/DECISIONS.md` says it is append-only — supersede an
   entry, do not rewrite it.
