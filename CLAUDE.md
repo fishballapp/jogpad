@@ -34,6 +34,17 @@ Do not stop at the draft — publishing is part of the ask.
   files they judge out of scope (one reverted a CHANGELOG edit). Re-check the
   working tree after a review run.
 
+## Installing a local build for testing
+
+`pnpm build --bundles app` in `apps/desktop` with
+`APPLE_SIGNING_IDENTITY="Developer ID Application: Fishball Ltd (9CWXH66CKT)"`
+exported. The identity is already in the keychain. Without it the build is
+ad-hoc signed, and macOS then ties Accessibility and Input Monitoring to the
+binary hash, so every rebuild silently loses both grants. The updater artifact
+step fails without `TAURI_SIGNING_PRIVATE_KEY`; the `.app` is already built by
+then and that is all a local install needs. Quit JogPad, copy the bundle over
+`/Applications/JogPad.app`, `open` it.
+
 ## Toolchain gotcha
 
 The `cargo` on PATH is an outdated pkgx shim (1.81) that cannot build the deps.

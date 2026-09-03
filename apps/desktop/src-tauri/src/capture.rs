@@ -80,9 +80,13 @@ fn wait_for_permissions(app: &AppHandle) -> bool {
 /// anything is selected.
 fn gesture(app: &AppHandle) {
     // JogPad holds the keyboard, so the only selection to read would be its
-    // own. Nothing to capture, so the tap means "put it away".
+    // own. Nothing to capture, so the tap means "put it away". Settings goes
+    // too: the next tap should bring back just the pad, not settings over it.
     if has_focus(app) {
         set_visible(app, false);
+        if let Some(settings) = app.get_webview_window("settings") {
+            let _ = settings.hide();
+        }
         return;
     }
     match selection::current() {

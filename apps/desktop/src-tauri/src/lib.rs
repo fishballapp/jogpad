@@ -53,11 +53,13 @@ pub(crate) fn set_visible(app: &AppHandle, visible: bool) {
     }
 }
 
-/// Whether the panel is the key window, i.e. whether typing lands in JogPad.
+/// Whether typing lands in JogPad, in either the panel or settings.
 pub(crate) fn has_focus(app: &AppHandle) -> bool {
-    app.get_webview_window("main")
-        .and_then(|w| Some(w.is_visible().ok()? && w.is_focused().ok()?))
-        .unwrap_or(false)
+    ["main", "settings"].into_iter().any(|label| {
+        app.get_webview_window(label)
+            .and_then(|w| Some(w.is_visible().ok()? && w.is_focused().ok()?))
+            .unwrap_or(false)
+    })
 }
 
 pub(crate) fn is_visible(app: &AppHandle) -> bool {
@@ -255,12 +257,15 @@ pub fn run() {
                 // app you switch to.
                 app.set_activation_policy(tauri::ActivationPolicy::Accessory);
                 if let Some(window) = app.get_webview_window("main") {
-                    panel::convert(&window);
+                    panel::convert(&window, panel::NS_FLOATING_WINDOW_LEVEL);
                 }
-                // Opened from a full-screen app, a plain window would land on
-                // the desktop Space, out of sight. Let it follow the panel.
+                // Same panel treatment as the sidebar. Joining all Spaces was
+                // not enough on its own: showing a plain NSWindow activates
+                // the app, and that activation is what drops you out of a
+                // full-screen Space onto the desktop to find the window.
+                // One level up, so showing the pad never buries settings.
                 if let Some(window) = app.get_webview_window("settings") {
-                    panel::join_all_spaces(&window);
+                    panel::convert(&window, panel::NS_FLOATING_WINDOW_LEVEL + 1);
                 }
                 capture::spawn(handle.clone());
             }

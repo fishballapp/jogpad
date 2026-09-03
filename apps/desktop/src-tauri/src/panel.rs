@@ -15,7 +15,7 @@ extern "C" {
 }
 
 const NS_WINDOW_STYLE_MASK_NONACTIVATING_PANEL: usize = 1 << 7;
-const NS_FLOATING_WINDOW_LEVEL: isize = 3;
+pub const NS_FLOATING_WINDOW_LEVEL: isize = 3;
 const NS_COLLECTION_BEHAVIOR_CAN_JOIN_ALL_SPACES: usize = 1 << 0;
 const NS_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY: usize = 1 << 8;
 
@@ -110,7 +110,7 @@ fn panel_class() -> &'static AnyClass {
     })
 }
 
-pub fn convert(window: &tauri::WebviewWindow) {
+pub fn convert(window: &tauri::WebviewWindow, level: isize) {
     let Ok(ptr) = window.ns_window() else {
         return;
     };
@@ -146,7 +146,7 @@ pub fn convert(window: &tauri::WebviewWindow) {
         let _: () = msg_send![ptr, setBecomesKeyOnlyIfNeeded: false];
         let _: () = msg_send![ptr, setFloatingPanel: true];
         let _: () = msg_send![ptr, setHidesOnDeactivate: false];
-        let _: () = msg_send![ptr, setLevel: NS_FLOATING_WINDOW_LEVEL];
+        let _: () = msg_send![ptr, setLevel: level];
     }
     join_all_spaces(window);
 }
