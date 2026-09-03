@@ -1,4 +1,4 @@
-import { ArrowRight, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
+import { PencilSimple, Plus, Trash } from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Kbd } from '@/components/ui/kbd';
@@ -91,6 +91,13 @@ export function PagePalette({
             } else if (e.key === 'Enter' && rows.length > 0) {
               e.preventDefault();
               commit(cursor);
+            } else if (e.metaKey && /^[1-9]$/.test(e.key)) {
+              // ⌘1–⌘9 pick by visible position, so they follow the filter.
+              const index = Number(e.key) - 1;
+              if (rows[index]) {
+                e.preventDefault();
+                commit(index);
+              }
             }
           }}
           className="w-full bg-transparent px-3 py-3 text-sm outline-none placeholder:text-muted-foreground"
@@ -125,7 +132,11 @@ export function PagePalette({
               >
                 {row ? (
                   <>
-                    <ArrowRight className="size-3.5 shrink-0 opacity-50" />
+                    {i < 9 ? (
+                      <Kbd className="w-8 shrink-0">⌘{i + 1}</Kbd>
+                    ) : (
+                      <span className="w-8 shrink-0" />
+                    )}
                     <span className="truncate">{row.name}</span>
                     {row.name === active && <Kbd className="ml-1">now</Kbd>}
                     <span className="ml-auto flex shrink-0 items-center gap-1">
