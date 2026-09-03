@@ -3,7 +3,16 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { api, inTauri, on, type Snapshot, type UpdateChannel, type UpdateInfo } from '@/lib/api';
+import {
+  api,
+  inTauri,
+  on,
+  type Snapshot,
+  type Theme,
+  type UpdateChannel,
+  type UpdateInfo,
+} from '@/lib/api';
+import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 const CATEGORIES = [
@@ -21,6 +30,7 @@ export default function SettingsWindow() {
   const [installing, setInstalling] = useState(false);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  useTheme(snap?.theme);
 
   useEffect(() => {
     // Same discipline as the panel: keep the newest snapshot seen, because
@@ -140,6 +150,22 @@ export default function SettingsWindow() {
                 </span>
               </span>
             </label>
+
+            <div>
+              <p className="mb-1.5 font-medium">Appearance</p>
+              <div className="flex gap-1">
+                {(['dark', 'light', 'system'] as const satisfies readonly Theme[]).map(theme => (
+                  <Button
+                    key={theme}
+                    size="sm"
+                    variant={snap.theme === theme ? 'default' : 'outline'}
+                    onClick={() => void api.setTheme(theme)}
+                  >
+                    {theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System'}
+                  </Button>
+                ))}
+              </div>
+            </div>
 
             <div>
               <p className="mb-1.5 font-medium">Zoom</p>

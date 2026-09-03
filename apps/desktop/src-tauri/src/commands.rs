@@ -2,7 +2,7 @@
 //! model under one lock, and commit. Domain logic belongs in `store`, and
 //! anything durable belongs behind `AppState`.
 
-use crate::state::{commit, commit_prefs, AppState, Snapshot, UpdateChannel};
+use crate::state::{commit, commit_prefs, AppState, Snapshot, Theme, UpdateChannel};
 use crate::store::{normalise_page_name, Item, DEFAULT_PAGE};
 use crate::{is_visible, set_visible};
 use serde::Serialize;
@@ -250,6 +250,13 @@ pub fn set_check_on_copy(app: AppHandle, value: bool) {
     app.state::<AppState>()
         .with(|m| m.prefs.check_on_copy = value);
     commit_prefs(&app);
+}
+
+#[tauri::command]
+pub fn set_theme(app: AppHandle, theme: Theme) {
+    app.state::<AppState>().with(|m| m.prefs.theme = theme);
+    commit_prefs(&app);
+    crate::apply_native_theme(&app, theme);
 }
 
 #[tauri::command]

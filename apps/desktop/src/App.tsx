@@ -57,6 +57,7 @@ import {
 import { Kbd } from '@/components/ui/kbd';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { api, type Item, inTauri, on, type Snapshot, type UpdateInfo } from '@/lib/api';
+import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 type Row = { item: Item; page: string };
@@ -67,6 +68,7 @@ const isTypingTarget = (el: EventTarget | null) =>
 
 export default function App() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
+  useTheme(snap?.theme);
   const [selected, setSelected] = useState<number[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
   const [query, setQuery] = useState('');

@@ -53,6 +53,21 @@ pub(crate) fn set_visible(app: &AppHandle, visible: bool) {
     }
 }
 
+/// The page toggles its own dark class; this covers what the page cannot
+/// reach, such as the settings window's title bar and native menus.
+pub(crate) fn apply_native_theme(app: &AppHandle, theme: state::Theme) {
+    let native = match theme {
+        state::Theme::Dark => Some(tauri::Theme::Dark),
+        state::Theme::Light => Some(tauri::Theme::Light),
+        state::Theme::System => None,
+    };
+    for label in ["main", "settings"] {
+        if let Some(w) = app.get_webview_window(label) {
+            let _ = w.set_theme(native);
+        }
+    }
+}
+
 /// Whether typing lands in JogPad, in either the panel or settings.
 pub(crate) fn has_focus(app: &AppHandle) -> bool {
     ["main", "settings"].into_iter().any(|label| {
@@ -212,6 +227,7 @@ pub fn run() {
             commands::move_items_before,
             commands::set_check_on_copy,
             commands::set_group_done,
+            commands::set_theme,
             commands::move_items,
             commands::merge_items,
             commands::set_active,
@@ -273,9 +289,10 @@ pub fn run() {
             // The window is created hidden so restoring size and zoom does not
             // play out as a visible jump on every launch.
             if let Some(window) = app.get_webview_window("main") {
-                let (zoom, width, height) = handle
+                let (zoom, width, height, theme) = handle
                     .state::<AppState>()
-                    .with(|m| (m.prefs.zoom, m.prefs.width, m.prefs.height));
+                    .with(|m| (m.prefs.zoom, m.prefs.width, m.prefs.height, m.prefs.theme));
+                apply_native_theme(&handle, theme);
                 let _ = window.set_size(LogicalSize::new(width, height));
                 let _ = window.set_zoom(zoom);
                 let _ = window.center();

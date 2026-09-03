@@ -21,6 +21,15 @@ pub enum UpdateChannel {
     Beta,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    #[default]
+    Dark,
+    Light,
+    System,
+}
+
 /// Everything that is not a note: which page captures land in, and how big
 /// and how zoomed the panel was when you last touched it.
 #[derive(Serialize, Deserialize, Clone)]
@@ -41,6 +50,9 @@ pub struct Prefs {
     /// markdown file keeps its real order.
     #[serde(default = "default_true")]
     pub group_done: bool,
+    /// Same leniency as the channel: an unknown name means the default.
+    #[serde(default, deserialize_with = "theme_or_default")]
+    pub theme: Theme,
 }
 
 fn default_true() -> bool {
@@ -60,6 +72,17 @@ where
     })
 }
 
+fn theme_or_default<'de, D>(d: D) -> Result<Theme, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(match serde_json::Value::deserialize(d)?.as_str() {
+        Some("light") => Theme::Light,
+        Some("system") => Theme::System,
+        _ => Theme::Dark,
+    })
+}
+
 impl Default for Prefs {
     fn default() -> Self {
         Prefs {
@@ -70,6 +93,7 @@ impl Default for Prefs {
             update_channel: UpdateChannel::default(),
             check_on_copy: true,
             group_done: true,
+            theme: Theme::default(),
         }
     }
 }
@@ -104,6 +128,7 @@ pub struct Snapshot {
     pub update_channel: UpdateChannel,
     pub check_on_copy: bool,
     pub group_done: bool,
+    pub theme: Theme,
     pub notes_path: String,
     pub read_only: bool,
     pub error: Option<String>,
@@ -165,6 +190,7 @@ impl AppState {
             update_channel: model.prefs.update_channel,
             check_on_copy: model.prefs.check_on_copy,
             group_done: model.prefs.group_done,
+            theme: model.prefs.theme,
             notes_path: self.notes_path.display().to_string(),
             read_only: model.read_only,
             error: model.error.clone(),
@@ -263,6 +289,17 @@ mod tests {
         assert_eq!(json, "\"stable\"");
         let deserialized: UpdateChannel = serde_json::from_str(&json).expect("deserialize stable");
         assert_eq!(deserialized, UpdateChannel::Stable);
+    }
+
+    #[test]
+    fn unknown_theme_falls_back_to_dark_and_keeps_fields() {
+        let json = r#"{"active":"Work","zoom":1.2,"width":400.0,"height":800.0,"theme":"sepia"}"#;
+        let prefs: Prefs = serde_json::from_str(json).expect("lenient parse");
+        assert_eq!(prefs.theme, Theme::Dark);
+        assert_eq!(prefs.zoom, 1.2);
+        let json = r#"{"active":"Work","zoom":1.0,"width":1.0,"height":1.0,"theme":"system"}"#;
+        let prefs: Prefs = serde_json::from_str(json).expect("parse");
+        assert_eq!(prefs.theme, Theme::System);
     }
 
     #[test]

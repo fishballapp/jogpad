@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 export type Item = { id: number; text: string; done: boolean };
 export type Page = { name: string; items: Item[] };
 export type UpdateChannel = 'stable' | 'beta';
+export type Theme = 'dark' | 'light' | 'system';
 export type UpdateInfo = { version: string; notes: string | null };
 
 export type Snapshot = {
@@ -14,6 +15,7 @@ export type Snapshot = {
   active: string;
   zoom: number;
   update_channel: UpdateChannel;
+  theme: Theme;
   check_on_copy: boolean;
   group_done: boolean;
   notes_path: string;
@@ -47,6 +49,7 @@ export const api = {
   quit: () => invoke<void>('quit'),
   setZoom: (zoom: number) => invoke<void>('set_zoom', { zoom }),
   setUpdateChannel: (channel: UpdateChannel) => invoke<void>('set_update_channel', { channel }),
+  setTheme: (theme: Theme) => invoke<void>('set_theme', { theme }),
   setCheckOnCopy: (value: boolean) => invoke<void>('set_check_on_copy', { value }),
   setGroupDone: (value: boolean) => invoke<void>('set_group_done', { value }),
   checkUpdate: () => invoke<UpdateInfo | null>('check_update'),
@@ -69,6 +72,7 @@ if (!inTauri) {
     active: 'Inbox',
     zoom: 1,
     update_channel: 'stable',
+    theme: 'dark',
     check_on_copy: true,
     group_done: true,
     read_only: false,
@@ -116,6 +120,7 @@ if (!inTauri) {
     toggleWindow: async () => {},
     setZoom: async () => {},
     setUpdateChannel: async () => {},
+    setTheme: async () => {},
     setCheckOnCopy: async () => {},
     setGroupDone: async () => {},
     checkUpdate: async () => null,
