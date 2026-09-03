@@ -217,17 +217,20 @@ export default function SettingsWindow() {
             <div>
               <p className="mb-1.5 font-medium">Channel</p>
               <div className="flex gap-1">
-                {(['stable', 'beta'] as const).map(channel => (
+                {(['stable', 'beta', 'dev'] as const).map(channel => (
                   <Button
                     key={channel}
                     size="sm"
                     variant={snap.update_channel === channel ? 'default' : 'outline'}
                     onClick={() => void changeChannel(channel)}
                   >
-                    {channel === 'stable' ? 'Stable' : 'Beta'}
+                    {{ stable: 'Stable', beta: 'Beta', dev: 'Dev' }[channel]}
                   </Button>
                 ))}
               </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Dev follows every push to main, unreviewed.
+              </p>
             </div>
 
             <Button size="sm" variant="outline" disabled={checking} onClick={() => void check()}>

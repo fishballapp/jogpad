@@ -2,10 +2,22 @@ name: release
 
 # Tag a version to cut a release: git tag v0.1.0 && git push --tags
 # The DMG lands on a draft release, so nothing goes public until you say so.
+#
+# Every push to main also builds a dev release, published straight away and
+# served to the Dev update channel. Its version is package.json's with
+# `.dev.<commit count>` appended, which sorts above the beta it came from and
+# below the next one. Only the newest three are kept.
 on:
   push:
     tags: ["v*"]
+    branches: [main]
   workflow_dispatch:
+
+# A newer push to main makes the dev build still running pointless. Tags are
+# each their own group and are never cancelled.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type == 'branch' }}
 
 jobs:
   build:
@@ -14,9 +26,15 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: write
+      # To redeploy the site after a dev release. GITHUB_TOKEN publishing a
+      # release does not fire the release event, so the site is asked directly.
+      actions: write
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The dev version counts commits.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v6
 
@@ -44,9 +62,40 @@ jobs:
 
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 
+      # Dev builds get their version from package.json plus the commit count,
+      # written into tauri.conf.json, which is where both Tauri and
+      # tauri-action read it. Nothing is committed.
+      - name: Version the dev build
+        if: github.ref_type == 'branch'
+        id: dev
+        run: |
+          set -euo pipefail
+          PKG=$(node -p "require('./apps/desktop/package.json').version")
+          COUNT=$(git rev-list --count HEAD)
+          BASE="${PKG%%+*}"
+          if [[ "$BASE" == *-* ]]; then
+            VERSION="$BASE.dev.$COUNT"
+          else
+            # After a stable release the next build must still sort above it,
+            # yet below whatever -beta.1 follows. A leading numeric prerelease
+            # identifier sorts before any alphabetic one, so this does both.
+            IFS=. read -r MAJ MIN PAT <<< "$BASE"
+            VERSION="$MAJ.$MIN.$((PAT + 1))-0.dev.$COUNT"
+          fi
+          echo "dev version $VERSION"
+          node -e '
+            const fs = require("fs");
+            const p = "apps/desktop/src-tauri/tauri.conf.json";
+            const c = JSON.parse(fs.readFileSync(p, "utf8"));
+            c.version = process.argv[1];
+            fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");
+          ' "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       # Any SemVer prerelease, not just -beta. An -rc or -alpha tag marked as a
       # normal release would be served to every stable client.
       - name: Check prerelease tag
+        if: github.ref_type == 'tag'
         id: flags
         env:
           TAG: ${{ github.ref_name }}
@@ -80,10 +129,20 @@ jobs:
       - name: Collect release notes
         id: notes
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.dev.outputs.version) }}
         run: |
           set -euo pipefail
           VERSION="${TAG#v}"
+          if [ "$GITHUB_REF_TYPE" = "branch" ]; then
+            {
+              echo 'body<<RELEASE_NOTES_EOF'
+              echo "Dev build of main at ${GITHUB_SHA:0:7}. Served to the Dev update channel; not for general use."
+              echo
+              git log -1 --format='%s%n%n%b'
+              echo 'RELEASE_NOTES_EOF'
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # sed drops the blank line that follows the heading.
           NOTES=$(awk -v v="## $VERSION" '$0 == v {found=1; next} /^## / && found {exit} found' CHANGELOG.md | sed '/./,$!d')
           if [ -z "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ]; then
@@ -168,11 +227,13 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
-          args: --target universal-apple-darwin
+          # Dev builds skip the dmg: nobody downloads them, the updater fetches
+          # the .app.tar.gz, and it saves the notarisation of a second file.
+          args: --target universal-apple-darwin ${{ github.ref_type == 'branch' && '--bundles app' || '' }}
           tagName: v__VERSION__
           releaseName: JogPad v__VERSION__
           releaseDraft: true
-          prerelease: ${{ steps.flags.outputs.is_beta == 'true' }}
+          prerelease: ${{ github.ref_type == 'branch' || steps.flags.outputs.is_beta == 'true' }}
           uploadUpdaterJson: true
           uploadUpdaterSignatures: true
           releaseBody: ${{ steps.notes.outputs.body }}
@@ -183,6 +244,7 @@ jobs:
       # malicious software" even though the app inside is fine. Updates are
       # unaffected either way: they fetch the .app.tar.gz, never the dmg.
       - name: Notarise and staple the disk image
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
@@ -207,3 +269,27 @@ jobs:
 
           # tauri-action already attached the unnotarised one.
           gh release upload "$TAG" "$DMG" --clobber --repo "${{ github.repository }}"
+
+      # Publishing a draft by hand is the safety net for tagged releases. Dev
+      # builds are meant to flow, so they publish themselves, and the older
+      # ones go so the release list stays readable. Three stay in case the
+      # newest is broken and someone needs to step back.
+      - name: Publish the dev build and prune older ones
+        if: github.ref_type == 'branch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: v${{ steps.dev.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --draft=false --repo "$REPO"
+          # The API lists newest first, so everything after the first three
+          # dev releases is old. Drafts left by cancelled runs go the same way.
+          gh api "repos/$REPO/releases?per_page=100" \
+            --jq '.[] | select(.tag_name | test("\\.dev\\.[0-9]+$")) | .tag_name' \
+            | { grep -v -x "$TAG" || true; } | tail -n +3 | while read -r old; do
+              echo "pruning $old"
+              gh release delete "$old" --cleanup-tag --yes --repo "$REPO" \
+                || gh release delete "$old" --yes --repo "$REPO"
+            done
+          gh workflow run site.yml --repo "$REPO" --ref main

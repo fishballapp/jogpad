@@ -19,6 +19,8 @@ pub enum UpdateChannel {
     #[default]
     Stable,
     Beta,
+    /// Every push to main. Sorts between the beta it came from and the next.
+    Dev,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -68,6 +70,7 @@ where
     // silently resetting the active page, zoom and window size.
     Ok(match serde_json::Value::deserialize(d)?.as_str() {
         Some("beta") => UpdateChannel::Beta,
+        Some("dev") => UpdateChannel::Dev,
         _ => UpdateChannel::Stable,
     })
 }

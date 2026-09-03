@@ -78,17 +78,20 @@ jobs:
           set -euo pipefail
           releases=$(gh api "repos/${{ github.repository }}/releases?per_page=100")
           has_manifest='select(.draft == false) | select(any(.assets[]; .name == "latest.json"))'
+          is_dev='(.tag_name | test("\\.dev\\.[0-9]+$"))'
           stable=$(jq "[.[] | $has_manifest | select(.prerelease == false)] | length" <<< "$releases")
-          any=$(jq "[.[] | $has_manifest] | length" <<< "$releases")
-          echo "releases carrying a manifest: stable=$stable any=$any"
-          if [ "$stable" -gt 0 ] && [ ! -s apps/site/dist/latest.json ]; then
-            echo "Error: a published stable release carries a manifest but dist/latest.json is missing" >&2
-            exit 1
-          fi
-          if [ "$any" -gt 0 ] && [ ! -s apps/site/dist/beta.json ]; then
-            echo "Error: a published release carries a manifest but dist/beta.json is missing" >&2
-            exit 1
-          fi
+          beta=$(jq "[.[] | $has_manifest | select($is_dev | not)] | length" <<< "$releases")
+          dev=$(jq "[.[] | $has_manifest] | length" <<< "$releases")
+          echo "releases carrying a manifest: stable=$stable beta=$beta dev=$dev"
+          for pair in "stable:latest.json" "beta:beta.json" "dev:dev.json"; do
+            name=${pair%%:*}
+            file=${pair#*:}
+            count=${!name}
+            if [ "$count" -gt 0 ] && [ ! -s "apps/site/dist/$file" ]; then
+              echo "Error: a published release could serve $file but the build did not write it" >&2
+              exit 1
+            fi
+          done
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

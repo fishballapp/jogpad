@@ -4,7 +4,7 @@ import { fetchPublishedReleases, manifestFor, manifestRelease } from '../lib/rel
 export const prerender = true;
 
 export const GET: APIRoute = async () => {
-  const release = manifestRelease(await fetchPublishedReleases(), { stableOnly: false });
+  const release = manifestRelease(await fetchPublishedReleases(), 'beta');
   // An empty body means Astro writes no file, so the endpoint 404s. The updater
   // treats any non-2XX as an error rather than "up to date", so this surfaces as
   // a failed check. That only happens before the first release on this channel

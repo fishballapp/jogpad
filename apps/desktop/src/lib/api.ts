@@ -3,7 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 
 export type Item = { id: number; text: string; done: boolean };
 export type Page = { name: string; items: Item[] };
-export type UpdateChannel = 'stable' | 'beta';
+export type UpdateChannel = 'stable' | 'beta' | 'dev';
 export type Theme = 'dark' | 'light' | 'system';
 export type UpdateInfo = { version: string; notes: string | null };
 

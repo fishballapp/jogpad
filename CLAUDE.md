@@ -9,6 +9,11 @@ one), commit, tag `v<version>`, push, wait for the release workflow, then
 **publish the draft release** (`gh release edit v<version> --draft=false`).
 Do not stop at the draft — publishing is part of the ask.
 
+Every push to main also builds and publishes a dev release on its own
+(`<package.json version>.dev.<commit count>`), served to the Dev update
+channel via `dev.json`. Nothing to do there, but a red release workflow on
+main means the dev track has stopped.
+
 ## Known follow-ups and traps
 
 - Drag-to-reorder has no keyboard path (dnd-kit `PointerSensor` only). Flagged

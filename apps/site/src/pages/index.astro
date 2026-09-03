@@ -6,7 +6,7 @@ let latestVersion: string | null = null;
 
 try {
   const releases = await fetchPublishedReleases();
-  const latestRelease = highestRelease(releases, { stableOnly: true });
+  const latestRelease = highestRelease(releases, 'stable');
   downloadUrl = dmgUrl(latestRelease);
   if (latestRelease) {
     latestVersion = latestRelease.tag_name;

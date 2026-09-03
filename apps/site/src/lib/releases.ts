@@ -46,13 +46,21 @@ export async function fetchPublishedReleases(): Promise<GitHubRelease[]> {
   return releases.filter(r => !r.draft);
 }
 
+/// Stable serves only final versions. Beta adds prereleases, except dev builds.
+/// Dev serves everything, and what it serves is nearly always a dev build.
+export type Channel = 'stable' | 'beta' | 'dev';
+
+/// Dev builds carry a `dev` prerelease identifier, e.g. 0.1.5-beta.6.dev.42.
+function onChannel(version: semver.SemVer, channel: Channel): boolean {
+  if (channel === 'stable') return version.prerelease.length === 0;
+  if (channel === 'beta') return !version.prerelease.includes('dev');
+  return true;
+}
+
 /// Highest by SemVer, which is the same order the updater compares in. A
 /// release whose tag is not a version is ignored rather than fatal, so a
 /// `docs-v2` style tag cannot take the site down.
-export function highestRelease(
-  releases: GitHubRelease[],
-  { stableOnly }: { stableOnly: boolean },
-): GitHubRelease | null {
+export function highestRelease(releases: GitHubRelease[], channel: Channel): GitHubRelease | null {
   const ranked = releases
     .flatMap(release => {
       const version = semver.parse(release.tag_name.replace(/^v/, ''));
@@ -61,7 +69,7 @@ export function highestRelease(
     // GitHub's prerelease flag is a checkbox a human can untick, so the tag
     // decides what stable means. Trusting the flag alone would let an -rc tag
     // reach every stable client.
-    .filter(({ version }) => !stableOnly || version.prerelease.length === 0)
+    .filter(({ version }) => onChannel(version, channel))
     .sort((a, b) => semver.rcompare(a.version, b.version));
   return ranked[0]?.release ?? null;
 }
@@ -70,11 +78,8 @@ export function highestRelease(
 /// to serve yet. Throws instead of quietly falling back to an older release: a
 /// site that keeps advertising last week's version as the newest is the failure
 /// nobody notices until an update never arrives.
-export function manifestRelease(
-  releases: GitHubRelease[],
-  options: { stableOnly: boolean },
-): GitHubRelease | null {
-  const highest = highestRelease(releases, options);
+export function manifestRelease(releases: GitHubRelease[], channel: Channel): GitHubRelease | null {
+  const highest = highestRelease(releases, channel);
   if (!highest) return null;
   if (highest.assets.some(a => a.name === MANIFEST_ASSET)) return highest;
   // Releases cut before the updater existed legitimately carry no manifest, and

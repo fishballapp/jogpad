@@ -388,6 +388,7 @@ pub struct UpdateInfo {
 
 const STABLE_ENDPOINT: &str = "https://jogpad.fishball.app/latest.json";
 const BETA_ENDPOINT: &str = "https://jogpad.fishball.app/beta.json";
+const DEV_ENDPOINT: &str = "https://jogpad.fishball.app/dev.json";
 
 #[tauri::command]
 pub fn set_update_channel(
@@ -421,6 +422,7 @@ pub async fn check_update(
     let endpoint_url = match channel {
         UpdateChannel::Stable => STABLE_ENDPOINT,
         UpdateChannel::Beta => BETA_ENDPOINT,
+        UpdateChannel::Dev => DEV_ENDPOINT,
     };
     let endpoint = endpoint_url
         .parse()
