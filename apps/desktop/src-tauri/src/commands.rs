@@ -267,7 +267,11 @@ pub fn request_permissions(app: AppHandle) {
         use crate::{hotkey, panel, selection};
 
         // The panel floats above everything, which includes the system prompt
-        // we are about to trigger. Get out of its way first.
+        // we are about to trigger. Get out of its way first. Settings floats
+        // one level higher still and is never lowered, so it hides instead.
+        if let Some(settings) = app.get_webview_window("settings") {
+            let _ = settings.hide();
+        }
         panel::set_floating(&app, false);
 
         // Accessibility comes first. It is the prerequisite, and once it is

@@ -154,7 +154,7 @@ pub fn convert(window: &tauri::WebviewWindow, level: isize) {
 /// Show on every Space, including over a full-screen app. Without this a
 /// window opened while a full-screen app is up appears on the desktop Space
 /// instead, and macOS swaps you over to it, or leaves it out of sight.
-pub fn join_all_spaces(window: &tauri::WebviewWindow) {
+fn join_all_spaces(window: &tauri::WebviewWindow) {
     let Ok(ptr) = window.ns_window() else {
         return;
     };
