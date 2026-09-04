@@ -5,6 +5,6 @@ import { defineConfig } from 'astro/config';
 
 export default defineConfig({
   site: 'https://jogpad.fishball.app',
-  integrations: [sitemap(), react()],
+  integrations: [sitemap({ filter: page => !page.endsWith('/og/') }), react()],
   vite: { plugins: [tailwindcss()] },
 });

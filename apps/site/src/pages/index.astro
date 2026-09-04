@@ -50,6 +50,10 @@ const title = "JogPad - select text anywhere on your Mac, tap Shift twice";
 const description =
   "Select text in any app, tap Shift twice, and it lands in a sidebar. Pick items later, copy them as a numbered list, paste them into a prompt box.";
 const screenshotUrl = new URL("/screenshot.png", site).toString();
+// Rendered from /og by headless Chrome; see src/pages/og.astro to regenerate.
+const ogImageUrl = new URL("/og.png", site).toString();
+const ogImageAlt =
+  "Shift Shift. A giant Shift keycap beside the JogPad pad, with the line: select text in any app, tap Shift twice, it lands in a pad that stays out of your way.";
 const screenshotAlt =
   "JogPad, a narrow sidebar listing captured snippets with checkboxes and a prompt input at the bottom";
 const jsonLd = {
@@ -100,8 +104,10 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={site} />
-    <meta property="og:image" content={screenshotUrl} />
-    <meta property="og:image:alt" content={screenshotAlt} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="2400" />
+    <meta property="og:image:height" content="1260" />
+    <meta property="og:image:alt" content={ogImageAlt} />
     <meta name="twitter:card" content="summary_large_image" />
     <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
     <style is:global>

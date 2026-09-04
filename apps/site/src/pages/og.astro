@@ -1,0 +1,209 @@
+---
+/*
+The Open Graph card, 1200 by 630, in the same Magic Keyboard world as the
+home page. It is a page so the real pad can render into it; the shipped
+asset is a headless-Chrome screenshot saved as public/og.png.
+Regenerate after changing this file or the pad:
+
+  pnpm astro dev &   # with the dev toolbar off: pnpm astro preferences disable devToolbar
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless \
+    --screenshot=public/og.png --window-size=1200,630 \
+    --force-device-scale-factor=2 --hide-scrollbars \
+    --virtual-time-budget=8000 http://localhost:4321/og
+*/
+import "@fontsource-variable/bricolage-grotesque/opsz.css";
+import Demo from "../components/Demo";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>JogPad Open Graph card</title>
+    <style is:global>
+      :root {
+        --font-display: "Bricolage Grotesque Variable", "Helvetica Neue", Arial, sans-serif;
+        --font-legend: -apple-system, BlinkMacSystemFont, "SF Pro", "Helvetica Neue", Arial, sans-serif;
+        --deck: #e3e3df;
+        --cap: #fbfbf9;
+        --cap-side: #b3b3ad;
+        --cap-ink: #1d1d1f;
+        --ink: #1d1d1f;
+        --ink-soft: #55555b;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: var(--deck);
+      }
+
+      body {
+        position: relative;
+        padding: 52px 56px 56px;
+        font-family: var(--font-display);
+        font-optical-sizing: auto;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .top {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        font-size: 20px;
+      }
+
+      .wordmark {
+        font-weight: 800;
+        font-size: 26px;
+        letter-spacing: -0.03em;
+      }
+
+      .top span {
+        color: var(--ink-soft);
+      }
+
+      .copy {
+        position: absolute;
+        left: 56px;
+        top: 118px;
+        width: 600px;
+      }
+
+      h1 {
+        font-size: 96px;
+        font-weight: 800;
+        line-height: 0.98;
+        letter-spacing: -0.035em;
+        margin-bottom: 18px;
+      }
+
+      .lede {
+        font-size: 26px;
+        line-height: 1.35;
+        max-width: 560px;
+        color: var(--ink);
+      }
+
+      .lede kbd {
+        font-family: var(--font-legend);
+        font-weight: 500;
+      }
+
+      /* The key, at the proportions of a left Shift, sitting on a 14px wall. */
+      .cap {
+        --cap-wall: 14px;
+        position: absolute;
+        left: 56px;
+        bottom: 56px;
+        width: 540px;
+        height: 235px;
+        border-radius: 26px;
+        font-family: var(--font-legend);
+        color: var(--cap-ink);
+        background: var(--cap);
+        box-shadow:
+          inset 0 1px 0 #fff,
+          0 var(--cap-wall) 0 var(--cap-side),
+          0 calc(var(--cap-wall) + 2px) 6px -2px rgba(20, 20, 22, 0.22);
+      }
+
+      .legend-glyph {
+        position: absolute;
+        top: 7%;
+        right: 5.5%;
+        font-size: 128px;
+        line-height: 1;
+      }
+
+      .legend-name {
+        position: absolute;
+        left: 5.5%;
+        bottom: 9%;
+        font-size: 48px;
+        line-height: 1;
+        letter-spacing: -0.01em;
+      }
+
+      .demo {
+        position: absolute;
+        right: 56px;
+        bottom: 56px;
+        width: 420px;
+      }
+
+      .demo-slot,
+      .demo-panel {
+        height: 448px;
+        border-radius: 0.75rem;
+      }
+
+      .demo-panel {
+        background: #0c0c0d;
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.08) inset,
+          0 24px 40px -12px rgba(20, 20, 22, 0.45),
+          0 8px 14px -6px rgba(20, 20, 22, 0.3);
+      }
+
+      /* Same hand-drawn note as the home page, pointing from the key to the pad. */
+      .note {
+        position: absolute;
+        left: 616px;
+        bottom: 232px;
+        width: 100px;
+        color: var(--ink-soft);
+        font-family: "Comic Sans MS", "Chalkboard SE", "Bradley Hand", cursive;
+        font-size: 24px;
+        line-height: 1.05;
+        transform: rotate(-6deg);
+      }
+
+      .note svg {
+        display: block;
+        width: 84px;
+        margin: 6px 0 0 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <b class="wordmark">JogPad</b>
+      <span>Free · Open source · macOS</span>
+    </div>
+
+    <div class="copy">
+      <h1>Shift Shift.</h1>
+      <p class="lede">
+        Select text in any app, tap <kbd>⇧</kbd> twice. It lands in a pad that stays out of your way.
+      </p>
+    </div>
+
+    <div class="cap">
+      <span class="legend-glyph">⇧</span>
+      <span class="legend-name">shift</span>
+    </div>
+
+    <div class="note">
+      <span>tap<br />twice</span>
+      <svg viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 10 C 30 8, 70 14, 104 62" />
+        <path d="M88 60 L 104 62 L 102 46" />
+      </svg>
+    </div>
+
+    <div class="demo">
+      <Demo client:only="react" />
+    </div>
+  </body>
+</html>
