@@ -18,7 +18,30 @@ try {
   console.warn("Could not resolve latest release for the download button:", e);
 }
 
-const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
+// GitHub resolves /releases/latest to the newest non-prerelease, so the
+// fallback never lands someone on a beta or dev build.
+const latestReleaseUrl = "https://github.com/fishballapp/jogpad/releases/latest";
+const site = Astro.site?.toString() ?? "https://jogpad.fishball.app/";
+const title = "JogPad - select text anywhere on your Mac, tap Shift twice";
+const description =
+  "Select text in any app, tap Shift twice, and it lands in a sidebar. Pick items later, copy them as a numbered list, paste them into a prompt box.";
+const screenshotUrl = new URL("/screenshot.png", site).toString();
+const screenshotAlt =
+  "JogPad, a narrow sidebar listing captured snippets with checkboxes and a prompt input at the bottom";
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "JogPad",
+  description,
+  url: site,
+  image: screenshotUrl,
+  applicationCategory: "UtilitiesApplication",
+  operatingSystem: "macOS",
+  license: "https://opensource.org/licenses/MIT",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  ...(latestVersion ? { softwareVersion: latestVersion.replace(/^v/, "") } : {}),
+  ...(downloadUrl ? { downloadUrl } : {}),
+};
 ---
 
 <!doctype html>
@@ -26,12 +49,20 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>JogPad - macOS sidebar for AI snippets and prompts</title>
-    <meta
-      name="description"
-      content="A clone of Copper: a macOS sidebar for the snippets you want to keep and the prompts you want to send next while working with an AI."
-    />
-    <style>
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={site} />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={site} />
+    <meta property="og:image" content={screenshotUrl} />
+    <meta property="og:image:alt" content={screenshotAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    <style is:global>
       :root {
         --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -48,6 +79,16 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
         box-sizing: border-box;
         margin: 0;
         padding: 0;
+      }
+
+      ::selection {
+        background-color: var(--fg);
+        color: var(--bg);
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--fg);
+        outline-offset: 3px;
       }
 
       body {
@@ -79,20 +120,32 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
         font-size: 1.1rem;
         color: var(--muted);
         margin-bottom: 1.75rem;
+        text-wrap: balance;
       }
 
-      .description a {
+      .description kbd {
+        color: var(--fg);
+        font-size: 0.9rem;
+      }
+
+      a {
         color: var(--fg);
         text-decoration: underline;
         text-underline-offset: 3px;
+        text-decoration-color: var(--muted);
+      }
+
+      a:hover {
+        text-decoration-color: var(--fg);
       }
 
       .cta-wrapper {
         display: flex;
+        flex-wrap: wrap;
         justify-content: center;
         gap: 1rem;
         align-items: center;
-        margin-bottom: 2.5rem;
+        margin-bottom: 0.75rem;
       }
 
       .btn {
@@ -102,9 +155,10 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
         font-weight: 500;
         font-size: 0.95rem;
         padding: 0.65rem 1.25rem;
+        border: 1px solid transparent;
         border-radius: 0.5rem;
         text-decoration: none;
-        transition: opacity 0.15s ease;
+        transition: opacity 0.15s ease, border-color 0.15s ease;
       }
 
       .btn-primary {
@@ -113,18 +167,24 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
       }
 
       .btn-primary:hover {
-        opacity: 0.9;
+        opacity: 0.85;
       }
 
       .btn-secondary {
         background-color: transparent;
         color: var(--muted);
-        border: 1px solid var(--border);
+        border-color: var(--border);
       }
 
       .btn-secondary:hover {
         color: var(--fg);
         border-color: var(--muted);
+      }
+
+      .cta-note {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-bottom: 2.5rem;
       }
 
       .screenshot-wrapper {
@@ -136,7 +196,6 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
         max-width: 100%;
         height: auto;
         border-radius: 0.75rem;
-        border: 1px solid var(--border);
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
       }
 
@@ -153,12 +212,26 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
         padding-bottom: 0.5rem;
       }
 
+      section p + p,
+      section ol + p {
+        margin-top: 0.75rem;
+      }
+
+      ol {
+        padding-left: 1.5rem;
+      }
+
+      li + li {
+        margin-top: 0.35rem;
+      }
+
       .table-wrapper {
         overflow-x: auto;
       }
 
       table {
         width: 100%;
+        table-layout: fixed;
         border-collapse: collapse;
         font-size: 0.9rem;
         text-align: left;
@@ -167,11 +240,20 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
       th, td {
         padding: 0.65rem 0.75rem;
         border-bottom: 1px solid var(--border);
+        vertical-align: top;
       }
 
       th {
         color: var(--muted);
         font-weight: 500;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      td:first-child,
+      th:first-child {
+        width: 9.5rem;
       }
 
       kbd {
@@ -184,6 +266,34 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
         white-space: nowrap;
       }
 
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+
+      details {
+        margin-top: 1rem;
+      }
+
+      summary {
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 0.9rem;
+        width: fit-content;
+      }
+
+      summary:hover {
+        color: var(--fg);
+      }
+
+      details[open] summary {
+        margin-bottom: 0.5rem;
+      }
+
       footer {
         text-align: center;
         font-size: 0.85rem;
@@ -192,20 +302,19 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
         border-top: 1px solid var(--border);
       }
 
-      footer a {
-        color: var(--fg);
-        text-decoration: underline;
-        text-underline-offset: 2px;
+      footer p + p {
+        margin-top: 0.35rem;
       }
     </style>
   </head>
   <body>
     <div class="container">
+      <main>
       <header>
         <h1>JogPad</h1>
         <p class="description">
-          A clone of <a href="https://shadcn.com/copper" target="_blank" rel="noopener noreferrer">Copper</a>:
-          a macOS sidebar for the snippets you want to keep and the prompts you want to send next while working with an AI.
+          Select text in any app, tap <kbd>Shift</kbd> <kbd>Shift</kbd>, and it lands in a sidebar.
+          Pick items later, copy them as a numbered list, paste them into a prompt box.
         </p>
 
         <div class="cta-wrapper">
@@ -215,8 +324,8 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
                 Download for macOS {latestVersion ? `(${latestVersion})` : ""}
               </a>
             ) : (
-              <a href={releasesUrl} class="btn btn-primary">
-                View Releases on GitHub
+              <a href={latestReleaseUrl} class="btn btn-secondary">
+                Latest release on GitHub
               </a>
             )
           }
@@ -229,15 +338,35 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
             GitHub
           </a>
         </div>
+        <p class="cta-note">
+          Universal .dmg for Apple silicon and Intel, signed and notarized.
+          Needs Accessibility access to read what you select, and asks for it on first launch.
+        </p>
       </header>
 
       <div class="screenshot-wrapper">
         <img
           src="/screenshot.png"
-          alt="JogPad, a narrow sidebar listing captured snippets with checkboxes and a prompt input at the bottom"
+          alt={screenshotAlt}
           width="420"
+          height="448"
+          loading="eager"
+          fetchpriority="high"
         />
       </div>
+
+      <section>
+        <h2>First launch</h2>
+        <ol>
+          <li>Drag JogPad to Applications before opening it. macOS ties the permission grant to the app's path, so moving it afterwards means granting again.</li>
+          <li>Open it and tap Shift twice. macOS asks for Accessibility access.</li>
+          <li>Reading the keyboard also needs Input Monitoring. JogPad requests that one itself once Accessibility lands, and macOS normally grants it without a prompt.</li>
+        </ol>
+        <p>
+          If a double-tap captures nothing, the banner in the sidebar opens the right pane in System Settings.
+          Without the grants JogPad still works as a scratchpad, it just cannot read other apps' selections.
+        </p>
+      </section>
 
       <section>
         <h2>Shortcuts</h2>
@@ -252,56 +381,79 @@ const releasesUrl = "https://github.com/fishballapp/jogpad/releases";
             <tbody>
               <tr>
                 <td><kbd>Shift</kbd> <kbd>Shift</kbd></td>
-                <td>With text selected: capture it and show the sidebar. With nothing selected: open the sidebar and focus the input. While JogPad has the keyboard: hide it</td>
-              </tr>
-              <tr>
-                <td><kbd>⌘K</kbd></td>
-                <td>Switch or create a page. Hover a page to rename or delete it</td>
+                <td>
+                  With text selected, capture it and show the sidebar.<br />
+                  With nothing selected, open the sidebar and focus the input.<br />
+                  While the sidebar has the keyboard, hide it.
+                </td>
               </tr>
               <tr>
                 <td><kbd>⌘⇧C</kbd></td>
                 <td>Copy the selected items as a numbered list</td>
               </tr>
               <tr>
+                <td><kbd>⌘K</kbd></td>
+                <td>Switch or create a page. Hover a page to rename or delete it</td>
+              </tr>
+              <tr>
                 <td><kbd>⌘F</kbd></td>
                 <td>Search across every page</td>
-              </tr>
-              <tr>
-                <td><kbd>⌘A</kbd></td>
-                <td>Select everything visible</td>
-              </tr>
-              <tr>
-                <td><kbd>↑</kbd> / <kbd>↓</kbd></td>
-                <td>Move the selection, <kbd>⇧</kbd> to extend it</td>
-              </tr>
-              <tr>
-                <td><kbd>⌫</kbd></td>
-                <td>Delete the selected items</td>
-              </tr>
-              <tr>
-                <td><kbd>⌘-</kbd> / <kbd>⌘+</kbd> / <kbd>⌘0</kbd></td>
-                <td>Zoom out, in, or back to 100%. The window resizes with it</td>
-              </tr>
-              <tr>
-                <td><kbd>⌘W</kbd></td>
-                <td>Hide the sidebar. Capture keeps working while it is hidden</td>
-              </tr>
-              <tr>
-                <td><kbd>⌘Q</kbd></td>
-                <td>Quit</td>
-              </tr>
-              <tr>
-                <td><kbd>Enter</kbd> / <kbd>⇧Enter</kbd></td>
-                <td>While editing an item: save, or start a new line</td>
               </tr>
             </tbody>
           </table>
         </div>
+        <details>
+          <summary>All shortcuts</summary>
+          <div class="table-wrapper">
+            <table>
+              <thead class="visually-hidden">
+                <tr>
+                  <th>Keys</th>
+                  <th>What happens</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><kbd>⌘A</kbd></td>
+                  <td>Select everything visible</td>
+                </tr>
+                <tr>
+                  <td><kbd>↑</kbd> / <kbd>↓</kbd></td>
+                  <td>Move the selection, <kbd>⇧</kbd> to extend it</td>
+                </tr>
+                <tr>
+                  <td><kbd>⌫</kbd></td>
+                  <td>Delete the selected items</td>
+                </tr>
+                <tr>
+                  <td><kbd>⌘-</kbd> <kbd>⌘+</kbd> <kbd>⌘0</kbd></td>
+                  <td>Zoom out, in, or back to 100%. The window resizes with it</td>
+                </tr>
+                <tr>
+                  <td><kbd>⌘W</kbd></td>
+                  <td>Hide the sidebar. Capture keeps working while it is hidden</td>
+                </tr>
+                <tr>
+                  <td><kbd>⌘Q</kbd></td>
+                  <td>Quit</td>
+                </tr>
+                <tr>
+                  <td><kbd>Enter</kbd> / <kbd>⇧Enter</kbd></td>
+                  <td>While editing an item, save, or start a new line</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
       </section>
+      </main>
 
       <footer>
         <p>
-          MIT Licensed. Source available on <a href="https://github.com/fishballapp/jogpad">GitHub</a>.
+          Started as a clone of <a href="https://shadcn.com/copper" target="_blank" rel="noopener noreferrer">Copper</a> by shadcn.
+        </p>
+        <p>
+          MIT licensed. Source on <a href="https://github.com/fishballapp/jogpad">GitHub</a>.
         </p>
       </footer>
     </div>

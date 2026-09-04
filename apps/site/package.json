@@ -9,6 +9,7 @@
     "preview": "astro preview"
   },
   "dependencies": {
+    "@astrojs/sitemap": "catalog:",
     "astro": "catalog:",
     "semver": "catalog:"
   },
