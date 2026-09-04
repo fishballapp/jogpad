@@ -4,7 +4,8 @@
     "composite": true,
     "tsBuildInfoFile": "node_modules/.tmp/tsconfig.tsbuildinfo",
     "jsx": "react-jsx",
-    "jsxImportSource": "react"
+    "jsxImportSource": "react",
+    "types": ["astro/client"]
   },
   "include": [".astro/types.d.ts", "**/*"],
   "exclude": ["dist", "node_modules"],
