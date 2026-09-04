@@ -1,78 +1,24 @@
 # JogPad
 
-A clone of [Copper](https://shadcn.com/copper): a macOS sidebar for the snippets you
-want to keep and the prompts you want to send next while working with an AI.
-
-Select text in any app, tap `Shift` twice, and it lands in the sidebar. The sidebar
-shows itself without taking the keyboard, so you keep reading where you were. Pick
-several items later, hit `⌘⇧C`, and paste them as a numbered list into a prompt box.
+Select text in any app, tap Shift twice, and it lands in a pad that stays out of
+your way. Tick a few later, copy them as a numbered list, paste the lot into a
+prompt.
 
 <p align="center">
-  <img src="assets/screenshot.png" alt="JogPad, a narrow sidebar listing captured snippets with checkboxes and a prompt input at the bottom" width="420">
+  <a href="https://jogpad.fishball.app">
+    <img src="apps/site/public/og.png" alt="Shift Shift. A giant Shift keycap beside the JogPad pad, with the line: select text in any app, tap Shift twice, it lands in a pad that stays out of your way." width="720">
+  </a>
 </p>
 
-Everything is one markdown file under `~/Library/Application Support/com.ycmjason.jogpad/notes.md`.
-No account, no sync, no telemetry.
+**[jogpad.fishball.app](https://jogpad.fishball.app)** has the download, the
+shortcuts, the install steps, and the pad itself running in the page so you can
+try the gesture before installing anything. Everything below is for people who
+want to build it.
 
-JogPad owns the shape of that file: `##` headings are pages, task-list entries are
-items. It rewrites the whole file whenever you capture or edit, so freeform markdown it
-does not model will not survive. Reading it, copying from it and diffing it are all
-fine. Hand-editing it alongside JogPad is not.
+macOS only. Free, MIT, no account, no sync, no telemetry. Your notes are one
+markdown file under `~/Library/Application Support/com.ycmjason.jogpad/`.
 
-## Shortcuts
-
-| Keys | What happens |
-| --- | --- |
-| `Shift` `Shift` | With text selected: capture it and show the sidebar. With nothing selected: open the sidebar and focus the input. While JogPad has the keyboard: hide it |
-| `⌘K` | Switch or create a page. Hover a page to rename or delete it |
-| `⌘⇧C` | Copy the selected items as a numbered list |
-| `⌘F` | Search across every page |
-| `⌘A` | Select everything visible |
-| `↑` / `↓` | Move the selection, `⇧` to extend it |
-| `⌫` | Delete the selected items |
-| `⌘-` / `⌘+` / `⌘0` | Zoom out, in, or back to 100%. The window resizes with it |
-| `⌘W` | Hide the sidebar. Capture keeps working while it is hidden |
-| `⌘Q` | Quit |
-| `Enter` / `⇧Enter` | While editing an item: save, or start a new line |
-
-Clicking the menu bar icon toggles the sidebar; right-clicking it opens Show, Hide and
-Quit. The same commands live behind the ⋮ button in JogPad's own header, because an
-accessory app has no menu bar of its own. Hiding only hides the window, so
-double-tapping Shift still files captures away.
-
-The panel border brightens while JogPad has keyboard focus and dims when it does not.
-There is no title bar to carry that signal otherwise.
-
-## Updating
-
-JogPad updates itself. It checks on launch and offers the update in the ⋮ menu; nothing
-downloads until you click. Stable and Beta are a toggle in that same menu, not separate
-builds, so switching costs you no permissions. Beta gets prerelease tags and folds back
-into stable when stable is newer.
-
-## Installing
-
-Download it from [jogpad.fishball.app](https://jogpad.fishball.app), or grab the DMG
-straight from [Releases](https://github.com/fishballapp/jogpad/releases). One universal
-build covers Apple silicon and Intel.
-
-Drag JogPad to `/Applications`, then open it and grant Accessibility access when asked.
-Install *before* granting: macOS keys the grant to the app's path and code signature, so
-moving it afterwards means granting again.
-
-Watching the keyboard actually needs two separate grants, Accessibility and Input
-Monitoring. JogPad asks for the second one itself once the first lands, and macOS hands
-it over without a prompt, so there is normally nothing to do. If the banner stays up,
-clicking it opens the right pane in System Settings.
-
-If macOS calls the app damaged, that build went out unsigned. Clear the quarantine
-flag and it will open:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/JogPad.app
-```
-
-## Running it
+## Running it from source
 
 Needs Node, pnpm, and a Rust toolchain new enough for Tauri 2 (1.85+).
 
@@ -81,45 +27,52 @@ pnpm install
 pnpm dev
 ```
 
-macOS will ask for Accessibility access the first time you double-tap Shift. Without it
-the app still works as a scratchpad, it just cannot read other apps' selections.
+macOS asks for Accessibility access the first time you double-tap Shift. Without
+it the app still works as a scratchpad, it just cannot read other apps'
+selections.
+
+`pnpm vite` inside `apps/desktop` runs the same UI in a browser tab on an
+in-memory host, for front-end work that does not need a Rust build.
 
 ## Layout
 
 ```
-packages/ui              the panel: React UI, the notes model, and the gesture rule
+packages/ui              the pad: React UI, the notes model, and the gesture rule
 apps/desktop/src         desktop host: Tauri bindings for files, window, permissions, updates
 apps/desktop/src-tauri   Rust: file writes, event tap, selection reader, NSPanel, updater
-apps/site                the Astro site, which runs the same panel in the browser
+apps/site                the Astro site, which runs the same pad in the browser
 ```
 
-All notes logic lives once, in `packages/ui`. A host only implements side effects
-(`packages/ui/src/host.ts`); the desktop and the site each provide one.
+All notes logic lives once, in `packages/ui`. A host only implements side
+effects (`packages/ui/src/host.ts`); the desktop and the site each provide one.
 
-`pnpm test:ui` covers the markdown round trip and every mutation.
-`cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` covers the double-tap
-detector and the file paths.
+```sh
+pnpm test:ui   # the markdown round trip and every mutation
+pnpm test      # the double-tap detector and the file paths (Rust)
+```
 
 ## Releasing
 
-Tag a version and CI does the rest:
+Add a `## <version>` section to `CHANGELOG.md`, bump the version in
+`apps/desktop`, then tag it:
 
 ```sh
-git tag v0.1.0 && git push --tags
+git tag v0.1.6 && git push --tags
 ```
 
-[The workflow](.github/workflows/release.yml) typechecks, runs the Rust tests, builds
-a universal DMG on a macOS runner and attaches it to a draft release. Nothing goes
-public until you publish it. macOS is not optional there: `hdiutil`, `codesign` and
-the AppleScript that styles the DMG window exist nowhere else.
+[The workflow](.github/workflows/release.yml) refuses a tag with no changelog
+section, builds a signed and notarised universal DMG on a macOS runner, and
+attaches it to a draft release. Nothing goes public until you publish the
+draft.
 
-Builds are signed and notarised when the Apple credentials are present as repository
-secrets, and fall back to ad-hoc signing when they are not.
+Every push to `main` also publishes a dev build on its own, served to the Dev
+update channel in Settings. Stable, Beta and Dev are a toggle there, not
+separate installs.
 
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
 
-JogPad is an independent reimplementation of [Copper](https://shadcn.com/copper),
+JogPad started as a clone of [Copper](https://shadcn.com/copper) by shadcn,
 built from its public description. No code from Copper was used, and it is not
 affiliated with or endorsed by shadcn.
