@@ -1,11 +1,13 @@
 packages:
   - apps/*
+  - packages/*
 
 # Versions live here and nowhere else. `strict` makes pnpm reject a dependency
 # added outside the catalog instead of silently pinning a second version.
 catalogMode: strict
 
 catalog:
+  "@astrojs/react": ^4.3.0
   "@astrojs/sitemap": ^3.7.4
   "@biomejs/biome": ^2.4.15
   "@base-ui/react": ^1.7.0
@@ -13,6 +15,7 @@ catalog:
   "@dnd-kit/modifiers": ^9.0.0
   "@dnd-kit/sortable": ^10.0.0
   "@dnd-kit/utilities": ^3.2.2
+  "@fontsource-variable/bricolage-grotesque": ^5.3.0
   "@fontsource-variable/geist": ^5.3.0
   "@phosphor-icons/react": ^2.1.10
   "@tailwindcss/vite": ^4.3.3

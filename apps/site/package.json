@@ -9,12 +9,21 @@
     "preview": "astro preview"
   },
   "dependencies": {
+    "@astrojs/react": "catalog:",
     "@astrojs/sitemap": "catalog:",
+    "@fontsource-variable/bricolage-grotesque": "catalog:",
+    "@jogpad/ui": "workspace:*",
     "astro": "catalog:",
-    "semver": "catalog:"
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "semver": "catalog:",
+    "tailwindcss": "catalog:"
   },
   "devDependencies": {
     "@astrojs/check": "catalog:",
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "@types/semver": "catalog:",
     "typescript": "catalog:"
   }

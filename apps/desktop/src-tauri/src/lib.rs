@@ -11,8 +11,7 @@ mod panel;
 #[cfg(target_os = "macos")]
 mod selection;
 
-use state::{AppState, Prefs};
-use store::Doc;
+use state::{AppState, WindowState};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, LogicalSize, Manager};
@@ -55,17 +54,19 @@ pub(crate) fn set_visible(app: &AppHandle, visible: bool) {
 
 /// The page toggles its own dark class; this covers what the page cannot
 /// reach, such as the settings window's title bar and native menus.
-pub(crate) fn apply_native_theme(app: &AppHandle, theme: state::Theme) {
+pub(crate) fn apply_native_theme(app: &AppHandle, theme: &str) -> Result<(), String> {
     let native = match theme {
-        state::Theme::Dark => Some(tauri::Theme::Dark),
-        state::Theme::Light => Some(tauri::Theme::Light),
-        state::Theme::System => None,
+        "dark" => Some(tauri::Theme::Dark),
+        "light" => Some(tauri::Theme::Light),
+        "system" => None,
+        _ => return Err(format!("Unknown theme: {theme}")),
     };
     for label in ["main", "settings"] {
         if let Some(w) = app.get_webview_window(label) {
             let _ = w.set_theme(native);
         }
     }
+    Ok(())
 }
 
 /// Whether typing lands in JogPad, in either the panel or settings.
@@ -83,49 +84,57 @@ pub(crate) fn is_visible(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
-/// Reads notes and preferences off disk. A missing notes file is an empty
-/// document; anything else leaves the app read-only rather than letting the
-/// next capture write emptiness over a file it could not read.
-fn load_state(app: &AppHandle) -> tauri::Result<AppState> {
+/// Reads window state off disk. If window.json is missing, fall back to
+/// width, height, zoom from prefs.json (older builds kept them there),
+/// else defaults. Theme is peeked from prefs.json for native window setup.
+fn load_state(app: &AppHandle) -> tauri::Result<(AppState, String)> {
     let dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&dir)?;
-    let notes_path = dir.join("notes.md");
+    let window_path = dir.join("window.json");
     let prefs_path = dir.join("prefs.json");
-    let legacy_active = dir.join("active");
 
-    let (doc, load_error) = match Doc::load(&notes_path) {
-        Ok(doc) => (doc, None),
-        Err(e) => (
-            Doc::parse(""),
-            Some(format!("Could not read {}: {e}", notes_path.display())),
-        ),
+    let window_val: Option<serde_json::Value> = std::fs::read_to_string(&window_path)
+        .ok()
+        .and_then(|json| serde_json::from_str(&json).ok());
+
+    let prefs_val: Option<serde_json::Value> = std::fs::read_to_string(&prefs_path)
+        .ok()
+        .and_then(|json| serde_json::from_str(&json).ok());
+
+    let (width, height, zoom) = if let Some(w) = window_val {
+        let width = w.get("width").and_then(|v| v.as_f64()).unwrap_or(380.0);
+        let height = w.get("height").and_then(|v| v.as_f64()).unwrap_or(720.0);
+        let zoom = w.get("zoom").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        (width, height, zoom)
+    } else if let Some(p) = prefs_val.as_ref() {
+        let width = p.get("width").and_then(|v| v.as_f64()).unwrap_or(380.0);
+        let height = p.get("height").and_then(|v| v.as_f64()).unwrap_or(720.0);
+        let zoom = p.get("zoom").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        (width, height, zoom)
+    } else {
+        (380.0, 720.0, 1.0)
     };
 
-    let mut prefs: Prefs = std::fs::read_to_string(&prefs_path)
-        .ok()
-        .and_then(|json| serde_json::from_str(&json).ok())
-        .or_else(|| {
-            // Older builds kept only the page name, in its own file.
-            let active = std::fs::read_to_string(&legacy_active).ok()?;
-            let _ = std::fs::remove_file(&legacy_active);
-            Some(Prefs {
-                active,
-                ..Prefs::default()
-            })
-        })
-        .unwrap_or_default();
+    let zoom = zoom.clamp(0.6, 2.0);
+    let theme = match prefs_val
+        .as_ref()
+        .and_then(|p| p.get("theme"))
+        .and_then(|t| t.as_str())
+    {
+        Some("light") => "light",
+        Some("system") => "system",
+        _ => "dark",
+    };
 
-    if !doc.pages.iter().any(|s| s.name == prefs.active) {
-        prefs.active = doc.pages[0].name.clone();
-    }
-    prefs.zoom = prefs.zoom.clamp(0.6, 2.0);
-
-    let state = AppState::new(notes_path, prefs_path, doc, prefs);
-    if let Some(message) = load_error {
-        eprintln!("jogpad: {message}");
-        state.mark_unreadable(message);
-    }
-    Ok(state)
+    let state = AppState::new(
+        dir,
+        WindowState {
+            width,
+            height,
+            zoom,
+        },
+    );
+    Ok((state, theme.to_string()))
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -192,19 +201,7 @@ fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
             if logical.width < 1.0 || logical.height < 1.0 {
                 return; // minimised
             }
-            let changed = state.with(|m| {
-                if m.prefs.width == logical.width && m.prefs.height == logical.height {
-                    return false;
-                }
-                m.prefs.width = logical.width;
-                m.prefs.height = logical.height;
-                true
-            });
-            // Quitting does not flush anything, so a resize with no following
-            // edit would otherwise be forgotten.
-            if changed {
-                state.save_prefs();
-            }
+            let _ = state.update_size(logical.width, logical.height);
         }
         _ => {}
     }
@@ -218,52 +215,27 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(on_window_event)
         .invoke_handler(tauri::generate_handler![
-            commands::snapshot,
-            commands::add_item,
-            commands::update_item,
-            commands::toggle_item,
-            commands::set_done,
-            commands::delete_items,
-            commands::move_items_before,
-            commands::set_check_on_copy,
-            commands::set_group_done,
-            commands::set_theme,
-            commands::move_items,
-            commands::merge_items,
-            commands::set_active,
-            commands::rename_page,
-            commands::delete_page,
-            commands::copy_as_list,
+            commands::fs_read,
+            commands::fs_write,
+            commands::fs_describe,
+            commands::fs_reveal,
+            commands::permissions,
             commands::request_permissions,
-            commands::reveal_notes,
+            commands::show_window,
             commands::hide_window,
-            commands::open_settings,
-            commands::toggle_window,
             commands::quit,
+            commands::open_settings,
             commands::set_zoom,
-            commands::set_update_channel,
+            commands::set_theme,
             commands::check_update,
             commands::install_update,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
-            let state = load_state(&handle)?;
+            let (state, theme) = load_state(&handle)?;
 
-            // Create the file so "reveal in Finder" has a target, but never
-            // rewrite one that already exists. Doc::parse drops markdown it
-            // does not model, so writing on launch would silently delete
-            // anything a person had added by hand.
-            let create_notes = !state.notes_path.exists();
             app.manage(commands::PendingUpdate::default());
             app.manage(state);
-            {
-                let state = handle.state::<AppState>();
-                if create_notes {
-                    state.save();
-                } else {
-                    state.save_prefs();
-                }
-            }
 
             build_tray(&handle)?;
 
@@ -289,10 +261,12 @@ pub fn run() {
             // The window is created hidden so restoring size and zoom does not
             // play out as a visible jump on every launch.
             if let Some(window) = app.get_webview_window("main") {
-                let (zoom, width, height, theme) = handle
-                    .state::<AppState>()
-                    .with(|m| (m.prefs.zoom, m.prefs.width, m.prefs.height, m.prefs.theme));
-                apply_native_theme(&handle, theme);
+                let WindowState {
+                    width,
+                    height,
+                    zoom,
+                } = handle.state::<AppState>().window();
+                let _ = apply_native_theme(&handle, &theme);
                 let _ = window.set_size(LogicalSize::new(width, height));
                 let _ = window.set_zoom(zoom);
                 let _ = window.center();

@@ -1,14 +1,21 @@
 import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu';
 import { Check as CheckIcon, CaretRight as ChevronRightIcon } from '@phosphor-icons/react';
 import type * as React from 'react';
-import { cn } from '@/lib/utils';
+import { usePortalContainer } from '../../portal';
+import { cn } from '../../utils';
 
 function ContextMenu({ ...props }: ContextMenuPrimitive.Root.Props) {
   return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />;
 }
 
 function ContextMenuPortal({ ...props }: ContextMenuPrimitive.Portal.Props) {
-  return <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />;
+  return (
+    <ContextMenuPrimitive.Portal
+      data-slot="context-menu-portal"
+      container={usePortalContainer()}
+      {...props}
+    />
+  );
 }
 
 function ContextMenuTrigger({ className, ...props }: ContextMenuPrimitive.Trigger.Props) {
@@ -31,7 +38,7 @@ function ContextMenuContent({
 }: ContextMenuPrimitive.Popup.Props &
   Pick<ContextMenuPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>) {
   return (
-    <ContextMenuPrimitive.Portal>
+    <ContextMenuPortal>
       <ContextMenuPrimitive.Positioner
         className="isolate z-50 outline-none"
         align={align}
@@ -48,7 +55,7 @@ function ContextMenuContent({
           {...props}
         />
       </ContextMenuPrimitive.Positioner>
-    </ContextMenuPrimitive.Portal>
+    </ContextMenuPortal>
   );
 }
 

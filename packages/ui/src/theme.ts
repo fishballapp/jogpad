@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Theme } from '@/lib/api';
+import type { Theme } from './store';
 
 const media = window.matchMedia('(prefers-color-scheme: dark)');
 

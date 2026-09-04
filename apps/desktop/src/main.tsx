@@ -1,13 +1,25 @@
+import {
+  App,
+  createStore,
+  HostProvider,
+  PanelMenu,
+  PermissionBanner,
+  runGesture,
+  SettingsWindow,
+} from '@jogpad/ui';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import SettingsWindow from './SettingsWindow';
+import { browserHost } from './browser-host.ts';
 import './index.css';
+import { inTauri, tauriHost } from './tauri-host.ts';
 
-// One bundle serves both windows; the settings window is this same page
-// loaded with ?window=settings (see tauri.conf.json).
-const Root =
-  new URLSearchParams(location.search).get('window') === 'settings' ? SettingsWindow : App;
+const host = inTauri ? tauriHost : browserHost;
+const store = await createStore(host);
+const isSettings = new URLSearchParams(location.search).get('window') === 'settings';
+
+// Rust broadcasts the gesture to every window and the settings window runs
+// this same bundle, so only the panel may act on it or a capture lands twice.
+if (!isSettings) void host.onGesture(g => void runGesture(g, store, host));
 
 /// A render error used to unmount everything and leave a blank panel, which
 /// looks exactly like a crash: the process is still alive, no report is
@@ -45,7 +57,13 @@ class ErrorBoundary extends React.Component<
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <Root />
+      <HostProvider host={host} store={store}>
+        {isSettings ? (
+          <SettingsWindow />
+        ) : (
+          <App menu={<PanelMenu />} notice={<PermissionBanner />} />
+        )}
+      </HostProvider>
     </ErrorBoundary>
   </React.StrictMode>,
 );

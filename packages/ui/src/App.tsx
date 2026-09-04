@@ -10,26 +10,20 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  ArrowCircleDown,
   ArrowsMerge,
   CaretRight,
   CheckSquare,
   Copy,
-  DotsThreeVertical,
-  EyeSlash,
-  GearSix,
   MagnifyingGlass,
-  Power,
-  ShieldCheck,
   Square,
   Trash,
   X,
 } from '@phosphor-icons/react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PagePalette } from '@/components/page-palette';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PagePalette } from './components/page-palette.tsx';
+import { Panel } from './components/panel.tsx';
+import { Button } from './components/ui/button.tsx';
+import { Checkbox } from './components/ui/checkbox.tsx';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -37,28 +31,18 @@ import {
   ContextMenuSeparator,
   ContextMenuShortcut,
   ContextMenuTrigger,
-} from '@/components/ui/context-menu';
+} from './components/ui/context-menu.tsx';
+import { Kbd } from './components/ui/kbd.tsx';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Kbd } from '@/components/ui/kbd';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { api, type Item, inTauri, on, type Snapshot, type UpdateInfo } from '@/lib/api';
-import { useTheme } from '@/lib/theme';
-import { cn } from '@/lib/utils';
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './components/ui/tooltip.tsx';
+import { useHost, useSnapshot, useStore } from './context.tsx';
+import type { Item } from './model.ts';
+import { useTheme } from './theme.ts';
+import { cn } from './utils.ts';
 
 type Row = { item: Item; page: string };
 
@@ -66,9 +50,11 @@ const isTypingTarget = (el: EventTarget | null) =>
   el instanceof HTMLElement &&
   (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
-export default function App() {
-  const [snap, setSnap] = useState<Snapshot | null>(null);
-  useTheme(snap?.theme);
+export default function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } = {}) {
+  const host = useHost();
+  const store = useStore();
+  const snap = useSnapshot();
+  useTheme(snap.theme);
   const [selected, setSelected] = useState<number[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
   const [query, setQuery] = useState('');
@@ -80,105 +66,61 @@ export default function App() {
   // The panel has no title bar, so nothing else tells you whether typing will
   // land here or in the app behind it.
   const [focused, setFocused] = useState(true);
-  // Without this a rejected initial snapshot leaves a permanently blank window.
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  const [update, setUpdate] = useState<UpdateInfo | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [installing, setInstalling] = useState(false);
-  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   // Anchor is where a range selection started; cursor is the end that moves.
   const anchorRef = useRef<number | null>(null);
   const cursorRef = useRef<number | null>(null);
-  // Bumped per check. A check that is no longer the newest one drops its
-  // result instead of overwriting a fresher channel's answer.
-  const checkGenRef = useRef(0);
 
   useEffect(() => {
-    if (!inTauri) return;
-    const unlisten = getCurrentWindow().onFocusChanged(({ payload }) => setFocused(payload));
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    void host.window.onFocusChanged(setFocused).then(u => {
+      if (cancelled) {
+        u();
+      } else {
+        unlisten = u;
+      }
+    });
     return () => {
-      void unlisten.then(f => f());
+      cancelled = true;
+      if (unlisten) unlisten();
     };
-  }, []);
+  }, [host]);
 
   const toast = useCallback((message: string) => {
     setFlash(message);
     window.setTimeout(() => setFlash(f => (f === message ? null : f)), 1600);
   }, []);
 
-  const checkForUpdate = useCallback(
-    async (userInitiated = false) => {
-      const generation = ++checkGenRef.current;
-      setChecking(true);
-      try {
-        const info = await api.checkUpdate();
-        if (generation !== checkGenRef.current) return;
-        setUpdate(info);
-        if (userInitiated && !info) {
-          toast('JogPad is up to date');
-        }
-      } catch (e) {
-        if (generation !== checkGenRef.current) return;
-        // The check on launch is silent. An offline machine, or a beta channel
-        // with nothing published on it yet, would otherwise greet you with a
-        // failure every time the app starts.
-        if (userInitiated) toast(`Update check failed: ${e}`);
-      } finally {
-        if (generation === checkGenRef.current) setChecking(false);
-      }
-    },
-    [toast],
-  );
-
   useEffect(() => {
-    // Keep the newest snapshot seen. Rust emits them from commands, from the
-    // hotkey thread and from the permission poller, so a slow reply can land
-    // after a newer event and would otherwise put stale notes back on screen.
-    const apply = (next: Snapshot) => setSnap(prev => (prev && prev.rev > next.rev ? prev : next));
-
-    // Subscribe before asking, or a change made in between is never seen.
-    const unlisten = [
-      on<Snapshot>('notes', e => apply(e.payload)),
-      // Capture lands in the active page, so drop any search that would
-      // hide the thing that was just captured, then point at it.
-      on<number>('captured', e => {
-        setQuery('');
-        setSearching(false);
-        setSelected([e.payload]);
-      }),
-      on('focus-input', () => composerRef.current?.focus()),
-    ];
-    Promise.all(unlisten)
-      .then(() => api.snapshot())
-      .then(s => {
-        apply(s);
-        void checkForUpdate(false);
-      })
-      .catch(e => setLoadError(String(e)));
-    // The pad stays open for days, so a launch-only check would leave the
-    // Dev channel unaware of anything pushed since.
-    const hourly = window.setInterval(() => void checkForUpdate(false), 60 * 60 * 1000);
+    // Capture lands in the active page, so drop any search that would
+    // hide the thing that was just captured, then point at it.
+    const unlistenCaptured = store.on('captured', id => {
+      setQuery('');
+      setSearching(false);
+      setSelected([id]);
+    });
+    const unlistenFocusInput = store.on('focus-input', () => {
+      composerRef.current?.focus();
+    });
     return () => {
-      window.clearInterval(hourly);
-      for (const p of unlisten) void p.then(f => f());
+      unlistenCaptured();
+      unlistenFocusInput();
     };
-  }, [checkForUpdate]);
+  }, [store]);
 
   const q = query.trim().toLowerCase();
   const activeItems = useMemo(
-    () => snap?.pages.find(s => s.name === snap.active)?.items ?? [],
+    () => snap.pages.find(s => s.name === snap.active)?.items ?? [],
     [snap],
   );
   // How many rows the Done heading stands for. Zero means no heading at all.
-  const doneCount = snap?.group_done && !q ? activeItems.filter(i => i.done).length : 0;
+  const doneCount = snap.group_done && !q ? activeItems.filter(i => i.done).length : 0;
 
   // Searching looks across every page; otherwise you see the active one.
   const rows: Row[] = useMemo(() => {
-    if (!snap) return [];
     if (q) {
       return snap.pages.flatMap(s =>
         s.items.filter(i => i.text.toLowerCase().includes(q)).map(item => ({ item, page: s.name })),
@@ -237,21 +179,21 @@ export default function App() {
     async (ids = selected) => {
       if (ids.length === 0) return;
       try {
-        await api.copyAsList(ids);
+        await store.copyAsList(ids);
       } catch (e) {
         toast(`Could not copy: ${e}`);
         return;
       }
       toast(ids.length > 1 ? `Copied ${ids.length} as a list` : 'Copied');
     },
-    [selected, toast],
+    [selected, store, toast],
   );
 
   const submit = async () => {
     const value = composerRef.current?.value ?? '';
     const text = value.trim();
     if (!text) return;
-    await api.addItem(text);
+    await store.addItem(text);
     if (composerRef.current) {
       composerRef.current.value = '';
       composerRef.current.style.height = 'auto';
@@ -262,7 +204,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       // A dialog covers the list, so a stray Delete would destroy a selection
       // the user cannot even see. Each dialog handles its own Escape.
-      if (palette || updateDialogOpen) return;
+      if (palette) return;
       const typing = isTypingTarget(e.target);
 
       if (e.metaKey && e.key.toLowerCase() === 'k') {
@@ -283,18 +225,18 @@ export default function App() {
       }
       if (e.metaKey && e.key.toLowerCase() === 'q') {
         e.preventDefault();
-        void api.quit();
+        void host.window.quit();
         return;
       }
       if (e.metaKey && e.key.toLowerCase() === 'w') {
         e.preventDefault();
-        void api.hideWindow();
+        void host.window.hide();
         return;
       }
       if (e.metaKey && (e.key === '-' || e.key === '=' || e.key === '0')) {
         e.preventDefault();
-        const zoom = snap?.zoom ?? 1;
-        void api.setZoom(e.key === '0' ? 1 : zoom + (e.key === '-' ? -0.1 : 0.1));
+        const zoom = snap.zoom;
+        void store.setZoom(e.key === '0' ? 1 : zoom + (e.key === '-' ? -0.1 : 0.1));
         return;
       }
       if (e.key === 'Escape') {
@@ -314,7 +256,7 @@ export default function App() {
         setSelected(rows.map(r => r.item.id));
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault();
-        if (selected.length > 0) void api.deleteItems(selected);
+        if (selected.length > 0) void store.deleteItems(selected);
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         const step = e.key === 'ArrowDown' ? 1 : -1;
@@ -346,24 +288,14 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [
-    copySelection,
-    editing,
-    palette,
-    query,
-    rows,
-    searching,
-    selected,
-    snap?.zoom,
-    updateDialogOpen,
-  ]);
+  }, [copySelection, editing, host, palette, query, rows, searching, selected, snap.zoom, store]);
 
   // Clicks must still select and double-clicks still edit, so a drag only
   // starts once the pointer has actually travelled.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    if (!snap || !over || active.id === over.id) return;
+    if (!over || active.id === over.id) return;
     const oldIndex = rows.findIndex(r => r.item.id === active.id);
     const newIndex = rows.findIndex(r => r.item.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
@@ -387,7 +319,7 @@ export default function App() {
     const before = rows.slice(displaced).find(landable)?.item.id ?? null;
     // No adjacency guard here: the backend knows the file order, detects a
     // drop that changes nothing and skips the rewrite itself.
-    void api.moveItemsBefore(moving, before, snap.active);
+    void store.moveItemsBefore(moving, before, snap.active);
   };
 
   const allSelectedDone =
@@ -405,39 +337,16 @@ export default function App() {
     </button>
   );
 
-  if (loadError) {
-    return (
-      <div className="flex h-screen items-center justify-center rounded-xl border bg-background p-6 text-center text-sm text-destructive">
-        JogPad could not start: {loadError}
-      </div>
-    );
-  }
-  if (!snap) return null;
-
-  // Accessibility is the prerequisite, and Input Monitoring follows from it
-  // without a prompt, so naming both at once would send people hunting for a
-  // permission they never have to grant by hand.
-  const missingPermission = !snap.trusted
-    ? 'Accessibility'
-    : !snap.input_monitoring
-      ? 'Input Monitoring'
-      : null;
-
   return (
     <TooltipProvider>
-      <div
-        className={cn(
-          'flex h-screen flex-col overflow-hidden rounded-xl border bg-background transition-colors',
-          focused ? 'border-ring/80' : 'border-border/30',
-        )}
-      >
+      <Panel focused={focused}>
         <header
           // The drag-region attribute only fires on the element under the
           // pointer, so the gaps between buttons were the only grabbable
           // pixels. Dragging from anywhere that is not a control is better.
           onPointerDown={e => {
             if ((e.target as HTMLElement).closest('button')) return;
-            if (inTauri) void getCurrentWindow().startDragging();
+            host.window.startDragging();
           }}
           className="flex shrink-0 cursor-grab items-center gap-1 px-3 py-2 active:cursor-grabbing"
         >
@@ -454,14 +363,6 @@ export default function App() {
           </button>
           <span className="text-xs text-muted-foreground">{rows.length}</span>
           <div className="ml-auto flex items-center gap-0.5">
-            {update && (
-              <IconButton
-                label={`Update to v${update.version}`}
-                onClick={() => setUpdateDialogOpen(true)}
-              >
-                <ArrowCircleDown className="text-primary" />
-              </IconButton>
-            )}
             <IconButton
               label="Search"
               hint="⌘F"
@@ -472,40 +373,7 @@ export default function App() {
             >
               <MagnifyingGlass />
             </IconButton>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<Button variant="ghost" size="icon-sm" />}
-                aria-label="More"
-              >
-                <DotsThreeVertical />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="min-w-56 [&_[data-slot=dropdown-menu-item]]:whitespace-nowrap"
-              >
-                {missingPermission && (
-                  <DropdownMenuItem onClick={() => api.requestPermissions()}>
-                    <ShieldCheck /> Grant {missingPermission}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => api.openSettings()}>
-                  <GearSix /> Settings…
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem disabled={checking} onClick={() => void checkForUpdate(true)}>
-                  <ArrowCircleDown /> {checking ? 'Checking for Updates…' : 'Check for Updates…'}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => api.hideWindow()}>
-                  <EyeSlash /> Hide
-                  <DropdownMenuShortcut>⌘W</DropdownMenuShortcut>
-                </DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onClick={() => api.quit()}>
-                  <Power /> Quit JogPad
-                  <DropdownMenuShortcut>⌘Q</DropdownMenuShortcut>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {menu}
           </div>
         </header>
 
@@ -538,14 +406,7 @@ export default function App() {
           </div>
         )}
 
-        {missingPermission && (
-          <button
-            onClick={() => api.requestPermissions()}
-            className="shrink-0 bg-amber-500/15 px-3 py-2 text-left text-xs text-amber-700 dark:text-amber-300"
-          >
-            Double-tap Shift needs {missingPermission}. Click to open Settings.
-          </button>
-        )}
+        {notice}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
           {rows.length === 0 && doneCount === 0 ? (
@@ -585,9 +446,11 @@ export default function App() {
                       onCopy={() =>
                         copySelection(selected.includes(row.item.id) ? selected : [row.item.id])
                       }
-                      onMerge={() => api.mergeItems(selected)}
+                      onMerge={() => void store.mergeItems(selected)}
                       onDelete={() =>
-                        api.deleteItems(selected.includes(row.item.id) ? selected : [row.item.id])
+                        void store.deleteItems(
+                          selected.includes(row.item.id) ? selected : [row.item.id],
+                        )
                       }
                       // Search shows rows from several pages, where "drop
                       // above this row" has no one meaning, so dragging is off
@@ -615,16 +478,19 @@ export default function App() {
                 item, which would only swap the mix around. */}
               <IconButton
                 label={allSelectedDone ? 'Unmark done' : 'Mark done'}
-                onClick={() => api.setDone(selected, !allSelectedDone)}
+                onClick={() => void store.setDone(selected, !allSelectedDone)}
               >
                 {allSelectedDone ? <Square /> : <CheckSquare />}
               </IconButton>
               {selected.length > 1 && (
-                <IconButton label="Merge into one item" onClick={() => api.mergeItems(selected)}>
+                <IconButton
+                  label="Merge into one item"
+                  onClick={() => void store.mergeItems(selected)}
+                >
                   <ArrowsMerge />
                 </IconButton>
               )}
-              <IconButton label="Delete" hint="⌫" onClick={() => api.deleteItems(selected)}>
+              <IconButton label="Delete" hint="⌫" onClick={() => void store.deleteItems(selected)}>
                 <Trash />
               </IconButton>
             </div>
@@ -656,49 +522,10 @@ export default function App() {
           onOpenChange={setPalette}
           pages={snap.pages}
           active={snap.active}
-          onPick={name => api.setActive(name)}
-          onRename={(from, to) => api.renamePage(from, to)}
-          onDelete={name => api.deletePage(name)}
+          onPick={name => void store.setActive(name)}
+          onRename={(from, to) => void store.renamePage(from, to)}
+          onDelete={name => void store.deletePage(name)}
         />
-
-        <Dialog open={updateDialogOpen && update !== null} onOpenChange={setUpdateDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>JogPad {update?.version} is available</DialogTitle>
-              <DialogDescription className="max-h-60 overflow-y-auto whitespace-pre-wrap text-left text-foreground">
-                {update?.notes?.trim() || 'No release notes.'}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setUpdateDialogOpen(false)}
-                disabled={installing}
-              >
-                Later
-              </Button>
-              <Button
-                disabled={installing}
-                onClick={async () => {
-                  setInstalling(true);
-                  try {
-                    await api.installUpdate();
-                  } catch (e) {
-                    setInstalling(false);
-                    setUpdateDialogOpen(false);
-                    // Rust took the pending update before installing, so the
-                    // offer is spent whether or not it worked. Leaving it on
-                    // screen would only ever produce the same failure again.
-                    setUpdate(null);
-                    toast(`Installation failed: ${e}`);
-                  }
-                }}
-              >
-                {installing ? 'Installing…' : 'Install and Restart'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {flash && (
           <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
@@ -707,7 +534,7 @@ export default function App() {
             </span>
           </div>
         )}
-      </div>
+      </Panel>
     </TooltipProvider>
   );
 }
@@ -770,6 +597,7 @@ function ItemRow({
   onDelete,
   canDrag,
 }: RowProps) {
+  const store = useStore();
   const { item } = row;
   const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({
     id: item.id,
@@ -814,7 +642,7 @@ function ItemRow({
       >
         <Checkbox
           checked={item.done}
-          onCheckedChange={() => api.toggleItem(item.id)}
+          onCheckedChange={() => void store.toggleItem(item.id)}
           onClick={e => e.stopPropagation()}
           className="mt-0.5"
         />
@@ -826,7 +654,7 @@ function ItemRow({
             onClick={e => editing && e.stopPropagation()}
             onBlur={e => {
               const text = e.currentTarget.innerText;
-              if (text !== item.text) void api.updateItem(item.id, text);
+              if (text !== item.text) void store.updateItem(item.id, text);
               onEndEdit();
             }}
             onKeyDown={e => {

@@ -7,11 +7,17 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "useDefineForClassFields": true,
     "allowImportingTsExtensions": true,
-    "types": ["node", "vite/client"],
+    "types": [],
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declarationDir": "node_modules/.tmp/types"
   },
-  "include": ["src", "vite.config.ts"],
-  "references": [{ "path": "../../packages/ui" }]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }

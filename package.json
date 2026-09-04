@@ -14,8 +14,10 @@
     "repojj:check": "repojj check",
     "repojj:check:fix": "repojj check --fix",
     "repojj:postfix": "biome check --write .",
-    "test": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml"
+    "test": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "test:ui": "node --test packages/ui/src/*.test.ts"
   },
+
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "lefthook": "catalog:",

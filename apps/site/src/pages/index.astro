@@ -1,5 +1,28 @@
 ---
+/*
+impeccable direction contract · seed a7c31e90 · pick card, code-led
+THESIS: The page is the key. One Shift keycap at monument scale that
+the visitor really double-taps, with the real pad popping out of it.
+Refuses the dark centred-hero-plus-screenshot-in-a-card page.
+OWN-WORLD: The Magic Keyboard. Aluminium deck, white keycaps with a
+visible wall, black modifier legends set in the system face, a black
+cap for the one key you are meant to press, macOS blue for selection
+and focus. Bricolage Grotesque for everything that is not a legend.
+STORY: Read the one line, tap Shift twice, watch the key sink and the
+pad jump, believe the gesture, press Download.
+FIRST VIEWPORT: Wordmark and nav on top. Left: headline, lede, the
+giant Shift key beneath them. Right: the live pad at real size, bottom
+aligned with the key. Under the key: the black Download key and a
+white GitHub key.
+FORM: Shift Key Monument, my top-ranked grounded candidate (the roll
+assigned candidate 3, the cheat-sheet poster; the user chose the pick).
+FINISH: unreviewed and undocumented is unfinished; this build ends
+with the finish review, the verdict, and DESIGN.md
+*/
+import "@fontsource-variable/bricolage-grotesque/opsz.css";
 import { fetchPublishedReleases, highestRelease, dmgUrl } from "../lib/releases";
+import { demoMarkdown } from "../web-host";
+import Demo from "../components/Demo";
 
 let downloadUrl: string | null = null;
 let latestVersion: string | null = null;
@@ -12,7 +35,7 @@ try {
     latestVersion = latestRelease.tag_name;
   }
 } catch (e) {
-  // The download button degrades to the releases page. The manifest routes
+  // The download key degrades to the releases page. The manifest routes
   // call the same helper and do not catch, so a real API failure still fails
   // the build there rather than shipping a site with no updates.
   console.warn("Could not resolve latest release for the download button:", e);
@@ -21,6 +44,7 @@ try {
 // GitHub resolves /releases/latest to the newest non-prerelease, so the
 // fallback never lands someone on a beta or dev build.
 const latestReleaseUrl = "https://github.com/fishballapp/jogpad/releases/latest";
+const repoUrl = "https://github.com/fishballapp/jogpad";
 const site = Astro.site?.toString() ?? "https://jogpad.fishball.app/";
 const title = "JogPad - select text anywhere on your Mac, tap Shift twice";
 const description =
@@ -42,6 +66,23 @@ const jsonLd = {
   ...(latestVersion ? { softwareVersion: latestVersion.replace(/^v/, "") } : {}),
   ...(downloadUrl ? { downloadUrl } : {}),
 };
+
+// The first page of the demo file, shown as the file it really is.
+const fileExcerpt = (demoMarkdown.split("\n## ")[0] ?? demoMarkdown).trimEnd();
+
+const shortcuts: { keys: string[]; label: string; what: string }[] = [
+  { keys: ["⌘", "K"], label: "Command K", what: "Switch or create a page. Hover a page to rename or delete it." },
+  { keys: ["⌘", "1"], label: "Command 1", what: "Jump straight to a page, ⌘1 through ⌘9, inside the ⌘K list." },
+  { keys: ["⌘", "⇧", "C"], label: "Command Shift C", what: "Copy the selected items as a numbered list." },
+  { keys: ["⌘", "F"], label: "Command F", what: "Search across every page." },
+  { keys: ["⌘", "A"], label: "Command A", what: "Select everything visible." },
+  { keys: ["↑", "↓"], label: "Up arrow, down arrow", what: "Move the selection. Hold ⇧ to extend it." },
+  { keys: ["⌫"], label: "Delete", what: "Delete the selected items." },
+  { keys: ["⌘", "−"], label: "Command minus", what: "Zoom out. ⌘+ zooms in, ⌘0 goes back to 100%. The window resizes with it." },
+  { keys: ["⌘", "W"], label: "Command W", what: "Hide the pad. Capture keeps working while it is hidden." },
+  { keys: ["↩"], label: "Return", what: "While editing an item, save it. ⇧↩ starts a new line." },
+  { keys: ["⌘", "Q"], label: "Command Q", what: "Quit." },
+];
 ---
 
 <!doctype html>
@@ -54,6 +95,7 @@ const jsonLd = {
     <link rel="canonical" href={site} />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
+    <meta name="theme-color" content="#e3e3df" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -64,15 +106,23 @@ const jsonLd = {
     <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
     <style is:global>
       :root {
-        --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        --font-display: "Bricolage Grotesque Variable", "Helvetica Neue", Arial, sans-serif;
+        --font-legend: -apple-system, BlinkMacSystemFont, "SF Pro", "Helvetica Neue", Arial, sans-serif;
         --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        --bg: #09090b;
-        --fg: #f4f4f5;
-        --muted: #a1a1aa;
-        --border: #27272a;
-        --accent: #ffffff;
-        --accent-fg: #09090b;
-        --card: #18181b;
+
+        /* The Magic Keyboard: aluminium deck, white caps, black legends, and
+           the one blue macOS keeps for the thing you are about to do. */
+        --deck: #e3e3df;
+        --deck-deep: #cfcfca;
+        --cap: #fbfbf9;
+        --cap-side: #b3b3ad;
+        --cap-ink: #1d1d1f;
+        --cap-ink-side: #050506;
+        --ink: #1d1d1f;
+        --ink-soft: #55555b;
+        --blue: #0a6cff;
+        --blue-ink: #ffffff;
+        --wall: 4px;
       }
 
       * {
@@ -82,188 +132,662 @@ const jsonLd = {
       }
 
       ::selection {
-        background-color: var(--fg);
-        color: var(--bg);
+        background-color: var(--blue);
+        color: var(--blue-ink);
       }
 
       :focus-visible {
-        outline: 2px solid var(--fg);
-        outline-offset: 3px;
+        outline: 3px solid var(--blue);
+        outline-offset: 4px;
+        border-radius: 0.25rem;
+      }
+
+      html {
+        background-color: var(--deck);
+        scroll-behavior: smooth;
+        scrollbar-color: var(--cap-side) var(--deck);
       }
 
       body {
-        font-family: var(--font-sans);
-        background-color: var(--bg);
-        color: var(--fg);
-        line-height: 1.6;
-        padding: 2rem 1rem;
-      }
-
-      .container {
-        max-width: 680px;
-        margin: 0 auto;
-      }
-
-      header {
-        margin-bottom: 2.5rem;
-        text-align: center;
-      }
-
-      h1 {
-        font-size: 2.25rem;
-        font-weight: 700;
-        letter-spacing: -0.025em;
-        margin-bottom: 0.75rem;
-      }
-
-      .description {
-        font-size: 1.1rem;
-        color: var(--muted);
-        margin-bottom: 1.75rem;
-        text-wrap: balance;
-      }
-
-      .description kbd {
-        color: var(--fg);
-        font-size: 0.9rem;
+        font-family: var(--font-display);
+        font-optical-sizing: auto;
+        font-size: 1.0625rem;
+        line-height: 1.55;
+        color: var(--ink);
+        background-color: var(--deck);
+        caret-color: var(--blue);
+        -webkit-font-smoothing: antialiased;
       }
 
       a {
-        color: var(--fg);
+        color: var(--ink);
         text-decoration: underline;
-        text-underline-offset: 3px;
-        text-decoration-color: var(--muted);
+        text-decoration-color: color-mix(in srgb, var(--ink) 35%, transparent);
+        text-decoration-thickness: 1.5px;
+        text-underline-offset: 0.18em;
       }
 
       a:hover {
-        text-decoration-color: var(--fg);
+        text-decoration-color: var(--blue);
+        color: var(--blue);
       }
 
-      .cta-wrapper {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 1rem;
-        align-items: center;
-        margin-bottom: 0.75rem;
+      .container {
+        max-width: calc(1180px + 2 * clamp(1rem, 5vw, 3.5rem));
+        padding-inline: clamp(1rem, 5vw, 3.5rem);
+        margin-inline: auto;
       }
 
-      .btn {
+      /* ---------- keycaps ---------- */
+
+      /* Every key on the page is the same object: a white cap with a short
+         wall under it, sitting on the deck. Pressing sinks the cap onto the
+         wall. A black cap is the keyboard viewer's pressed-key inversion. */
+      .cap {
+        --cap-wall: var(--wall);
+        position: relative;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-weight: 500;
-        font-size: 0.95rem;
-        padding: 0.65rem 1.25rem;
-        border: 1px solid transparent;
-        border-radius: 0.5rem;
+        font-family: var(--font-legend);
+        color: var(--cap-ink);
+        background: var(--cap);
+        border: 0;
+        border-radius: 0.45em;
+        box-shadow:
+          inset 0 1px 0 #fff,
+          0 var(--cap-wall) 0 var(--cap-side),
+          0 calc(var(--cap-wall) + 2px) 6px -2px rgba(20, 20, 22, 0.22);
+        transition: transform 70ms cubic-bezier(0.2, 0, 0, 1), box-shadow 70ms cubic-bezier(0.2, 0, 0, 1);
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      .cap.is-down,
+      .cap:active {
+        transform: translateY(calc(var(--cap-wall) - 1px));
+        box-shadow:
+          inset 0 1px 0 #fff,
+          0 1px 0 var(--cap-side),
+          0 2px 3px -1px rgba(20, 20, 22, 0.25);
+      }
+
+      .cap-ink {
+        background: var(--cap-ink);
+        color: var(--cap);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.14),
+          0 var(--cap-wall) 0 var(--cap-ink-side),
+          0 calc(var(--cap-wall) + 2px) 8px -2px rgba(20, 20, 22, 0.45);
+      }
+
+      .cap-ink.is-down,
+      .cap-ink:active {
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.14),
+          0 1px 0 var(--cap-ink-side),
+          0 2px 3px -1px rgba(20, 20, 22, 0.35);
+      }
+
+      /* A key that goes somewhere. Legend layout is the Apple modifier key:
+         glyph top-right, name bottom-left. */
+      a.cap {
         text-decoration: none;
-        transition: opacity 0.15s ease, border-color 0.15s ease;
+        justify-content: flex-start;
+        align-items: flex-end;
+        min-width: 11.5rem;
+        min-height: 5.75rem;
+        padding: 0.7rem 0.9rem;
+        font-size: 1.05rem;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        line-height: 1.15;
       }
 
-      .btn-primary {
-        background-color: var(--accent);
-        color: var(--accent-fg);
+      a.cap:hover {
+        color: var(--cap-ink);
+        transform: translateY(-1px);
+        box-shadow:
+          inset 0 1px 0 #fff,
+          0 calc(var(--cap-wall) + 1px) 0 var(--cap-side),
+          0 calc(var(--cap-wall) + 4px) 10px -2px rgba(20, 20, 22, 0.28);
       }
 
-      .btn-primary:hover {
-        opacity: 0.85;
+      a.cap.cap-ink:hover {
+        color: var(--cap);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.14),
+          0 calc(var(--cap-wall) + 1px) 0 var(--cap-ink-side),
+          0 calc(var(--cap-wall) + 4px) 12px -2px rgba(20, 20, 22, 0.5);
       }
 
-      .btn-secondary {
-        background-color: transparent;
-        color: var(--muted);
-        border-color: var(--border);
+      a.cap:active {
+        transform: translateY(calc(var(--cap-wall) - 1px));
       }
 
-      .btn-secondary:hover {
-        color: var(--fg);
-        border-color: var(--muted);
+      a.cap .glyph {
+        position: absolute;
+        top: 0.65rem;
+        right: 0.8rem;
+        width: 1.1rem;
+        height: 1.1rem;
       }
 
-      .cta-note {
-        font-size: 0.85rem;
-        color: var(--muted);
-        margin-bottom: 2.5rem;
+      a.cap .glyph svg {
+        display: block;
+        width: 100%;
+        height: 100%;
       }
 
-      .screenshot-wrapper {
-        margin-bottom: 3rem;
+      a.cap small {
+        display: block;
+        margin-top: 0.15rem;
+        font-size: 0.8rem;
+        font-weight: 400;
+        opacity: 0.72;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* ---------- top bar ---------- */
+
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5rem 1rem;
+        padding-block: 1.5rem 0;
+        font-size: 0.95rem;
+      }
+
+      .wordmark {
+        font-weight: 800;
+        font-size: 1.25rem;
+        letter-spacing: -0.03em;
+        text-decoration: none;
+      }
+
+      .top nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.25rem;
+      }
+
+      /* ---------- hero ---------- */
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 420px;
+        grid-template-rows: auto auto;
+        column-gap: clamp(2rem, 5vw, 4.5rem);
+        row-gap: 2.25rem;
+        align-items: end;
+        padding-block: clamp(2.5rem, 7vh, 5rem) 3rem;
+      }
+
+      .hero-copy {
+        grid-column: 1;
+        grid-row: 1;
+        align-self: start;
+      }
+
+      h1 {
+        font-size: clamp(2.75rem, 6.6vw, 5.5rem);
+        font-weight: 800;
+        line-height: 0.98;
+        letter-spacing: -0.035em;
+        text-wrap: balance;
+        margin-bottom: 1.25rem;
+      }
+
+      .lede {
+        font-size: clamp(1.1rem, 1.5vw, 1.35rem);
+        line-height: 1.4;
+        max-width: 34ch;
+        text-wrap: pretty;
+        color: var(--ink);
+      }
+
+      .try {
+        margin-top: 1rem;
+        max-width: 40ch;
+        color: var(--ink-soft);
+        text-wrap: pretty;
+      }
+
+      .try b {
+        font-weight: 600;
+        color: var(--ink);
+      }
+
+      .lede kbd {
+        font-family: var(--font-legend);
+        font-weight: 500;
+      }
+
+      /* The key. Same proportions as the left Shift on an Apple keyboard,
+         scaled until the wall is a finger thick. */
+      .key-shift {
+        --cap-wall: clamp(8px, 1.4vw, 16px);
+        grid-column: 1;
+        grid-row: 2;
+        width: 100%;
+        aspect-ratio: 2.3 / 1;
+        border-radius: clamp(14px, 2.4vw, 28px);
+        cursor: pointer;
+        font-family: var(--font-legend);
+        color: var(--cap-ink);
+        text-align: left;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .key-shift .legend-glyph {
+        position: absolute;
+        top: 7%;
+        right: 5.5%;
+        font-size: clamp(3.5rem, 11vw, 9rem);
+        line-height: 1;
+        font-weight: 400;
+      }
+
+      .key-shift .legend-name {
+        position: absolute;
+        left: 5.5%;
+        bottom: 9%;
+        font-size: clamp(1.6rem, 4vw, 3.25rem);
+        line-height: 1;
+        font-weight: 400;
+        letter-spacing: -0.01em;
+      }
+
+
+      /* ---------- the panel ---------- */
+
+      .demo {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        position: relative;
+        width: 100%;
+        justify-self: end;
+        align-self: end;
+      }
+
+      .demo-slot {
+        height: 448px;
+        border-radius: 0.75rem;
+      }
+
+      .demo-panel {
+        height: 448px;
+        border-radius: 0.75rem;
+        background: #0c0c0d;
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.08) inset,
+          0 24px 40px -12px rgba(20, 20, 22, 0.45),
+          0 8px 14px -6px rgba(20, 20, 22, 0.3);
+        transform-origin: 0% 100%;
+      }
+
+      /* The one authored moment: the second tap and the pad jumps out of the
+         key. Re-run on every double-tap by toggling the class. */
+      .demo-panel.pop {
+        animation: pop 380ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      @keyframes pop {
+        0% {
+          transform: translate(-26px, 26px) scale(0.94);
+          box-shadow:
+            0 1px 0 rgba(255, 255, 255, 0.08) inset,
+            0 6px 12px -8px rgba(20, 20, 22, 0.4);
+        }
+        100% {
+          transform: none;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .demo-panel.pop {
+          animation: none;
+        }
+        html {
+          scroll-behavior: auto;
+        }
+      }
+
+      /* Once dragged, the panel floats over the page and the slot stays
+         behind as an empty key well so the hero does not collapse. */
+      .demo-panel.detached {
+        position: fixed;
+        z-index: 50;
+        transform-origin: center;
+      }
+
+      .demo-slot.detached {
+        background: var(--deck-deep);
+        box-shadow: inset 0 2px 6px rgba(20, 20, 22, 0.18);
+      }
+
+      .demo-slot.detached > button {
+        width: 100%;
+        height: 100%;
+        padding: 1.5rem;
+        background: none;
+        border: 0;
+        border-radius: inherit;
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.95rem;
+        line-height: 1.45;
+        color: var(--ink-soft);
         text-align: center;
+        text-wrap: balance;
       }
 
-      .screenshot-wrapper img {
+      .demo-slot.detached > button:hover {
+        color: var(--ink);
+      }
+
+      /* Resize like a macOS window: no handle, the cursor changes at the
+         border. Strips sit over the panel's edges; corners on top of them. */
+      .demo-edge {
+        position: absolute;
+        z-index: 1;
+        --edge: 6px;
+      }
+
+      /* Pointer drags on touch: without this the browser pans the page and
+         cancels the pointer. */
+      .demo-edge,
+      .demo-panel header {
+        touch-action: none;
+      }
+      [data-edge="n"], [data-edge="s"] { left: 0; right: 0; height: var(--edge); cursor: ns-resize; }
+      [data-edge="e"], [data-edge="w"] { top: 0; bottom: 0; width: var(--edge); cursor: ew-resize; }
+      [data-edge="n"] { top: 0; }
+      [data-edge="s"] { bottom: 0; }
+      [data-edge="e"] { right: 0; }
+      [data-edge="w"] { left: 0; }
+      [data-edge="ne"], [data-edge="se"], [data-edge="sw"], [data-edge="nw"] {
+        width: calc(var(--edge) * 2);
+        height: calc(var(--edge) * 2);
+        z-index: 2;
+      }
+      [data-edge="ne"] { top: 0; right: 0; cursor: nesw-resize; }
+      [data-edge="sw"] { bottom: 0; left: 0; cursor: nesw-resize; }
+      [data-edge="nw"] { top: 0; left: 0; cursor: nwse-resize; }
+      [data-edge="se"] { bottom: 0; right: 0; cursor: nwse-resize; }
+
+      /* Hand-written, the way the first version had it. Hidden once the pad
+         has been dragged away, and on phones where there is no room beside. */
+      .try-me {
+        position: absolute;
+        right: calc(100% - 1rem);
+        top: -1.5rem;
+        width: 150px;
+        color: var(--ink-soft);
+        font-family: "Comic Sans MS", "Chalkboard SE", "Bradley Hand", cursive;
+        font-size: 1.15rem;
+        line-height: 1;
+        transform: rotate(-8deg);
+        pointer-events: none;
+      }
+
+      .try-me span {
+        display: block;
+        margin-left: 0.25rem;
+      }
+
+      .try-me svg {
+        display: block;
+        width: 120px;
+        margin-top: 0.25rem;
+      }
+
+      .demo:has(.detached) .try-me {
+        display: none;
+      }
+
+      .demo img {
+        display: block;
         max-width: 100%;
         height: auto;
         border-radius: 0.75rem;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
       }
 
+      /* ---------- action row ---------- */
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1rem 1.25rem;
+        padding-bottom: clamp(3rem, 8vh, 6rem);
+      }
+
+      .actions .keys {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+
+      .actions p {
+        font-size: 0.95rem;
+        color: var(--ink-soft);
+        max-width: 36ch;
+        text-wrap: pretty;
+      }
+
+      /* ---------- sections ---------- */
+
       section {
-        margin-bottom: 3rem;
+        padding-block: clamp(2.5rem, 6vh, 4.5rem);
+        border-top: 1px solid var(--deck-deep);
       }
 
       h2 {
-        font-size: 1.35rem;
-        font-weight: 600;
-        letter-spacing: -0.015em;
-        margin-bottom: 1rem;
-        border-bottom: 1px solid var(--border);
-        padding-bottom: 0.5rem;
+        font-size: clamp(1.75rem, 3.2vw, 2.5rem);
+        font-weight: 700;
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        text-wrap: balance;
+        margin-bottom: 1.5rem;
       }
 
-      section p + p,
-      section ol + p {
+      .two-col {
+        display: grid;
+        grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+        column-gap: clamp(2rem, 6vw, 6rem);
+        row-gap: 1.5rem;
+        align-items: start;
+      }
+
+      .two-col h2 {
+        margin-bottom: 0.75rem;
+      }
+
+      .two-col > div > p {
+        max-width: 40ch;
+        color: var(--ink-soft);
+        text-wrap: pretty;
+      }
+
+      .two-col > div > p + p {
         margin-top: 0.75rem;
       }
 
-      ol {
-        padding-left: 1.5rem;
+      /* The gesture rule: same key, three answers. */
+      .moods {
+        display: grid;
+        gap: 0.25rem;
       }
 
-      li + li {
-        margin-top: 0.35rem;
+      .moods > div {
+        display: grid;
+        grid-template-columns: minmax(11rem, 15rem) 1fr;
+        gap: 1rem;
+        padding: 1.1rem 0;
+        border-top: 1px solid var(--deck-deep);
       }
 
-      .table-wrapper {
-        overflow-x: auto;
+      .moods > div:first-child {
+        border-top: 0;
+        padding-top: 0;
       }
 
-      table {
-        width: 100%;
-        table-layout: fixed;
-        border-collapse: collapse;
-        font-size: 0.9rem;
-        text-align: left;
+      .moods dt {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
       }
 
-      th, td {
-        padding: 0.65rem 0.75rem;
-        border-bottom: 1px solid var(--border);
-        vertical-align: top;
+      .moods dt .cap {
+        flex: none;
+        width: 2.5rem;
+        height: 2.5rem;
+        font-size: 1.15rem;
+        font-weight: 400;
       }
 
-      th {
-        color: var(--muted);
-        font-weight: 500;
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+      .moods dd {
+        color: var(--ink-soft);
+        max-width: 48ch;
+        text-wrap: pretty;
       }
 
-      td:first-child,
-      th:first-child {
-        width: 9.5rem;
+      /* Shortcuts: real keys, real descriptions. */
+      .shortcuts {
+        list-style: none;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+        gap: 1.5rem 2.5rem;
+        margin-top: 0.5rem;
       }
 
-      kbd {
+      .shortcuts li {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 1rem;
+        align-items: start;
+      }
+
+      .combo {
+        display: inline-flex;
+        gap: 0.35rem;
+        padding-top: 0.15rem;
+      }
+
+      .combo .cap {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 0.45rem;
+        font-size: 1.05rem;
+        font-weight: 400;
+      }
+
+      .shortcuts p {
+        color: var(--ink-soft);
+        text-wrap: pretty;
+        line-height: 1.45;
+        padding-top: 0.45rem;
+      }
+
+      .shortcuts p b {
+        font-weight: 600;
+        color: var(--ink);
+      }
+
+      /* The install order, which really is an order. */
+      ol.steps {
+        list-style: none;
+        counter-reset: step;
+        display: grid;
+        gap: 1.25rem;
+      }
+
+      ol.steps li {
+        counter-increment: step;
+        display: grid;
+        grid-template-columns: 2.5rem 1fr;
+        gap: 1rem;
+        align-items: start;
+        max-width: 56ch;
+        color: var(--ink-soft);
+        text-wrap: pretty;
+      }
+
+      ol.steps li::before {
+        content: counter(step);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 0.45rem;
+        font-family: var(--font-legend);
+        font-size: 1.05rem;
+        color: var(--cap-ink);
+        background: var(--cap);
+        box-shadow:
+          inset 0 1px 0 #fff,
+          0 var(--wall) 0 var(--cap-side),
+          0 calc(var(--wall) + 2px) 6px -2px rgba(20, 20, 22, 0.22);
+      }
+
+      ol.steps li b {
+        font-weight: 600;
+        color: var(--ink);
+      }
+
+      .aside {
+        margin-top: 1.25rem;
+        max-width: 56ch;
+        color: var(--ink-soft);
+        text-wrap: pretty;
+      }
+
+      /* The file, as it is on disk. */
+      .file {
         font-family: var(--font-mono);
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: var(--ink);
+        background: var(--deck-deep);
+        border-radius: 0.75rem;
+        padding: 1.25rem 1.5rem;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        box-shadow: inset 0 2px 6px rgba(20, 20, 22, 0.18);
+        tab-size: 2;
+      }
+
+      .file .path {
+        display: block;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid rgba(20, 20, 22, 0.12);
+        color: var(--ink-soft);
         font-size: 0.8rem;
-        background-color: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 0.25rem;
-        padding: 0.15rem 0.35rem;
-        white-space: nowrap;
+        overflow-wrap: anywhere;
+      }
+
+      /* ---------- footer ---------- */
+
+      footer {
+        padding-block: 2.5rem 3rem;
+        border-top: 1px solid var(--deck-deep);
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 0.75rem 2rem;
+        font-size: 0.9rem;
+        color: var(--ink-soft);
+      }
+
+      footer a {
+        color: inherit;
       }
 
       .visually-hidden {
@@ -275,177 +799,249 @@ const jsonLd = {
         white-space: nowrap;
       }
 
-      details {
-        margin-top: 1rem;
+      /* ---------- narrow ---------- */
+
+      @media (max-width: 900px) {
+        .hero {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: auto auto auto;
+          row-gap: 2rem;
+          padding-top: 2.5rem;
+        }
+        .hero-copy { grid-row: 1; }
+        .key-shift { grid-row: 2; }
+        .demo {
+          grid-column: 1;
+          grid-row: 3;
+          justify-self: center;
+          width: min(420px, 100%);
+        }
+        .try-me {
+          display: none;
+        }
+        .two-col {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
 
-      summary {
-        cursor: pointer;
-        color: var(--muted);
-        font-size: 0.9rem;
-        width: fit-content;
-      }
-
-      summary:hover {
-        color: var(--fg);
-      }
-
-      details[open] summary {
-        margin-bottom: 0.5rem;
-      }
-
-      footer {
-        text-align: center;
-        font-size: 0.85rem;
-        color: var(--muted);
-        padding-top: 2rem;
-        border-top: 1px solid var(--border);
-      }
-
-      footer p + p {
-        margin-top: 0.35rem;
+      @media (max-width: 480px) {
+        .demo-slot,
+        .demo-panel {
+          height: 400px;
+        }
+        .moods > div {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 0.35rem;
+        }
+        a.cap {
+          min-width: 0;
+          flex: 1 1 10rem;
+        }
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <main>
-      <header>
-        <h1>JogPad</h1>
-        <p class="description">
-          Select text in any app, tap <kbd>Shift</kbd> <kbd>Shift</kbd>, and it lands in a sidebar.
-          Pick items later, copy them as a numbered list, paste them into a prompt box.
-        </p>
-
-        <div class="cta-wrapper">
-          {
-            downloadUrl ? (
-              <a href={downloadUrl} class="btn btn-primary">
-                Download for macOS {latestVersion ? `(${latestVersion})` : ""}
-              </a>
-            ) : (
-              <a href={latestReleaseUrl} class="btn btn-secondary">
-                Latest release on GitHub
-              </a>
-            )
-          }
-          <a
-            href="https://github.com/fishballapp/jogpad"
-            class="btn btn-secondary"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            GitHub
-          </a>
-        </div>
-        <p class="cta-note">
-          Universal .dmg for Apple silicon and Intel, signed and notarized.
-          Needs Accessibility access to read what you select, and asks for it on first launch.
-        </p>
+      <header class="top">
+        <a class="wordmark" href="/">JogPad</a>
+        <nav aria-label="Site">
+          <a href="#shortcuts">Shortcuts</a>
+          <a href="#install">Install</a>
+          <a href={repoUrl}>GitHub</a>
+        </nav>
       </header>
 
-      <div class="screenshot-wrapper">
-        <img
-          src="/screenshot.png"
-          alt={screenshotAlt}
-          width="420"
-          height="448"
-          loading="eager"
-          fetchpriority="high"
-        />
-      </div>
-
-      <section>
-        <h2>First launch</h2>
-        <ol>
-          <li>Drag JogPad to Applications before opening it. macOS ties the permission grant to the app's path, so moving it afterwards means granting again.</li>
-          <li>Open it and tap Shift twice. macOS asks for Accessibility access.</li>
-          <li>Reading the keyboard also needs Input Monitoring. JogPad requests that one itself once Accessibility lands, and macOS normally grants it without a prompt.</li>
-        </ol>
-        <p>
-          If a double-tap captures nothing, the banner in the sidebar opens the right pane in System Settings.
-          Without the grants JogPad still works as a scratchpad, it just cannot read other apps' selections.
-        </p>
-      </section>
-
-      <section>
-        <h2>Shortcuts</h2>
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Keys</th>
-                <th>What happens</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><kbd>Shift</kbd> <kbd>Shift</kbd></td>
-                <td>
-                  With text selected, capture it and show the sidebar.<br />
-                  With nothing selected, open the sidebar and focus the input.<br />
-                  While the sidebar has the keyboard, hide it.
-                </td>
-              </tr>
-              <tr>
-                <td><kbd>⌘⇧C</kbd></td>
-                <td>Copy the selected items as a numbered list</td>
-              </tr>
-              <tr>
-                <td><kbd>⌘K</kbd></td>
-                <td>Switch or create a page. Hover a page to rename or delete it</td>
-              </tr>
-              <tr>
-                <td><kbd>⌘F</kbd></td>
-                <td>Search across every page</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <details>
-          <summary>All shortcuts</summary>
-          <div class="table-wrapper">
-            <table>
-              <thead class="visually-hidden">
-                <tr>
-                  <th>Keys</th>
-                  <th>What happens</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><kbd>⌘A</kbd></td>
-                  <td>Select everything visible</td>
-                </tr>
-                <tr>
-                  <td><kbd>↑</kbd> / <kbd>↓</kbd></td>
-                  <td>Move the selection, <kbd>⇧</kbd> to extend it</td>
-                </tr>
-                <tr>
-                  <td><kbd>⌫</kbd></td>
-                  <td>Delete the selected items</td>
-                </tr>
-                <tr>
-                  <td><kbd>⌘-</kbd> <kbd>⌘+</kbd> <kbd>⌘0</kbd></td>
-                  <td>Zoom out, in, or back to 100%. The window resizes with it</td>
-                </tr>
-                <tr>
-                  <td><kbd>⌘W</kbd></td>
-                  <td>Hide the sidebar. Capture keeps working while it is hidden</td>
-                </tr>
-                <tr>
-                  <td><kbd>⌘Q</kbd></td>
-                  <td>Quit</td>
-                </tr>
-                <tr>
-                  <td><kbd>Enter</kbd> / <kbd>⇧Enter</kbd></td>
-                  <td>While editing an item, save, or start a new line</td>
-                </tr>
-              </tbody>
-            </table>
+      <main>
+        <div class="hero">
+          <div class="hero-copy">
+            <h1>Shift Shift.</h1>
+            <p class="lede">
+              Select text in any app, tap <kbd>⇧</kbd> twice, and it lands in a pad
+              that stays out of your way. Tick a few later, copy them as a numbered
+              list, paste the lot into a prompt.
+            </p>
+            <p class="try">
+              Try it here. <b>Select any words on this page</b>, then tap your Shift key
+              twice. No Shift key? Tap the big one twice.
+            </p>
           </div>
-        </details>
-      </section>
+
+          <button
+            type="button"
+            class="cap key-shift"
+            id="shift-key"
+            aria-label="Shift. Tap twice to send the page selection to the pad."
+          >
+            <span class="legend-glyph" aria-hidden="true">⇧</span>
+            <span class="legend-name" aria-hidden="true">shift</span>
+          </button>
+
+          <div class="demo">
+            <div class="try-me" aria-hidden="true">
+              <span>Try me!</span>
+              <svg viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 10 C 30 8, 70 14, 104 62" />
+                <path d="M88 60 L 104 62 L 102 46" />
+              </svg>
+            </div>
+            <Demo client:only="react" />
+            <noscript>
+              <img src="/screenshot.png" alt={screenshotAlt} width="420" height="448" />
+            </noscript>
+          </div>
+        </div>
+
+        <div class="actions">
+          <div class="keys">
+            {
+              downloadUrl ? (
+                <a href={downloadUrl} class="cap cap-ink">
+                  <span class="glyph" aria-hidden="true">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8.5M4.5 7.5 8 11l3.5-3.5M3 13.5h10" /></svg>
+                  </span>
+                  <span>
+                    Download for macOS
+                    <small>{latestVersion ?? "latest"} · free</small>
+                  </span>
+                </a>
+              ) : (
+                <a href={latestReleaseUrl} class="cap cap-ink">
+                  <span class="glyph" aria-hidden="true">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8.5M4.5 7.5 8 11l3.5-3.5M3 13.5h10" /></svg>
+                  </span>
+                  <span>
+                    Latest release
+                    <small>on GitHub</small>
+                  </span>
+                </a>
+              )
+            }
+            <a href={repoUrl} class="cap" target="_blank" rel="noopener noreferrer">
+              <span class="glyph" aria-hidden="true">
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg>
+              </span>
+              <span>
+                Source on GitHub
+                <small>MIT</small>
+              </span>
+            </a>
+          </div>
+          <p>
+            One universal .dmg for Apple silicon and Intel, signed and notarized.
+            No account, no sync, no telemetry.
+          </p>
+        </div>
+
+        <section aria-labelledby="moods-title">
+          <div class="two-col">
+            <div>
+              <h2 id="moods-title">One key, three moods.</h2>
+              <p>
+                There is no shortcut to learn. Where the keyboard is and whether
+                anything is selected decide what the double-tap means.
+              </p>
+              <p>
+                Shift keeps being Shift. JogPad only listens, so capital letters
+                still work and nothing gets swallowed.
+              </p>
+            </div>
+            <dl class="moods">
+              <div>
+                <dt><kbd class="cap" aria-hidden="true">⇧</kbd>Text is selected</dt>
+                <dd>It goes into the pad, and the pad shows itself without taking the keyboard. You keep reading where you were.</dd>
+              </div>
+              <div>
+                <dt><kbd class="cap is-down" aria-hidden="true">⇧</kbd>Nothing is selected</dt>
+                <dd>The pad opens with the cursor in its input, so you can type the thought before it goes.</dd>
+              </div>
+              <div>
+                <dt><kbd class="cap cap-ink" aria-hidden="true">⇧</kbd>The pad has the keyboard</dt>
+                <dd>It hides. Tap again from any app to bring it back.</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+
+        <section id="shortcuts" aria-labelledby="shortcuts-title">
+          <h2 id="shortcuts-title">The other keys.</h2>
+          <ul class="shortcuts">
+            {shortcuts.map(s => (
+              <li>
+                <span class="combo" role="img" aria-label={s.label}>
+                  {s.keys.map(k => <kbd class="cap">{k}</kbd>)}
+                </span>
+                <p>{s.what}</p>
+              </li>
+            ))}
+          </ul>
+          <p class="aside">
+            The menu bar icon toggles the pad, and a right-click on it shows Show,
+            Hide and Quit. Items drag to reorder. Done items fold away under a
+            "Done" heading at the bottom, and copying ticks them off as it goes.
+          </p>
+        </section>
+
+        <section id="install" aria-labelledby="install-title">
+          <div class="two-col">
+            <div>
+              <h2 id="install-title">macOS will ask twice.</h2>
+              <p>
+                Reading what you selected in another app takes two grants,
+                Accessibility and Input Monitoring. JogPad asks for the second
+                one itself, and macOS usually hands it over without a prompt.
+              </p>
+              <p>
+                Without them it still works as a scratchpad. It just cannot see
+                what other apps have selected.
+              </p>
+            </div>
+            <div>
+              <ol class="steps">
+                <li>
+                  <span>
+                    <b>Drag JogPad to Applications first.</b> macOS ties the grant to
+                    the app's path, so moving it afterwards means granting again.
+                  </span>
+                </li>
+                <li>
+                  <span>
+                    <b>Open it and tap Shift twice.</b> macOS asks for Accessibility
+                    access. Say yes.
+                  </span>
+                </li>
+                <li>
+                  <span>
+                    <b>That's it.</b> If a double-tap captures nothing, the banner in
+                    the pad opens the right pane in System Settings.
+                  </span>
+                </li>
+              </ol>
+              <p class="aside">
+                JogPad updates itself. It checks hourly, and nothing downloads
+                until you click. Stable, Beta and Dev are a switch in Settings,
+                not separate installs.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="file-title">
+          <div class="two-col">
+            <div>
+              <h2 id="file-title">It's one file.</h2>
+              <p>
+                Every page and every item is plain markdown in one file under
+                Application Support. Read it, copy from it, diff it, back it up.
+              </p>
+              <p>
+                JogPad owns its shape: <code>##</code> headings are pages, task-list
+                entries are items. It rewrites the whole file on every edit, so
+                markdown it does not model will not survive a hand edit.
+              </p>
+            </div>
+            <pre class="file"><span class="path">~/Library/Application Support/com.ycmjason.jogpad/notes.md</span><code>{fileExcerpt}</code></pre>
+          </div>
+        </section>
       </main>
 
       <footer>
@@ -453,9 +1049,73 @@ const jsonLd = {
           Started as a clone of <a href="https://shadcn.com/copper" target="_blank" rel="noopener noreferrer">Copper</a> by shadcn.
         </p>
         <p>
-          MIT licensed. Source on <a href="https://github.com/fishballapp/jogpad">GitHub</a>.
+          MIT licensed. Source on <a href={repoUrl}>GitHub</a>. Made by Fishball Ltd.
         </p>
       </footer>
     </div>
+
+    <script>
+      // The giant key mirrors the real one, and stands in for it on a
+      // keyboard that has no Shift (a phone). Pressing it dispatches the same
+      // keydown the host listens for, so the gesture has one code path.
+      const key = document.getElementById('shift-key') as HTMLButtonElement;
+      const REPEAT_WINDOW = 400;
+      let lastDown = 0;
+
+      const panel = () => document.querySelector<HTMLElement>('.demo-panel');
+      // The pad jumps out of the key once, on the first double-tap. After
+      // that the gesture just works, the way it does on the desktop.
+      let popped = false;
+
+      const sink = () => key.classList.add('is-down');
+      const lift = () => key.classList.remove('is-down');
+
+      window.addEventListener('keydown', e => {
+        if (e.key !== 'Shift') {
+          lastDown = 0;
+          return;
+        }
+        if (e.repeat) return;
+        sink();
+        const now = performance.now();
+        if (now - lastDown < REPEAT_WINDOW) {
+          lastDown = 0;
+          const p = panel();
+          if (p && !popped) {
+            popped = true;
+            p.classList.add('pop');
+          }
+        } else {
+          lastDown = now;
+        }
+      });
+      window.addEventListener('keyup', e => {
+        if (e.key === 'Shift') lift();
+      });
+      window.addEventListener('blur', lift);
+
+      const tap = () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', bubbles: true }));
+        window.setTimeout(() => {
+          window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Shift', bubbles: true }));
+        }, 110);
+      };
+
+      // pointerdown, not click: a click would clear the selection the tap is
+      // meant to capture, and would move focus onto the button.
+      key.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        tap();
+      });
+      key.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          // Otherwise Enter reaches the window listeners as a non-Shift key
+          // and cancels the tap it just made.
+          e.stopPropagation();
+          tap();
+        }
+      });
+    </script>
   </body>
 </html>

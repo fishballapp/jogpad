@@ -1,19 +1,12 @@
 import { ArrowCircleDown, FolderOpen, SlidersHorizontal } from '@phosphor-icons/react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  api,
-  inTauri,
-  on,
-  type Snapshot,
-  type Theme,
-  type UpdateChannel,
-  type UpdateInfo,
-} from '@/lib/api';
-import { useTheme } from '@/lib/theme';
-import { cn } from '@/lib/utils';
+import { Button } from './components/ui/button.tsx';
+import { Checkbox } from './components/ui/checkbox.tsx';
+import { useHost, useSnapshot, useStore } from './context.tsx';
+import type { UpdateInfo } from './host.ts';
+import type { Theme, UpdateChannel } from './model.ts';
+import { useTheme } from './theme.ts';
+import { cn } from './utils.ts';
 
 const CATEGORIES = [
   { id: 'general', label: 'General', icon: SlidersHorizontal },
@@ -23,28 +16,21 @@ const CATEGORIES = [
 type Category = (typeof CATEGORIES)[number]['id'];
 
 export default function SettingsWindow() {
-  const [snap, setSnap] = useState<Snapshot | null>(null);
+  const host = useHost();
+  const store = useStore();
+  const snap = useSnapshot();
   const [category, setCategory] = useState<Category>('general');
 
   const [checking, setChecking] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  useTheme(snap?.theme);
+  const [notesPath, setNotesPath] = useState('');
+  useTheme(snap.theme);
 
   useEffect(() => {
-    // Same discipline as the panel: keep the newest snapshot seen, because
-    // events and the initial reply can land out of order.
-    const apply = (next: Snapshot) => setSnap(prev => (prev && prev.rev > next.rev ? prev : next));
-    const unlisten = on<Snapshot>('notes', e => apply(e.payload));
-    unlisten
-      .then(() => api.snapshot())
-      .then(apply)
-      .catch(e => setStatus(String(e)));
-    return () => {
-      void unlisten.then(f => f());
-    };
-  }, []);
+    void host.fs.describe('notes.md').then(setNotesPath);
+  }, [host]);
 
   // Closing only hides (Rust intercepts the close button the same way), so
   // Escape and Cmd+W are cheap to offer.
@@ -52,20 +38,20 @@ export default function SettingsWindow() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' || (e.metaKey && e.key.toLowerCase() === 'w')) {
         e.preventDefault();
-        if (inTauri) void getCurrentWindow().hide();
+        void host.window.close();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [host]);
 
   const changeChannel = async (channel: UpdateChannel) => {
-    if (snap?.update_channel === channel) return;
+    if (snap.update_channel === channel) return;
     // The old channel's offer is meaningless on the new one.
     setUpdate(null);
     setStatus(null);
     try {
-      await api.setUpdateChannel(channel);
+      await store.setUpdateChannel(channel);
     } catch (e) {
       setStatus(`Could not change update channel: ${e}`);
     }
@@ -75,7 +61,7 @@ export default function SettingsWindow() {
     setChecking(true);
     setStatus(null);
     try {
-      const info = await api.checkUpdate();
+      const info = await host.updates.check(snap.update_channel);
       setUpdate(info);
       if (!info) setStatus('JogPad is up to date.');
     } catch (e) {
@@ -88,7 +74,7 @@ export default function SettingsWindow() {
   const install = async () => {
     setInstalling(true);
     try {
-      await api.installUpdate();
+      await host.updates.install(snap.update_channel);
     } catch (e) {
       // Rust took the pending update before installing, so the offer is spent
       // whether or not it worked.
@@ -98,10 +84,8 @@ export default function SettingsWindow() {
     }
   };
 
-  if (!snap) return null;
-
   return (
-    <div className="flex h-screen bg-background text-sm">
+    <div className="flex h-full bg-background text-sm">
       <aside className="w-36 shrink-0 space-y-0.5 border-r bg-muted/40 p-2">
         {CATEGORIES.map(c => (
           <button
@@ -126,7 +110,7 @@ export default function SettingsWindow() {
               <Checkbox
                 id="check-on-copy"
                 checked={snap.check_on_copy}
-                onCheckedChange={checked => void api.setCheckOnCopy(checked === true)}
+                onCheckedChange={checked => void store.setCheckOnCopy(checked === true)}
                 className="mt-0.5"
               />
               <span>
@@ -140,7 +124,7 @@ export default function SettingsWindow() {
               <Checkbox
                 id="group-done"
                 checked={snap.group_done}
-                onCheckedChange={checked => void api.setGroupDone(checked === true)}
+                onCheckedChange={checked => void store.setGroupDone(checked === true)}
                 className="mt-0.5"
               />
               <span>
@@ -159,7 +143,7 @@ export default function SettingsWindow() {
                     key={theme}
                     size="sm"
                     variant={snap.theme === theme ? 'default' : 'outline'}
-                    onClick={() => void api.setTheme(theme)}
+                    onClick={() => void store.setTheme(theme)}
                   >
                     {theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System'}
                   </Button>
@@ -175,7 +159,7 @@ export default function SettingsWindow() {
                   variant="outline"
                   aria-label="Zoom out"
                   disabled={snap.zoom <= 0.6}
-                  onClick={() => void api.setZoom(snap.zoom - 0.1)}
+                  onClick={() => void store.setZoom(snap.zoom - 0.1)}
                 >
                   −
                 </Button>
@@ -187,12 +171,12 @@ export default function SettingsWindow() {
                   variant="outline"
                   aria-label="Zoom in"
                   disabled={snap.zoom >= 2}
-                  onClick={() => void api.setZoom(snap.zoom + 0.1)}
+                  onClick={() => void store.setZoom(snap.zoom + 0.1)}
                 >
                   +
                 </Button>
                 {snap.zoom !== 1 && (
-                  <Button size="sm" variant="ghost" onClick={() => void api.setZoom(1)}>
+                  <Button size="sm" variant="ghost" onClick={() => void store.setZoom(1)}>
                     Reset
                   </Button>
                 )}
@@ -204,8 +188,8 @@ export default function SettingsWindow() {
 
             <div>
               <p className="mb-1.5 font-medium">Notes file</p>
-              <p className="mb-1.5 text-xs break-all text-muted-foreground">{snap.notes_path}</p>
-              <Button size="sm" variant="outline" onClick={() => void api.revealNotes()}>
+              <p className="mb-1.5 text-xs break-all text-muted-foreground">{notesPath}</p>
+              <Button size="sm" variant="outline" onClick={() => void host.fs.reveal('notes.md')}>
                 <FolderOpen /> Show in Finder
               </Button>
             </div>

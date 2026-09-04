@@ -1,9 +1,9 @@
 import { PencilSimple, Plus, Trash } from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Kbd } from '@/components/ui/kbd';
-import type { Page } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import type { Page } from '../store';
+import { cn } from '../utils';
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import { Kbd } from './ui/kbd';
 
 type Props = {
   open: boolean;
@@ -240,7 +240,7 @@ function RenameRow({
   // Focus and select, so typing replaces the old name outright.
   useEffect(() => ref.current?.select(), []);
   const to = value.trim();
-  // Rust refuses a rename onto a name that already exists, and silently. Say so
+  // The store refuses a rename onto a name that already exists, and silently. Say so
   // here instead of letting Enter look broken.
   const clash = to !== name && taken.includes(to);
 

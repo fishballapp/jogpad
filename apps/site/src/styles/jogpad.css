@@ -1,0 +1,6 @@
+/* `important` makes every utility !important. The landing stylesheet is
+   unlayered (see CLAUDE.md), and unlayered rules beat layered ones, so its
+   `* { padding: 0 }` reset would otherwise strip every px-* / py-* inside the
+   panel. Nothing outside the panel uses utilities, so nothing else changes. */
+@import "tailwindcss" important;
+@import "@jogpad/ui/styles.css";

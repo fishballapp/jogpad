@@ -87,12 +87,18 @@ the app still works as a scratchpad, it just cannot read other apps' selections.
 ## Layout
 
 ```
-apps/desktop/src         React front end
-apps/desktop/src-tauri   Rust: markdown store, event tap, selection reader, NSPanel
+packages/ui              the panel: React UI, the notes model, and the gesture rule
+apps/desktop/src         desktop host: Tauri bindings for files, window, permissions, updates
+apps/desktop/src-tauri   Rust: file writes, event tap, selection reader, NSPanel, updater
+apps/site                the Astro site, which runs the same panel in the browser
 ```
 
-`cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` covers the markdown
-round trip and the double-tap detector.
+All notes logic lives once, in `packages/ui`. A host only implements side effects
+(`packages/ui/src/host.ts`); the desktop and the site each provide one.
+
+`pnpm test:ui` covers the markdown round trip and every mutation.
+`cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` covers the double-tap
+detector and the file paths.
 
 ## Releasing
 
