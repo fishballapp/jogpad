@@ -32,7 +32,20 @@ function headers(): Record<string, string> {
 /// Every release a user could actually download from. Drafts are dropped here
 /// and nowhere else: their assets are not publicly reachable, so a draft that
 /// reached a manifest would advertise an update nobody can install.
-export async function fetchPublishedReleases(): Promise<GitHubRelease[]> {
+export function fetchPublishedReleases(): Promise<GitHubRelease[]> {
+  // One request per process. Four pages need the list during a build, and the
+  // dev server re-renders on every load; anonymous GitHub allows 60 an hour.
+  // A failed fetch is not kept, so a retry gets a fresh answer.
+  cached ??= fetchReleasesUncached().catch(e => {
+    cached = undefined;
+    throw e;
+  });
+  return cached;
+}
+
+let cached: Promise<GitHubRelease[]> | undefined;
+
+async function fetchReleasesUncached(): Promise<GitHubRelease[]> {
   const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
     headers: headers(),
   });
