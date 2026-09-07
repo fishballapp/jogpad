@@ -58,6 +58,8 @@ export interface Host {
     request(): Promise<void>;
   };
   updates: {
+    /// The version this build is, as the updater compares it.
+    version(): Promise<string>;
     check(channel: UpdateChannel): Promise<UpdateInfo | null>;
     install(channel: UpdateChannel): Promise<void>;
   };

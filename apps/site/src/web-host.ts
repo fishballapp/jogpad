@@ -175,6 +175,7 @@ export function createWebHost(opts: {
       request: async () => {},
     },
     updates: {
+      version: async () => 'web',
       check: async () => null,
       install: async () => {
         throw new Error('No updates on the web');

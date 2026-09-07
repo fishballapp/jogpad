@@ -63,6 +63,7 @@ export const browserHost: Host = {
     request: async () => {},
   },
   updates: {
+    version: async () => 'browser',
     check: async () => null,
     install: async () => {
       throw new Error('No updates in browser');

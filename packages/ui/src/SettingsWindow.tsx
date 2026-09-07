@@ -26,10 +26,12 @@ export default function SettingsWindow() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [notesPath, setNotesPath] = useState('');
+  const [version, setVersion] = useState('');
   useTheme(snap.theme);
 
   useEffect(() => {
     void host.fs.describe('notes.md').then(setNotesPath);
+    void host.updates.version().then(setVersion);
   }, [host]);
 
   // Closing only hides (Rust intercepts the close button the same way), so
@@ -198,6 +200,13 @@ export default function SettingsWindow() {
 
         {category === 'updates' && (
           <div className="flex flex-col items-start gap-4">
+            <div>
+              <p className="font-medium">JogPad {version}</p>
+              <p className="text-xs text-muted-foreground">
+                The version running now. An update is offered when a channel has a newer one.
+              </p>
+            </div>
+
             <div>
               <p className="mb-1.5 font-medium">Channel</p>
               <div className="flex gap-1">

@@ -8,6 +8,7 @@ import type {
   UpdateChannel,
   UpdateInfo,
 } from '@jogpad/ui';
+import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -66,6 +67,7 @@ export const tauriHost: Host = {
     request: () => invoke<void>('request_permissions'),
   },
   updates: {
+    version: () => getVersion(),
     check: (channel: UpdateChannel) => invoke<UpdateInfo | null>('check_update', { channel }),
     install: (channel: UpdateChannel) => invoke<void>('install_update', { channel }),
   },

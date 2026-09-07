@@ -1,14 +1,15 @@
 import { useEffect } from 'react';
 import type { Theme } from './store';
 
-const media = window.matchMedia('(prefers-color-scheme: dark)');
-
 /// Both windows run this against their own snapshot, since each has its own
 /// document. index.html starts with the dark class so the first paint matches
 /// the default before any snapshot arrives.
 export function useTheme(theme: Theme | undefined) {
   useEffect(() => {
     if (!theme) return;
+    // Looked up here, not at module load: the site renders this file on the
+    // server, where there is no window.
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
     const apply = () => {
       const dark = theme === 'dark' || (theme === 'system' && media.matches);
       document.documentElement.classList.toggle('dark', dark);

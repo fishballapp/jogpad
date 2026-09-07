@@ -46,7 +46,7 @@ function slowHost() {
       onChange: async () => () => {},
       request: async () => {},
     },
-    updates: { check: async () => null, install: async () => {} },
+    updates: { version: async () => 'test', check: async () => null, install: async () => {} },
     settings: { open: async () => {} },
     onGesture: async () => () => {},
   };
