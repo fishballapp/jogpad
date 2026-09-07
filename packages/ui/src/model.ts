@@ -522,18 +522,7 @@ export class Model {
   }
 
   checkOff(ids: number[]): boolean {
-    if (!this.prefs.check_on_copy) {
-      return false;
-    }
-    let changed = false;
-    for (const id of ids) {
-      const item = this.itemMut(id);
-      if (item && !item.done) {
-        item.done = true;
-        changed = true;
-      }
-    }
-    return changed;
+    return this.prefs.check_on_copy && this.setDone(ids, true);
   }
 
   setZoom(zoom: number): number {
