@@ -104,11 +104,6 @@ export async function createStore(host: Host): Promise<Store> {
   return store;
 }
 
-/// How many of this store's own writes to remember per file. Change events
-/// can lag several writes behind under a burst of edits; the ones that
-/// matter are always the newest.
-const REMEMBERED_WRITES = 16;
-
 export class Store {
   private host: Host;
   model: Model;
@@ -119,7 +114,8 @@ export class Store {
   /// and two overlapping writes could otherwise land out of order and leave
   /// an older document on disk.
   private queue: Promise<void> = Promise.resolve();
-  private recent: Record<FileName, string[]> = { 'notes.md': [], 'prefs.json': [] };
+  private writing: Partial<Record<FileName, string>> = {};
+  private written: Partial<Record<FileName, string>> = {};
   private listeners = new Map<keyof Events, Set<(payload: unknown) => void>>();
   /// The attachment refs in the document as last written. A file exists on
   /// disk exactly when something here references it; every notes write
@@ -143,7 +139,7 @@ export class Store {
 
   snapshot(): Snapshot {
     return {
-      pages: this.model.doc.pages,
+      pages: this.model.doc.pages.map(p => ({ ...p, items: p.items.map(i => ({ ...i })) })),
       active: this.model.prefs.active,
       zoom: this.model.prefs.zoom,
       update_channel: this.model.prefs.update_channel,
@@ -178,25 +174,32 @@ export class Store {
   }
 
   wroteRecently(name: FileName, text: string | null): boolean {
-    return text !== null && this.recent[name].includes(text);
+    if (text !== null && (text === this.writing[name] || text === this.written[name])) return true;
+    // A different writer may later restore one of our old values. Only the
+    // current write and its latest successful predecessor can be echoes.
+    delete this.written[name];
+    return false;
   }
 
   /// Resolves once this write has landed, after every write queued before
   /// it: true if it reached the disk, false if it did not and the error is
   /// now on the snapshot.
   private write(name: FileName, text: string): Promise<boolean> {
-    const recent = this.recent[name];
-    recent.push(text);
-    if (recent.length > REMEMBERED_WRITES) recent.shift();
     const turn = this.queue.then(async () => {
+      // Register when the write starts, not when queued: a long burst must
+      // not forget the write that is still landing on disk.
+      this.writing[name] = text;
       try {
         await this.host.fs.write(name, text);
+        this.written[name] = text;
         return true;
       } catch (e) {
         const desc = await this.host.fs.describe(name);
         this.error = `Could not write ${desc}: ${e}`;
         this.emit('notes', this.snapshot());
         return false;
+      } finally {
+        delete this.writing[name];
       }
     });
     this.queue = turn.then(() => {});
@@ -214,10 +217,11 @@ export class Store {
   /// the notes are safe and an unreferenced file is only clutter.
   private async writeNotes(): Promise<void> {
     if (this.readOnly) return;
+    // Match the serialized document, not mutations made while its write waits.
+    const now = docRefs(this.model.doc);
     // Only a write that landed may take files away: the notes on disk still
     // mention them until then, and a full disk is not a reason to lose them.
     if (!(await this.write('notes.md', serialiseDoc(this.model.doc)))) return;
-    const now = docRefs(this.model.doc);
     const gone = [...this.saved].filter(ref => !now.has(ref));
     this.saved = now;
     for (const ref of gone) {
@@ -246,7 +250,7 @@ export class Store {
 
   /// Files are written first, so the refs the item carries are real by the
   /// time notes.md mentions them.
-  async addItem(text: string, page?: string, files: File[] = []): Promise<void> {
+  async addItem(text: string, page = this.model.prefs.active, files: File[] = []): Promise<void> {
     const attachments = await this.storeFiles(files);
     if (this.model.addItem(text, page, attachments) !== null) await this.saveNotes();
   }
@@ -306,7 +310,11 @@ export class Store {
   }
 
   async setActive(page: string): Promise<void> {
-    if (this.model.setActive(page)) await this.savePrefs();
+    const pageCount = this.model.doc.pages.length;
+    if (!this.model.setActive(page)) return;
+    // Creating a page changes the document even before it has any items.
+    if (this.model.doc.pages.length !== pageCount) await this.saveNotes();
+    await this.savePrefs();
   }
 
   async renamePage(from: string, to: string): Promise<void> {

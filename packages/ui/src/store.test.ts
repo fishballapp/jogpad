@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { FileName, Host } from './host.ts';
+import { parseDoc } from './model.ts';
 import { createStore } from './store.ts';
 
 /// A host whose writes complete out of order (each one slower than the next)
@@ -177,4 +178,89 @@ test('a change made by another writer is picked up', async () => {
   await host.fs.write('notes.md', '## Inbox\n\n- [x] from elsewhere\n\n');
   await new Promise(r => setTimeout(r, 10));
   assert.equal(store.snapshot().pages[0]?.items[0]?.text, 'from elsewhere');
+});
+
+test('creating an empty page persists it across a restart', async () => {
+  const { host, disk, writes } = slowHost();
+  const store = await createStore(host);
+  await store.setActive('Work');
+  assert.deepEqual(
+    parseDoc(disk.get('notes.md') ?? '').pages.map(p => p.name),
+    ['Inbox', 'Work'],
+  );
+  const reopened = await createStore(host);
+  assert.equal(reopened.snapshot().active, 'Work');
+
+  writes.length = 0;
+  await store.setActive('Inbox');
+  assert.equal(writes.length, 1, 'switching existing pages only writes prefs');
+});
+
+test('an overlapping failed deletion keeps attachments referenced by the successful write', async () => {
+  const { host, disk, removed } = slowHost();
+  const store = await createStore(host);
+  await store.addItem('one', undefined, [fakeFile('a.png')]);
+  const id = store.snapshot().pages[0].items[0].id;
+  const write = host.fs.write;
+  host.fs.write = async (name, text) => {
+    if (name === 'notes.md' && !text.includes('attachments/a.png')) throw new Error('disk full');
+    await write(name, text);
+  };
+
+  await Promise.all([store.toggleItem(id), store.deleteItems([id])]);
+  assert.match(disk.get('notes.md') ?? '', /attachments\/a.png/);
+  assert.deepEqual(removed, [], 'cleanup must use the document that actually reached disk');
+});
+
+test('another writer can restore an earlier value written by this store', async () => {
+  const { host, disk } = slowHost();
+  const store = await createStore(host);
+  await store.setCheckOnCopy(false);
+  const earlier = disk.get('prefs.json') ?? '';
+  await store.setCheckOnCopy(true);
+  await host.fs.write('prefs.json', earlier);
+  assert.equal(store.snapshot().check_on_copy, false);
+});
+
+test('a burst longer than the old write history preserves every item id', async () => {
+  const { host } = slowHost();
+  const store = await createStore(host);
+  const writes = Array.from({ length: 40 }, (_, i) => store.capture(`item ${i}`));
+  const ids = store.snapshot().pages[0].items.map(i => i.id);
+  await Promise.all(writes);
+  assert.deepEqual(
+    store.snapshot().pages[0].items.map(i => i.id),
+    ids,
+  );
+});
+
+test('snapshots keep their page and item values after later mutations', async () => {
+  const { host } = slowHost();
+  const store = await createStore(host);
+  await store.addItem('original');
+  const before = store.snapshot();
+  await store.updateItem(before.pages[0].items[0].id, 'edited');
+  await store.renamePage('Inbox', 'Renamed');
+  await store.setActive('New');
+  assert.equal(before.pages.length, 1);
+  assert.equal(before.pages[0].name, 'Inbox');
+  assert.equal(before.pages[0].items[0].text, 'original');
+  assert.notEqual(store.snapshot().pages, before.pages);
+});
+
+test('a submission keeps its destination while files are being read', async () => {
+  const { host } = slowHost();
+  const store = await createStore(host);
+  let finishRead = () => {};
+  const file = fakeFile('a.png');
+  file.arrayBuffer = () =>
+    new Promise(resolve => {
+      finishRead = () => resolve(new ArrayBuffer(0));
+    });
+  const adding = store.addItem('for Inbox', undefined, [file]);
+  await store.setActive('Work');
+  finishRead();
+  await adding;
+  assert.equal(store.snapshot().pages.find(p => p.name === 'Inbox')?.items.length, 1);
+  assert.equal(store.snapshot().pages.find(p => p.name === 'Work')?.items.length, 0);
 });
