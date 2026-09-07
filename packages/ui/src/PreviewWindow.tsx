@@ -1,5 +1,5 @@
 import { ArrowSquareOut, Copy, File as FileIcon, X } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from './components/ui/button.tsx';
 import { useHost, useSnapshot } from './context.tsx';
 import { type Attachment, extensionOf, isImage, isVideo } from './model.ts';
@@ -19,10 +19,10 @@ export default function PreviewWindow() {
   const [gone, setGone] = useState(false);
   const params = new URLSearchParams(location.search);
   const a: Attachment = { ref: params.get('ref') ?? '', name: params.get('name') ?? '' };
-  const close = () => {
+  const close = useCallback(() => {
     setGone(true);
     void host.window.close();
-  };
+  }, [host]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -41,7 +41,7 @@ export default function PreviewWindow() {
       window.removeEventListener('keydown', onKey);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  });
+  }, [close]);
 
   const run = async (label: string, action: () => Promise<void>) => {
     try {
