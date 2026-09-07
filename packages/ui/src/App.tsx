@@ -112,6 +112,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   const [focused, setFocused] = useState(true);
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const submittingRef = useRef(false);
   const pickerRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   // Anchor is where a range selection started; cursor is the end that moves.
@@ -261,9 +262,11 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   );
 
   const submit = async () => {
+    if (submittingRef.current) return;
     const value = composerRef.current?.value ?? '';
     const text = value.trim();
     if (!text && draft.length === 0) return;
+    submittingRef.current = true;
     try {
       await store.addItem(
         text,
@@ -273,10 +276,13 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     } catch (e) {
       toast(`Could not attach: ${e instanceof Error ? e.message : e}`);
       return;
+    } finally {
+      submittingRef.current = false;
     }
     for (const d of draft) URL.revokeObjectURL(d.url);
-    setDraft([]);
-    if (composerRef.current) {
+    // Files and typing added while the save waited belong to the next note.
+    setDraft(prev => prev.filter(d => !draft.some(sent => sent.url === d.url)));
+    if (composerRef.current?.value === value) {
       composerRef.current.value = '';
       composerRef.current.style.height = 'auto';
     }
@@ -284,9 +290,14 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing || e.defaultPrevented) return;
       // A dialog covers the list, so a stray Delete would destroy a selection
       // the user cannot even see. Each dialog handles its own Escape.
-      if (palette) return;
+      if (
+        palette ||
+        (e.target instanceof Element && e.target.closest('[role="dialog"], [role="menu"]'))
+      )
+        return;
       const typing = isTypingTarget(e.target);
 
       if (e.metaKey && e.key.toLowerCase() === 'k') {
@@ -455,6 +466,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
               label="Search"
               hint="⌘F"
               onClick={() => {
+                if (searching) setQuery('');
                 setSearching(s => !s);
                 window.setTimeout(() => searchRef.current?.focus(), 0);
               }}
@@ -609,6 +621,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
               el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
             }}
             onKeyDown={e => {
+              if (e.nativeEvent.isComposing) return;
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 void submit();
@@ -811,6 +824,7 @@ function ItemRow({
               onEndEdit();
             }}
             onKeyDown={e => {
+              if (e.nativeEvent.isComposing) return;
               if (e.key !== 'Escape') discardArmed.current = false;
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();

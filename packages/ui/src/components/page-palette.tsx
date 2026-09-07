@@ -82,6 +82,7 @@ export function PagePalette({
             moveCursor(0);
           }}
           onKeyDown={e => {
+            if (e.nativeEvent.isComposing) return;
             if (e.key === 'ArrowDown') {
               e.preventDefault();
               moveCursor(Math.min(cursor + 1, rows.length - 1));
@@ -253,6 +254,7 @@ function RenameRow({
         onChange={e => setValue(e.target.value)}
         onBlur={onCancel}
         onKeyDown={e => {
+          if (e.nativeEvent.isComposing) return;
           // Escape belongs to the rename, not to the dialog behind it.
           e.stopPropagation();
           if (e.key === 'Escape') {
