@@ -51,6 +51,7 @@ export const tauriHost: Host = {
   window: {
     show: ({ focus }: { focus: boolean }) => invoke<void>('show_window', { focus }),
     hide: () => invoke<void>('hide_window'),
+    activate: () => invoke<void>('activate'),
     close: () => getCurrentWindow().hide(),
     quit: () => invoke<void>('quit'),
     startDragging: () => void getCurrentWindow().startDragging(),

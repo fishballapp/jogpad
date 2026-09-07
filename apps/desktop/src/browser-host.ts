@@ -50,6 +50,7 @@ export const browserHost: Host = {
   window: {
     show: async () => {},
     hide: async () => {},
+    activate: async () => {},
     close: async () => {},
     quit: async () => {},
     startDragging: () => {},

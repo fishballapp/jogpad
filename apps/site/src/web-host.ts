@@ -153,6 +153,7 @@ export function createWebHost(opts: {
         opts.onShow(focus);
       },
       hide: blur,
+      activate: async () => {},
       close: blur,
       quit: blur,
       startDragging,

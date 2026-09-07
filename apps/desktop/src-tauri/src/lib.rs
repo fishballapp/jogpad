@@ -269,6 +269,7 @@ pub fn run() {
             commands::request_permissions,
             commands::show_window,
             commands::hide_window,
+            commands::activate,
             commands::quit,
             commands::open_settings,
             commands::set_zoom,

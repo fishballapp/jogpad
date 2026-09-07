@@ -46,6 +46,7 @@ function slowHost() {
     window: {
       show: async () => {},
       hide: async () => {},
+      activate: async () => {},
       close: async () => {},
       quit: async () => {},
       startDragging: () => {},

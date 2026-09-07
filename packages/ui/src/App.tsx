@@ -631,7 +631,12 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
             }}
           />
           <div className="absolute right-3 bottom-3">
-            <IconButton label="Attach a file" onClick={() => pickerRef.current?.click()}>
+            <IconButton
+              label="Attach a file"
+              // The picker is a native window and needs the app active to take
+              // clicks. Still inside the click's activation window afterwards.
+              onClick={() => void host.window.activate().finally(() => pickerRef.current?.click())}
+            >
               <Paperclip />
             </IconButton>
           </div>

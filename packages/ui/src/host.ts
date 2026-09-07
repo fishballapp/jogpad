@@ -46,6 +46,9 @@ export interface Host {
     show(opts: { focus: boolean }): Promise<void>;
     /// Put the panel away. Notes are kept.
     hide(): Promise<void>;
+    /// Make this the active app, for the moment a native dialog needs to
+    /// take clicks. The panel itself never activates anything.
+    activate(): Promise<void>;
     /// Hide the window this UI is rendered in. Differs from `hide` only for the
     /// settings window, which is its own window on the desktop.
     close(): Promise<void>;

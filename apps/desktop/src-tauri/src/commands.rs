@@ -326,6 +326,22 @@ pub fn show_window(app: AppHandle, focus: bool) {
     }
 }
 
+/// Make JogPad the active app. The pad is a non-activating panel, so a
+/// native dialog it opens, such as the file picker, cannot become key until
+/// something activates the app; without this it shows but takes no clicks.
+#[tauri::command]
+pub fn activate() {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::MainThreadMarker;
+        use objc2_app_kit::NSApplication;
+        if let Some(mtm) = MainThreadMarker::new() {
+            #[allow(deprecated)]
+            NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
+        }
+    }
+}
+
 /// The panel never activates the app, so the menu bar's Cmd+W may never fire.
 /// The front end sends the shortcut here instead.
 #[tauri::command]
