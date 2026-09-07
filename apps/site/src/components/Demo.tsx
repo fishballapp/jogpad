@@ -10,14 +10,11 @@ export default function Demo() {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [store, setStore] = useState<Store | null>(null);
   const [detached, setDetached] = useState(false);
-  const storeRef = useRef(store);
-  storeRef.current = store;
   const [host] = useState(() =>
     createWebHost({
       panel: () => wrapperRef.current,
-      onShow: focus => {
+      onShow: () => {
         wrapperRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        if (focus) storeRef.current?.emit('focus-input', undefined);
       },
       onDetach: () => setDetached(true),
     }),

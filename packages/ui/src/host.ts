@@ -40,9 +40,9 @@ export interface Host {
     preview(attachment: Attachment): Promise<void>;
   };
   window: {
-    /// Bring the panel up. With `focus`, take the keyboard and ask the UI to
-    /// focus its composer (the `focus-input` event). Without it, the panel is
-    /// ordered in front but whatever had the keyboard keeps it.
+    /// Bring the panel up. With `focus`, take the keyboard; the gesture then
+    /// sends the store's `focus-input` so the composer gets it. Without it,
+    /// the panel is ordered in front but whatever had the keyboard keeps it.
     show(opts: { focus: boolean }): Promise<void>;
     /// Put the panel away. Notes are kept.
     hide(): Promise<void>;

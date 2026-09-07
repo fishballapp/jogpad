@@ -284,7 +284,6 @@ pub fn request_permissions(app: AppHandle) {
 pub fn show_window(app: AppHandle, focus: bool) {
     if focus {
         set_visible(&app, true);
-        let _ = app.emit("focus-input", ());
     } else {
         #[cfg(target_os = "macos")]
         {

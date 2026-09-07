@@ -21,4 +21,8 @@ export async function runGesture(input: GestureInput, store: Store, host: Host):
     return;
   }
   await host.window.show({ focus: true });
+  // The panel has the keyboard; now put it in the composer. Done here, not
+  // by each host: the desktop and the site both showed the window and then
+  // forgot to say so.
+  store.emit('focus-input', undefined);
 }

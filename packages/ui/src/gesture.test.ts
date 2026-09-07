@@ -11,6 +11,9 @@ function createSpies() {
     capture: async (text: string) => {
       calls.push({ name: 'capture', arg: text });
     },
+    emit: (event: string) => {
+      calls.push({ name: 'emit', arg: event });
+    },
   } as unknown as Store;
 
   const host = {
@@ -42,8 +45,11 @@ test('selection: capture then show({focus: false}) in that order', async () => {
   ]);
 });
 
-test('neither: show({focus: true}) only', async () => {
+test('neither: show({focus: true}), then the composer is asked for focus', async () => {
   const { calls, store, host } = createSpies();
   await runGesture({ focused: false, selection: null }, store, host);
-  assert.deepEqual(calls, [{ name: 'show', arg: { focus: true } }]);
+  assert.deepEqual(calls, [
+    { name: 'show', arg: { focus: true } },
+    { name: 'emit', arg: 'focus-input' },
+  ]);
 });

@@ -58,7 +58,7 @@ export function startResizing(panel: HTMLElement, edge: string, e: PointerEvent)
 
 export function createWebHost(opts: {
   panel: () => HTMLElement | null;
-  onShow: (focus: boolean) => void;
+  onShow: () => void;
   /// First drag. The page swaps in a placeholder where the panel was.
   onDetach: () => void;
 }): Host {
@@ -114,8 +114,8 @@ export function createWebHost(opts: {
   return {
     ...createMemoryHost(demoMarkdown),
     window: {
-      show: async ({ focus }) => {
-        opts.onShow(focus);
+      show: async () => {
+        opts.onShow();
       },
       hide: blur,
       activate: async () => {},
