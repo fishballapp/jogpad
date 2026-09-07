@@ -46,6 +46,10 @@ export function PanelMenu() {
     async (userInitiated = false) => {
       const generation = ++checkGenRef.current;
       setChecking(true);
+      // Rust clears the pending offer when a check starts, including one
+      // that fails. Do not leave the previous offer looking installable.
+      setUpdate(null);
+      setUpdateDialogOpen(false);
       try {
         const info = await host.updates.check(snap.update_channel);
         if (generation !== checkGenRef.current) return;
@@ -68,6 +72,7 @@ export function PanelMenu() {
     const hourly = window.setInterval(() => void checkForUpdate(false), 60 * 60 * 1000);
     return () => {
       window.clearInterval(hourly);
+      checkGenRef.current++;
     };
   }, [checkForUpdate]);
 

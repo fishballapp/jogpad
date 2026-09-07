@@ -1,5 +1,5 @@
 import { ArrowCircleDownIcon, FolderOpenIcon, SlidersHorizontalIcon } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button.tsx';
 import { Checkbox } from './components/ui/checkbox.tsx';
 import { useHost, useSnapshot, useStore } from './context.tsx';
@@ -27,7 +27,18 @@ export default function SettingsWindow() {
   const [status, setStatus] = useState<string | null>(null);
   const [notesPath, setNotesPath] = useState('');
   const [version, setVersion] = useState('');
+  const checkGenRef = useRef(0);
   useTheme(snap.theme);
+
+  useEffect(() => {
+    // A channel change from either window invalidates an in-flight check.
+    setUpdate(null);
+    setStatus(null);
+    setChecking(false);
+    return () => {
+      checkGenRef.current++;
+    };
+  }, [host, snap.update_channel]);
 
   useEffect(() => {
     void host.fs.describe('notes.md').then(setNotesPath);
@@ -49,9 +60,6 @@ export default function SettingsWindow() {
 
   const changeChannel = async (channel: UpdateChannel) => {
     if (snap.update_channel === channel) return;
-    // The old channel's offer is meaningless on the new one.
-    setUpdate(null);
-    setStatus(null);
     try {
       await store.setUpdateChannel(channel);
     } catch (e) {
@@ -60,16 +68,20 @@ export default function SettingsWindow() {
   };
 
   const check = async () => {
+    const generation = ++checkGenRef.current;
     setChecking(true);
+    setUpdate(null);
     setStatus(null);
     try {
       const info = await host.updates.check(snap.update_channel);
+      if (generation !== checkGenRef.current) return;
       setUpdate(info);
       if (!info) setStatus('JogPad is up to date.');
     } catch (e) {
+      if (generation !== checkGenRef.current) return;
       setStatus(`Update check failed: ${e}`);
     } finally {
-      setChecking(false);
+      if (generation === checkGenRef.current) setChecking(false);
     }
   };
 
