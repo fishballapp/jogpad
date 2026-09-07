@@ -2,6 +2,7 @@
 
 use crate::set_visible;
 use crate::state::AppState;
+use percent_encoding::{percent_decode_str, utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::sync::Mutex;
@@ -49,7 +50,7 @@ pub fn attachment_write(app: AppHandle, request: Request<'_>) -> Result<String, 
         .headers()
         .get("x-name")
         .and_then(|v| v.to_str().ok())
-        .map(|v| percent_decode(v))
+        .map(|v| percent_decode_str(v).decode_utf8_lossy().into_owned())
         .unwrap_or_default();
     let ext: String = name
         .rsplit_once('.')
@@ -75,24 +76,6 @@ pub fn attachment_write(app: AppHandle, request: Request<'_>) -> Result<String, 
             .map_err(|e| format!("Could not write {}: {e}", path.display()))?;
     }
     Ok(attachment_ref)
-}
-
-fn percent_decode(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
-                out.push(v);
-                i += 3;
-                continue;
-            }
-        }
-        out.push(bytes[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
 }
 
 #[tauri::command]
@@ -182,8 +165,8 @@ pub fn open_preview(app: AppHandle, attachment_ref: String, name: String) -> Res
     let position = monitor.position().to_logical::<f64>(scale);
     let query = format!(
         "window=preview&ref={}&name={}",
-        percent_encode(&attachment_ref),
-        percent_encode(&name)
+        utf8_percent_encode(&attachment_ref, NON_ALPHANUMERIC),
+        utf8_percent_encode(&name, NON_ALPHANUMERIC)
     );
 
     let window = match app.get_webview_window("preview") {
@@ -223,18 +206,6 @@ pub fn open_preview(app: AppHandle, attachment_ref: String, name: String) -> Res
     let _ = window.show();
     let _ = window.set_focus();
     Ok(())
-}
-
-fn percent_encode(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for b in s.bytes() {
-        if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
-            out.push(b as char);
-        } else {
-            out.push_str(&format!("%{b:02X}"));
-        }
-    }
-    out
 }
 
 #[tauri::command]

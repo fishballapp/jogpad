@@ -14,7 +14,7 @@ use core_foundation::base::{CFRelease, CFType, CFTypeRef, TCFType};
 use core_foundation::boolean::CFBoolean;
 use core_foundation::dictionary::CFDictionary;
 use core_foundation::string::{CFString, CFStringRef};
-use core_graphics::event::{CGEventFlags, CGEventTapLocation, CGEventType};
+use core_graphics::event::{CGEventFlags, CGEventTapLocation};
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
@@ -133,7 +133,6 @@ fn synthetic_copy() -> Option<String> {
         event.set_flags(CGEventFlags::CGEventFlagCommand);
         event.post(CGEventTapLocation::HID);
     }
-    let _ = CGEventType::KeyDown;
 
     // The target app copies asynchronously, so poll rather than guess.
     let mut copied = None;
