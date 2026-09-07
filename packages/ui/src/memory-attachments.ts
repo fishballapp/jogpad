@@ -52,12 +52,14 @@ export function createMemoryAttachments(): Host['attachments'] {
 }
 
 async function toPng(blob: Blob, ref: AttachmentRef): Promise<Blob> {
-  if (extensionOf(ref) === 'png') return blob;
+  // ClipboardItem requires the blob's type to match its image/png entry.
+  if (extensionOf(ref) === 'png') return blob.slice(0, blob.size, 'image/png');
   const bitmap = await createImageBitmap(blob);
   const canvas = document.createElement('canvas');
   canvas.width = bitmap.width;
   canvas.height = bitmap.height;
   canvas.getContext('2d')?.drawImage(bitmap, 0, 0);
+  bitmap.close();
   return new Promise((resolve, reject) =>
     canvas.toBlob(
       b => (b ? resolve(b) : reject(new Error('Could not convert the image'))),
