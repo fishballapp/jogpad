@@ -634,8 +634,12 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
             <IconButton
               label="Attach a file"
               // The picker is a native window and needs the app active to take
-              // clicks. Still inside the click's activation window afterwards.
-              onClick={() => void host.window.activate().finally(() => pickerRef.current?.click())}
+              // clicks. WebKit only opens a file input from inside the user's
+              // gesture, so the click must not wait for the activation.
+              onClick={() => {
+                void host.window.activate();
+                pickerRef.current?.click();
+              }}
             >
               <Paperclip />
             </IconButton>
