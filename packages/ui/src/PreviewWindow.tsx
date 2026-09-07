@@ -4,6 +4,7 @@ import { Button } from './components/ui/button.tsx';
 import { useHost, useSnapshot } from './context.tsx';
 import { type Attachment, extensionOf, isImage, isVideo } from './model.ts';
 import { useTheme } from './theme.ts';
+import { useToast } from './toast.tsx';
 
 /// One attachment over the whole screen. Its own window on the desktop, the
 /// size of the display, transparent behind the dim. What to show comes from
@@ -12,7 +13,7 @@ export default function PreviewWindow() {
   const host = useHost();
   const snap = useSnapshot();
   useTheme(snap.theme);
-  const [flash, setFlash] = useState<string | null>(null);
+  const { flash, toast } = useToast();
   // The window is only ever hidden, never closed, and the next open
   // navigates it afresh. So once it goes, render nothing: that unmounts the
   // video, which would otherwise keep playing behind an invisible window.
@@ -46,11 +47,10 @@ export default function PreviewWindow() {
   const run = async (label: string, action: () => Promise<void>) => {
     try {
       await action();
-      setFlash(label);
+      toast(label);
     } catch (e) {
-      setFlash(`${e instanceof Error ? e.message : e}`);
+      toast(`${e instanceof Error ? e.message : e}`);
     }
-    window.setTimeout(() => setFlash(null), 1600);
   };
 
   const url = host.attachments.url(a.ref);

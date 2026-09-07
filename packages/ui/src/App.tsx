@@ -44,6 +44,7 @@ import {
 import { useHost, useSnapshot, useStore } from './context.tsx';
 import { type Attachment, type Item, splitItem } from './model.ts';
 import { useTheme } from './theme.ts';
+import { Flash, useToast } from './toast.tsx';
 import { cn } from './utils.ts';
 
 type Row = { item: Item; page: string };
@@ -100,7 +101,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   const [palette, setPalette] = useState(false);
   // Done items start folded away under their heading. Per session, not saved.
   const [doneCollapsed, setDoneCollapsed] = useState(true);
-  const [flash, setFlash] = useState<string | null>(null);
+  const { flash, toast } = useToast();
   // Files pasted or dropped while composing wait here until Enter, the way
   // an email holds its attachments above the message. In memory only:
   // nothing reaches the disk until the item does, so a draft thrown away
@@ -132,11 +133,6 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
       if (unlisten) unlisten();
     };
   }, [host]);
-
-  const toast = useCallback((message: string) => {
-    setFlash(message);
-    window.setTimeout(() => setFlash(f => (f === message ? null : f)), 1600);
-  }, []);
 
   const addToDraft = useCallback((files: File[]) => {
     if (files.length === 0) return;
@@ -656,13 +652,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
           onDelete={name => void store.deletePage(name)}
         />
 
-        {flash && (
-          <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
-            <span className="rounded-full bg-foreground px-2.5 py-1 text-xs text-background shadow">
-              {flash}
-            </span>
-          </div>
-        )}
+        <Flash message={flash} />
       </Panel>
     </TooltipProvider>
   );

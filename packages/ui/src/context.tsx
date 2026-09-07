@@ -77,3 +77,13 @@ export function usePermissions(): Permissions {
 
   return permissions;
 }
+
+/// The one permission to ask for next, or null when both are held.
+/// Accessibility is the prerequisite, and Input Monitoring follows from it
+/// without a prompt, so naming both at once would send people hunting for a
+/// permission they never have to grant by hand.
+export function missingPermission(p: Permissions): string | null {
+  if (!p.trusted) return 'Accessibility';
+  if (!p.inputMonitoring) return 'Input Monitoring';
+  return null;
+}

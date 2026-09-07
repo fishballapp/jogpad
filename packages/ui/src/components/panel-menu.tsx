@@ -7,8 +7,9 @@ import {
   ShieldCheck,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useHost, usePermissions, useSnapshot } from '../context.tsx';
+import { missingPermission, useHost, usePermissions, useSnapshot } from '../context.tsx';
 import type { UpdateInfo } from '../host.ts';
+import { Flash, useToast } from '../toast.tsx';
 import { Button } from './ui/button.tsx';
 import {
   Dialog,
@@ -37,14 +38,9 @@ export function PanelMenu() {
   const [checking, setChecking] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [flash, setFlash] = useState<string | null>(null);
+  const { flash, toast } = useToast();
 
   const checkGenRef = useRef(0);
-
-  const toast = useCallback((message: string) => {
-    setFlash(message);
-    window.setTimeout(() => setFlash(f => (f === message ? null : f)), 1600);
-  }, []);
 
   const checkForUpdate = useCallback(
     async (userInitiated = false) => {
@@ -75,11 +71,7 @@ export function PanelMenu() {
     };
   }, [checkForUpdate]);
 
-  const missingPermission = !permissions.trusted
-    ? 'Accessibility'
-    : !permissions.inputMonitoring
-      ? 'Input Monitoring'
-      : null;
+  const missing = missingPermission(permissions);
 
   return (
     <>
@@ -109,9 +101,9 @@ export function PanelMenu() {
           align="end"
           className="min-w-56 [&_[data-slot=dropdown-menu-item]]:whitespace-nowrap"
         >
-          {missingPermission && (
+          {missing && (
             <DropdownMenuItem onClick={() => void host.permissions.request()}>
-              <ShieldCheck /> Grant {missingPermission}
+              <ShieldCheck /> Grant {missing}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={() => void host.settings.open()}>
@@ -169,13 +161,7 @@ export function PanelMenu() {
         </DialogContent>
       </Dialog>
 
-      {flash && (
-        <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
-          <span className="rounded-full bg-foreground px-2.5 py-1 text-xs text-background shadow">
-            {flash}
-          </span>
-        </div>
-      )}
+      <Flash message={flash} />
     </>
   );
 }
