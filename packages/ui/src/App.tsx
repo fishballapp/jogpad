@@ -15,6 +15,7 @@ import {
   CheckSquare,
   Copy,
   MagnifyingGlass,
+  Paperclip,
   Square,
   Trash,
   X,
@@ -110,6 +111,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   const [focused, setFocused] = useState(true);
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const pickerRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   // Anchor is where a range selection started; cursor is the end that moves.
   const anchorRef = useRef<number | null>(null);
@@ -587,7 +589,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
           </div>
         )}
 
-        <div className="shrink-0 border-t p-2">
+        <div className="relative shrink-0 border-t p-2">
           <AttachmentStrip
             items={draft.map(d => ({ key: d.url, name: d.file.name, url: d.url }))}
             onRemove={t => dropFromDraft(t.url)}
@@ -614,8 +616,25 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
                 void submit();
               }
             }}
-            className="max-h-40 w-full resize-none rounded-lg bg-muted/50 px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus:bg-muted"
+            className="max-h-40 w-full resize-none rounded-lg bg-muted/50 py-2 pr-9 pl-2.5 text-sm outline-none placeholder:text-muted-foreground focus:bg-muted"
           />
+          {/* The picker for anyone who would rather browse than paste or
+              drop. It lands in the draft like the other two. */}
+          <input
+            ref={pickerRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={e => {
+              addToDraft(Array.from(e.currentTarget.files ?? []));
+              e.currentTarget.value = '';
+            }}
+          />
+          <div className="absolute right-3 bottom-3">
+            <IconButton label="Attach a file" onClick={() => pickerRef.current?.click()}>
+              <Paperclip />
+            </IconButton>
+          </div>
         </div>
 
         <PagePalette
