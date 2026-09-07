@@ -57,6 +57,8 @@ jobs:
 
       - run: pnpm typecheck
 
+      - run: pnpm test:ui
+
       - name: astro check
         run: pnpm check:astro
 
