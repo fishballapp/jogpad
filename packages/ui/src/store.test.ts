@@ -10,11 +10,13 @@ function slowHost() {
   const watchers = new Map<FileName, Set<() => void>>();
   let delay = 30;
   const writes: string[] = [];
+  const failing = { notes: false };
   const removed: string[] = [];
   const host: Host = {
     fs: {
       read: async name => disk.get(name) ?? null,
       write: async (name, text) => {
+        if (failing.notes && name === 'notes.md') throw new Error('disk full');
         const wait = delay;
         delay = Math.max(0, delay - 10);
         await new Promise(r => setTimeout(r, wait));
@@ -63,8 +65,34 @@ function slowHost() {
     settings: { open: async () => {} },
     onGesture: async () => () => {},
   };
-  return { host, disk, writes, removed };
+  return { host, disk, writes, removed, failing };
 }
+
+test('a write that never landed takes no files away', async () => {
+  const { host, removed, failing } = slowHost();
+  const store = await createStore(host);
+  await store.addItem('one', undefined, [fakeFile('a.png')]);
+  const id = store.model.doc.pages[0].items[0]?.id;
+  assert.ok(id !== undefined);
+
+  failing.notes = true;
+  await store.deleteItems([id]);
+  assert.deepEqual(removed, [], 'notes.md on disk still mentions a.png');
+  assert.match(store.snapshot().error ?? '', /disk full/);
+
+  // Once a write lands again, the file goes.
+  failing.notes = false;
+  await store.addItem('two');
+  assert.deepEqual(removed, ['attachments/a.png']);
+});
+
+test('brackets in a file name cannot break the link', async () => {
+  const { host } = slowHost();
+  const store = await createStore(host);
+  await store.addItem('x', undefined, [fakeFile('report]final[v2].png')]);
+  const text = store.model.doc.pages[0].items[0]?.text ?? '';
+  assert.equal(text, '![reportfinalv2.png](attachments/reportfinalv2.png)\nx');
+});
 
 /// Enough of a File for the store: a name and bytes.
 const fakeFile = (name: string) =>

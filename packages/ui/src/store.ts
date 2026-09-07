@@ -181,21 +181,25 @@ export class Store {
     return text !== null && this.recent[name].includes(text);
   }
 
-  /// Resolves once this write has landed, after every write queued before it.
-  private write(name: FileName, text: string): Promise<void> {
+  /// Resolves once this write has landed, after every write queued before
+  /// it: true if it reached the disk, false if it did not and the error is
+  /// now on the snapshot.
+  private write(name: FileName, text: string): Promise<boolean> {
     const recent = this.recent[name];
     recent.push(text);
     if (recent.length > REMEMBERED_WRITES) recent.shift();
     const turn = this.queue.then(async () => {
       try {
         await this.host.fs.write(name, text);
+        return true;
       } catch (e) {
         const desc = await this.host.fs.describe(name);
         this.error = `Could not write ${desc}: ${e}`;
         this.emit('notes', this.snapshot());
+        return false;
       }
     });
-    this.queue = turn;
+    this.queue = turn.then(() => {});
     return turn;
   }
 
@@ -210,7 +214,9 @@ export class Store {
   /// the notes are safe and an unreferenced file is only clutter.
   private async writeNotes(): Promise<void> {
     if (this.readOnly) return;
-    await this.write('notes.md', serialiseDoc(this.model.doc));
+    // Only a write that landed may take files away: the notes on disk still
+    // mention them until then, and a full disk is not a reason to lose them.
+    if (!(await this.write('notes.md', serialiseDoc(this.model.doc)))) return;
     const now = docRefs(this.model.doc);
     const gone = [...this.saved].filter(ref => !now.has(ref));
     this.saved = now;
@@ -258,7 +264,10 @@ export class Store {
     const out: Attachment[] = [];
     for (const file of files) {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const name = file.name || `pasted.${file.type.split('/')[1] ?? 'bin'}`;
+      // The name becomes a markdown link label, which cannot hold brackets
+      // or line breaks. A display name is all it is, so drop them.
+      const name =
+        file.name.replace(/[[\]\r\n]/g, '').trim() || `pasted.${file.type.split('/')[1] ?? 'bin'}`;
       out.push({ name, ref: await this.host.attachments.put(bytes, name) });
     }
     return out;
