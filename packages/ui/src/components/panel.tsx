@@ -1,6 +1,6 @@
 import { type ComponentProps, type ReactNode, useState } from 'react';
-import { PortalProvider } from '../portal';
-import { cn } from '../utils';
+import { PortalProvider } from '../portal.ts';
+import { cn } from '../utils.ts';
 
 /// The frame every host draws the pad in: border, radius, background, focus
 /// ring, font. Also the portal container for dialogs, menus and tooltips, so

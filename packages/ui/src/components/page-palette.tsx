@@ -1,9 +1,9 @@
 import { PencilSimple, Plus, Trash } from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Page } from '../store';
-import { cn } from '../utils';
-import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
-import { Kbd } from './ui/kbd';
+import type { Page } from '../model.ts';
+import { cn } from '../utils.ts';
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog.tsx';
+import { Kbd } from './ui/kbd.tsx';
 
 type Props = {
   open: boolean;

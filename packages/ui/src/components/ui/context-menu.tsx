@@ -1,8 +1,8 @@
 import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu';
 import { Check as CheckIcon, CaretRight as ChevronRightIcon } from '@phosphor-icons/react';
 import type * as React from 'react';
-import { usePortalContainer } from '../../portal';
-import { cn } from '../../utils';
+import { usePortalContainer } from '../../portal.ts';
+import { cn } from '../../utils.ts';
 
 function ContextMenu({ ...props }: ContextMenuPrimitive.Root.Props) {
   return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />;

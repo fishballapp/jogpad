@@ -1,8 +1,8 @@
 import { Menu as MenuPrimitive } from '@base-ui/react/menu';
 import { Check as CheckIcon, CaretRight as ChevronRightIcon } from '@phosphor-icons/react';
 import type * as React from 'react';
-import { usePortalContainer } from '../../portal';
-import { cn } from '../../utils';
+import { usePortalContainer } from '../../portal.ts';
+import { cn } from '../../utils.ts';
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />;

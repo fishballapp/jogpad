@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Theme } from './store';
+import type { Theme } from './model.ts';
 
 /// Both windows run this against their own snapshot, since each has its own
 /// document. index.html starts with the dark class so the first paint matches
