@@ -1,4 +1,4 @@
-import { File as FileIcon, Play, X } from '@phosphor-icons/react';
+import { FileIcon, PlayIcon, XIcon } from '@phosphor-icons/react';
 import { isImage, isVideo } from '../model.ts';
 import { cn } from '../utils.ts';
 
@@ -62,7 +62,7 @@ export function AttachmentStrip({
                   preload="auto"
                   className="h-full max-w-28 object-cover"
                 />
-                <Play
+                <PlayIcon
                   weight="fill"
                   className="absolute inset-0 m-auto size-4 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
                 />
@@ -81,7 +81,7 @@ export function AttachmentStrip({
               aria-label={`Remove ${a.name}`}
               className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-foreground text-background opacity-0 shadow transition-opacity group-hover/att:opacity-100 focus-visible:opacity-100"
             >
-              <X className="size-2.5" weight="bold" />
+              <XIcon className="size-2.5" weight="bold" />
             </button>
           )}
         </div>

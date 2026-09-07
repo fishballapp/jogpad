@@ -1,4 +1,4 @@
-import { PencilSimple, Plus, Trash } from '@phosphor-icons/react';
+import { PencilSimpleIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Page } from '../model.ts';
 import { cn } from '../utils.ts';
@@ -152,7 +152,7 @@ export function PagePalette({
                               setRenaming(row.name);
                             }}
                           >
-                            <PencilSimple className="size-3.5" />
+                            <PencilSimpleIcon className="size-3.5" />
                           </RowAction>
                           <RowAction
                             label={
@@ -169,7 +169,7 @@ export function PagePalette({
                               }
                             }}
                           >
-                            <Trash
+                            <TrashIcon
                               className={cn('size-3.5', armed === row.name && 'text-destructive')}
                             />
                           </RowAction>
@@ -186,7 +186,7 @@ export function PagePalette({
                   </>
                 ) : (
                   <>
-                    <Plus className="size-3.5 shrink-0 opacity-50" />
+                    <PlusIcon className="size-3.5 shrink-0 opacity-50" />
                     <span className="truncate">Create "{query.trim()}"</span>
                   </>
                 )}
@@ -246,7 +246,7 @@ function RenameRow({
 
   return (
     <div className="flex items-center gap-2 rounded-md bg-accent px-2 py-1.5 text-sm">
-      <PencilSimple className="size-3.5 shrink-0 opacity-50" />
+      <PencilSimpleIcon className="size-3.5 shrink-0 opacity-50" />
       <input
         ref={ref}
         value={value}

@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Copy, File as FileIcon, X } from '@phosphor-icons/react';
+import { ArrowSquareOutIcon, CopyIcon, FileIcon, XIcon } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from './components/ui/button.tsx';
 import { useHost, useSnapshot } from './context.tsx';
@@ -97,7 +97,7 @@ export default function PreviewWindow() {
           size="sm"
           onClick={() => run('Shown in Finder', () => host.attachments.reveal(a.ref))}
         >
-          <ArrowSquareOut /> Reveal in Finder
+          <ArrowSquareOutIcon /> Reveal in Finder
         </Button>
         {isImage(a.name) ? (
           <Button
@@ -105,7 +105,7 @@ export default function PreviewWindow() {
             size="sm"
             onClick={() => run('Copied image', () => host.attachments.copyImage(a.ref))}
           >
-            <Copy /> Copy image
+            <CopyIcon /> Copy image
           </Button>
         ) : (
           <Button
@@ -117,11 +117,11 @@ export default function PreviewWindow() {
               )
             }
           >
-            <Copy /> Copy path
+            <CopyIcon /> Copy path
           </Button>
         )}
         <Button variant="ghost" size="icon-sm" onClick={close} aria-label="Close">
-          <X />
+          <XIcon />
         </Button>
       </div>
     </div>

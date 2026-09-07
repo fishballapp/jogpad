@@ -1,7 +1,7 @@
 'use client';
 
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
-import { X as XIcon } from '@phosphor-icons/react';
+import { XIcon } from '@phosphor-icons/react';
 import type * as React from 'react';
 import { usePortalContainer } from '../../portal.ts';
 import { cn } from '../../utils.ts';

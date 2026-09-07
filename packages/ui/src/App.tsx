@@ -10,15 +10,15 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  ArrowsMerge,
-  CaretRight,
-  CheckSquare,
-  Copy,
-  MagnifyingGlass,
-  Paperclip,
-  Square,
-  Trash,
-  X,
+  ArrowsMergeIcon,
+  CaretRightIcon,
+  CheckSquareIcon,
+  CopyIcon,
+  MagnifyingGlassIcon,
+  PaperclipIcon,
+  SquareIcon,
+  TrashIcon,
+  XIcon,
 } from '@phosphor-icons/react';
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AttachmentStrip, filesFrom, type Thumb } from './components/attachments.tsx';
@@ -413,7 +413,9 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
       aria-expanded={!doneCollapsed}
       className="mx-2 mt-2 mb-1 flex w-[calc(100%-1rem)] items-center gap-1 border-t pt-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
     >
-      <CaretRight className={cn('size-3 transition-transform', !doneCollapsed && 'rotate-90')} />
+      <CaretRightIcon
+        className={cn('size-3 transition-transform', !doneCollapsed && 'rotate-90')}
+      />
       Done
       <span className="font-normal">{doneCount}</span>
     </button>
@@ -457,7 +459,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
                 window.setTimeout(() => searchRef.current?.focus(), 0);
               }}
             >
-              <MagnifyingGlass />
+              <MagnifyingGlassIcon />
             </IconButton>
             {menu}
           </div>
@@ -465,7 +467,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
 
         {searching && (
           <div className="flex shrink-0 items-center gap-2 border-b px-3 pb-2">
-            <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
+            <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
             <input
               ref={searchRef}
               value={query}
@@ -480,7 +482,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
               }}
               className="text-muted-foreground hover:text-foreground"
             >
-              <X className="size-3.5" />
+              <XIcon className="size-3.5" />
             </button>
           </div>
         )}
@@ -560,7 +562,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
             <span className="px-1 text-muted-foreground">{selected.length} selected</span>
             <div className="ml-auto flex items-center gap-0.5">
               <Button variant="ghost" size="sm" onClick={() => copySelection()}>
-                <Copy /> Copy as list <Kbd>⌘⇧C</Kbd>
+                <CopyIcon /> Copy as list <Kbd>⌘⇧C</Kbd>
               </Button>
               {/* A mixed selection checks everything rather than flipping each
                 item, which would only swap the mix around. */}
@@ -568,18 +570,18 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
                 label={allSelectedDone ? 'Unmark done' : 'Mark done'}
                 onClick={() => void store.setDone(selected, !allSelectedDone)}
               >
-                {allSelectedDone ? <Square /> : <CheckSquare />}
+                {allSelectedDone ? <SquareIcon /> : <CheckSquareIcon />}
               </IconButton>
               {selected.length > 1 && (
                 <IconButton
                   label="Merge into one item"
                   onClick={() => void store.mergeItems(selected)}
                 >
-                  <ArrowsMerge />
+                  <ArrowsMergeIcon />
                 </IconButton>
               )}
               <IconButton label="Delete" hint="⌫" onClick={() => void store.deleteItems(selected)}>
-                <Trash />
+                <TrashIcon />
               </IconButton>
             </div>
           </div>
@@ -637,7 +639,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
                 pickerRef.current?.click();
               }}
             >
-              <Paperclip />
+              <PaperclipIcon />
             </IconButton>
           </div>
         </div>

@@ -1,10 +1,10 @@
 import {
-  ArrowCircleDown,
-  DotsThreeVertical,
-  EyeSlash,
-  GearSix,
-  Power,
-  ShieldCheck,
+  ArrowCircleDownIcon,
+  DotsThreeVerticalIcon,
+  EyeSlashIcon,
+  GearSixIcon,
+  PowerIcon,
+  ShieldCheckIcon,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { missingPermission, useHost, usePermissions, useSnapshot } from '../context.tsx';
@@ -86,7 +86,7 @@ export function PanelMenu() {
               }
               aria-label={`Update to v${update.version}`}
             >
-              <ArrowCircleDown className="text-primary" />
+              <ArrowCircleDownIcon className="text-primary" />
             </TooltipTrigger>
             <TooltipContent>{`Update to v${update.version}`}</TooltipContent>
           </Tooltip>
@@ -95,7 +95,7 @@ export function PanelMenu() {
 
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />} aria-label="More">
-          <DotsThreeVertical />
+          <DotsThreeVerticalIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
@@ -103,23 +103,23 @@ export function PanelMenu() {
         >
           {missing && (
             <DropdownMenuItem onClick={() => void host.permissions.request()}>
-              <ShieldCheck /> Grant {missing}
+              <ShieldCheckIcon /> Grant {missing}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={() => void host.settings.open()}>
-            <GearSix /> Settings…
+            <GearSixIcon /> Settings…
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem disabled={checking} onClick={() => void checkForUpdate(true)}>
-            <ArrowCircleDown /> {checking ? 'Checking for Updates…' : 'Check for Updates…'}
+            <ArrowCircleDownIcon /> {checking ? 'Checking for Updates…' : 'Check for Updates…'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => void host.window.hide()}>
-            <EyeSlash /> Hide
+            <EyeSlashIcon /> Hide
             <DropdownMenuShortcut>⌘W</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={() => void host.window.quit()}>
-            <Power /> Quit JogPad
+            <PowerIcon /> Quit JogPad
             <DropdownMenuShortcut>⌘Q</DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuContent>

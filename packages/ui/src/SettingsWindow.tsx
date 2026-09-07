@@ -1,4 +1,4 @@
-import { ArrowCircleDown, FolderOpen, SlidersHorizontal } from '@phosphor-icons/react';
+import { ArrowCircleDownIcon, FolderOpenIcon, SlidersHorizontalIcon } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { Button } from './components/ui/button.tsx';
 import { Checkbox } from './components/ui/checkbox.tsx';
@@ -9,8 +9,8 @@ import { useTheme } from './theme.ts';
 import { cn } from './utils.ts';
 
 const CATEGORIES = [
-  { id: 'general', label: 'General', icon: SlidersHorizontal },
-  { id: 'updates', label: 'Updates', icon: ArrowCircleDown },
+  { id: 'general', label: 'General', icon: SlidersHorizontalIcon },
+  { id: 'updates', label: 'Updates', icon: ArrowCircleDownIcon },
 ] as const;
 
 type Category = (typeof CATEGORIES)[number]['id'];
@@ -192,7 +192,7 @@ export default function SettingsWindow() {
               <p className="mb-1.5 font-medium">Notes file</p>
               <p className="mb-1.5 text-xs break-all text-muted-foreground">{notesPath}</p>
               <Button size="sm" variant="outline" onClick={() => void host.fs.reveal('notes.md')}>
-                <FolderOpen /> Show in Finder
+                <FolderOpenIcon /> Show in Finder
               </Button>
             </div>
           </div>
