@@ -3,7 +3,9 @@
 use crate::set_visible;
 use crate::state::AppState;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::sync::Mutex;
+use tauri::ipc::{InvokeBody, Request};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
@@ -33,6 +35,106 @@ pub fn fs_write(app: AppHandle, name: String, text: String) -> Result<(), String
         .map_err(|e| format!("Could not write {}: {e}", path.display()))?;
     let _ = app.emit("fs-changed", FsChanged { name });
     Ok(())
+}
+
+/// Store bytes under their hash and answer with the ref the item writes.
+/// The body is raw, the name rides in a header. Writing the same bytes twice
+/// finds the file already there and leaves it alone.
+#[tauri::command]
+pub fn attachment_write(app: AppHandle, request: Request<'_>) -> Result<String, String> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Expected raw bytes".into());
+    };
+    let name = request
+        .headers()
+        .get("x-name")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| percent_decode(v))
+        .unwrap_or_default();
+    let ext: String = name
+        .rsplit_once('.')
+        .map(|(_, e)| e)
+        .unwrap_or("")
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .take(8)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    let ext = if ext.is_empty() {
+        "bin".to_string()
+    } else {
+        ext
+    };
+    let hash = Sha256::digest(bytes);
+    let attachment_ref = format!("attachments/{:x}.{ext}", hash);
+    let path = app.state::<AppState>().attachment_path(&attachment_ref)?;
+    if !path.exists() {
+        crate::store::write_atomic(&path, bytes)
+            .map_err(|e| format!("Could not write {}: {e}", path.display()))?;
+    }
+    Ok(attachment_ref)
+}
+
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+#[tauri::command]
+pub fn attachment_path(app: AppHandle, attachment_ref: String) -> Result<String, String> {
+    let path = app.state::<AppState>().attachment_path(&attachment_ref)?;
+    Ok(path.display().to_string())
+}
+
+#[tauri::command]
+pub fn attachment_reveal(app: AppHandle, attachment_ref: String) -> Result<(), String> {
+    let path = app.state::<AppState>().attachment_path(&attachment_ref)?;
+    tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| e.to_string())
+}
+
+/// The picture itself on the pasteboard, decoded by AppKit so every format
+/// it can read pastes as an image wherever images are accepted.
+#[tauri::command]
+pub fn attachment_copy_image(app: AppHandle, attachment_ref: String) -> Result<(), String> {
+    let path = app.state::<AppState>().attachment_path(&attachment_ref)?;
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::rc::Retained;
+        use objc2::runtime::ProtocolObject;
+        use objc2::AnyThread;
+        use objc2_app_kit::{NSImage, NSPasteboard, NSPasteboardWriting};
+        use objc2_foundation::{NSArray, NSString};
+
+        let file = NSString::from_str(&path.display().to_string());
+        let image = NSImage::initWithContentsOfFile(NSImage::alloc(), &file)
+            .ok_or_else(|| "That file is not an image macOS can read.".to_string())?;
+        let pb = NSPasteboard::generalPasteboard();
+        pb.clearContents();
+        let writable: Vec<Retained<ProtocolObject<dyn NSPasteboardWriting>>> =
+            vec![ProtocolObject::from_retained(image)];
+        if !pb.writeObjects(&NSArray::from_retained_slice(&writable)) {
+            return Err("Could not write to the clipboard.".into());
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = path;
+        Err("Copying images is only supported on macOS.".into())
+    }
 }
 
 #[tauri::command]

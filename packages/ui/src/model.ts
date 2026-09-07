@@ -3,6 +3,47 @@ export type Page = { name: string; items: Item[] };
 export type Doc = { pages: Page[] };
 export const DEFAULT_PAGE = 'Inbox';
 
+/// A file kept beside notes.md. `ref` is the path as written in the file,
+/// `attachments/<hash>.<ext>`; `name` is what the user called it.
+export type Attachment = { name: string; ref: string };
+
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'heic']);
+const VIDEO_EXTS = new Set(['mp4', 'mov', 'webm', 'm4v']);
+
+export function extensionOf(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
+}
+export const isImage = (name: string) => IMAGE_EXTS.has(extensionOf(name));
+export const isVideo = (name: string) => VIDEO_EXTS.has(extensionOf(name));
+
+// Attachments lead an item's text, one markdown link per line, images with
+// the `!`. They sit inside the item text so the parser stays the same and an
+// older build shows them as words rather than losing them.
+const ATTACHMENT_LINE = /^!?\[([^\]]*)\]\((attachments\/[^\s)]+)\)$/;
+
+export function splitItem(text: string): { attachments: Attachment[]; body: string } {
+  const lines = text.split('\n');
+  const attachments: Attachment[] = [];
+  let i = 0;
+  for (; i < lines.length; i++) {
+    const m = ATTACHMENT_LINE.exec(lines[i] ?? '');
+    if (!m) break;
+    attachments.push({ name: m[1] || m[2]?.slice('attachments/'.length) || '', ref: m[2] ?? '' });
+  }
+  return { attachments, body: lines.slice(i).join('\n') };
+}
+
+export function joinItem(attachments: Attachment[], body: string): string {
+  const lines = attachments.map(a => `${isImage(a.name) ? '!' : ''}[${a.name}](${a.ref})`);
+  if (body) lines.push(body);
+  return lines.join('\n');
+}
+
+/// Whether an item has anything in it. Attachments count: a picture with
+/// nothing written under it is still an item.
+export const isBlankItem = (text: string) => text.trim() === '';
+
 let nextId = 1;
 
 function splitLines(text: string): string[] {
@@ -251,9 +292,9 @@ export class Model {
     return matched;
   }
 
-  addItem(text: string, page?: string): number | null {
-    const trimmed = text.trim();
-    if (!trimmed) return null;
+  addItem(text: string, page?: string, attachments: Attachment[] = []): number | null {
+    const trimmed = joinItem(attachments, text.trim());
+    if (isBlankItem(trimmed)) return null;
 
     let pageName: string;
     if (page !== undefined) {
@@ -273,16 +314,44 @@ export class Model {
     return id;
   }
 
-  updateItem(id: number, text: string): boolean {
-    if (text.trim() === '') {
+  /// The editor only ever shows the body, so the item's attachments carry
+  /// over. An item left with no body and nothing attached is deleted.
+  updateItem(id: number, body: string): boolean {
+    const item = this.itemMut(id);
+    if (!item) return false;
+    const text = joinItem(splitItem(item.text).attachments, body.trim() === '' ? '' : body);
+    if (isBlankItem(text)) {
       return this.takeItems([id]).length > 0;
     }
+    item.text = text;
+    return true;
+  }
+
+  attach(id: number, added: Attachment[]): boolean {
     const item = this.itemMut(id);
-    if (item) {
-      item.text = text;
-      return true;
+    if (!item || added.length === 0) return false;
+    const { attachments, body } = splitItem(item.text);
+    const seen = new Set(attachments.map(a => a.ref));
+    for (const a of added) {
+      if (!seen.has(a.ref)) {
+        seen.add(a.ref);
+        attachments.push(a);
+      }
     }
-    return false;
+    item.text = joinItem(attachments, body);
+    return true;
+  }
+
+  detach(id: number, ref: string): boolean {
+    const item = this.itemMut(id);
+    if (!item) return false;
+    const { attachments, body } = splitItem(item.text);
+    const kept = attachments.filter(a => a.ref !== ref);
+    if (kept.length === attachments.length) return false;
+    const text = joinItem(kept, body);
+    if (isBlankItem(text)) return this.takeItems([id]).length > 0;
+    item.text = text;
+    return true;
   }
 
   toggleItem(id: number): boolean {
@@ -328,7 +397,24 @@ export class Model {
     if (!first) {
       return false;
     }
-    const text = ordered.map(i => i.text).join('\n\n');
+    // Attachments of every item lead the merged one, in order, without
+    // repeats; the bodies follow.
+    const parts = ordered.map(i => splitItem(i.text));
+    const seen = new Set<string>();
+    const attachments = parts
+      .flatMap(p => p.attachments)
+      .filter(a => {
+        if (seen.has(a.ref)) return false;
+        seen.add(a.ref);
+        return true;
+      });
+    const text = joinItem(
+      attachments,
+      parts
+        .map(p => p.body)
+        .filter(Boolean)
+        .join('\n\n'),
+    );
     const keepId = first.id;
     const toRemove = ordered.slice(1).map(i => i.id);
     this.takeItems(toRemove);
@@ -417,12 +503,28 @@ export class Model {
     return false;
   }
 
-  listText(ids: number[]): string {
+  attachmentRefs(ids: number[]): string[] {
+    return this.itemsInOrder(ids).flatMap(i => splitItem(i.text).attachments.map(a => a.ref));
+  }
+
+  /// The copy is plain text. Attachments come first as paths the reader can
+  /// open, `pathOf` turning a ref into one that means something outside
+  /// this app.
+  listText(ids: number[], pathOf: (ref: string) => string = ref => ref): string {
     const items = this.itemsInOrder(ids);
+    const render = (item: Item) => {
+      const { attachments, body } = splitItem(item.text);
+      const lines: string[] = [];
+      if (attachments.length > 0) {
+        lines.push(`Attached: ${attachments.map(a => pathOf(a.ref)).join(', ')}`);
+      }
+      if (body) lines.push(body);
+      return lines.join('\n');
+    };
     if (items.length === 1 && items[0]) {
-      return items[0].text;
+      return render(items[0]);
     }
-    return items.map((item, i) => `${i + 1}. ${item.text.replaceAll('\n', '\n   ')}`).join('\n');
+    return items.map((item, i) => `${i + 1}. ${render(item).replaceAll('\n', '\n   ')}`).join('\n');
   }
 
   checkOff(ids: number[]): boolean {

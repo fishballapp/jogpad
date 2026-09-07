@@ -1,5 +1,6 @@
 import type { FileName, Host, Unlisten } from './host.ts';
 import {
+  type Attachment,
   DEFAULT_PAGE,
   type Doc,
   type Item,
@@ -12,7 +13,7 @@ import {
   type UpdateChannel,
 } from './model.ts';
 
-export type { Item, Page, Theme, UpdateChannel };
+export type { Attachment, Item, Page, Theme, UpdateChannel };
 
 export type Snapshot = {
   pages: Page[];
@@ -211,8 +212,28 @@ export class Store {
     if (!this.readOnly) await this.write('notes.md', serialiseDoc(this.model.doc));
   }
 
-  async addItem(text: string, page?: string): Promise<void> {
-    if (this.model.addItem(text, page) !== null) await this.saveNotes();
+  async addItem(text: string, page?: string, attachments: Attachment[] = []): Promise<void> {
+    if (this.model.addItem(text, page, attachments) !== null) await this.saveNotes();
+  }
+
+  /// Store the files with the host first, then write their refs into the
+  /// item. A file that fails to store is left out and named in the error.
+  async storeFiles(files: File[]): Promise<Attachment[]> {
+    const out: Attachment[] = [];
+    for (const file of files) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const name = file.name || `pasted.${file.type.split('/')[1] ?? 'bin'}`;
+      out.push({ name, ref: await this.host.attachments.put(bytes, name) });
+    }
+    return out;
+  }
+
+  async attach(id: number, attachments: Attachment[]): Promise<void> {
+    if (this.model.attach(id, attachments)) await this.saveNotes();
+  }
+
+  async detach(id: number, ref: string): Promise<void> {
+    if (this.model.detach(id, ref)) await this.saveNotes();
   }
 
   async updateItem(id: number, text: string): Promise<void> {
@@ -262,7 +283,13 @@ export class Store {
   }
 
   async copyAsList(ids: number[]): Promise<string> {
-    const text = this.model.listText(ids);
+    // Paths are resolved up front: the model is synchronous and the copy
+    // must carry paths the reader can open, not refs into our folder.
+    const paths = new Map<string, string>();
+    for (const ref of this.model.attachmentRefs(ids)) {
+      paths.set(ref, await this.host.attachments.path(ref));
+    }
+    const text = this.model.listText(ids, ref => paths.get(ref) ?? ref);
     await this.host.clipboard.write(text);
     // Only after the clipboard write: checking off something that never made
     // it to the clipboard would lose it twice over.

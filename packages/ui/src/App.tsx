@@ -20,6 +20,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AttachmentPreview, AttachmentStrip, filesFrom } from './components/attachments.tsx';
 import { PagePalette } from './components/page-palette.tsx';
 import { Panel } from './components/panel.tsx';
 import { Button } from './components/ui/button.tsx';
@@ -40,11 +41,50 @@ import {
   TooltipTrigger,
 } from './components/ui/tooltip.tsx';
 import { useHost, useSnapshot, useStore } from './context.tsx';
-import type { Item } from './model.ts';
+import { type Attachment, type Item, splitItem } from './model.ts';
 import { useTheme } from './theme.ts';
 import { cn } from './utils.ts';
 
 type Row = { item: Item; page: string };
+/// What the preview is showing, and which item it belongs to. `null` for a
+/// file still waiting in the composer.
+type Preview = { id: number | null; attachment: Attachment };
+
+/// Counts enter/leave pairs so a drag passing over children does not flicker.
+function useDragOver(onDrop: (files: File[]) => void) {
+  const depth = useRef(0);
+  const [over, setOver] = useState(false);
+  const hasFiles = (e: React.DragEvent) => e.dataTransfer.types.includes('Files');
+  return {
+    over,
+    props: {
+      onDragEnter: (e: React.DragEvent) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth.current++;
+        setOver(true);
+      },
+      onDragOver: (e: React.DragEvent) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        if (!hasFiles(e)) return;
+        depth.current = Math.max(0, depth.current - 1);
+        if (depth.current === 0) setOver(false);
+      },
+      onDrop: (e: React.DragEvent) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        depth.current = 0;
+        setOver(false);
+        onDrop(filesFrom(e.dataTransfer));
+      },
+    },
+  };
+}
 
 const isTypingTarget = (el: EventTarget | null) =>
   el instanceof HTMLElement &&
@@ -63,6 +103,10 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   // Done items start folded away under their heading. Per session, not saved.
   const [doneCollapsed, setDoneCollapsed] = useState(true);
   const [flash, setFlash] = useState<string | null>(null);
+  // Files pasted or dropped while composing wait here until Enter, the way
+  // an email holds its attachments above the message.
+  const [pending, setPending] = useState<Attachment[]>([]);
+  const [preview, setPreview] = useState<Preview | null>(null);
   // The panel has no title bar, so nothing else tells you whether typing will
   // land here or in the app behind it.
   const [focused, setFocused] = useState(true);
@@ -94,6 +138,33 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     window.setTimeout(() => setFlash(f => (f === message ? null : f)), 1600);
   }, []);
 
+  /// Store files with the host; the caller decides where the refs go.
+  const ingest = useCallback(
+    async (files: File[]): Promise<Attachment[]> => {
+      if (files.length === 0) return [];
+      try {
+        return await store.storeFiles(files);
+      } catch (e) {
+        toast(`Could not attach: ${e instanceof Error ? e.message : e}`);
+        return [];
+      }
+    },
+    [store, toast],
+  );
+
+  const addPending = useCallback(
+    async (files: File[]) => {
+      const added = await ingest(files);
+      if (added.length === 0) return;
+      setPending(prev => [...prev, ...added.filter(a => !prev.some(p => p.ref === a.ref))]);
+      composerRef.current?.focus();
+    },
+    [ingest],
+  );
+
+  // A drop anywhere in the pad that is not on a row goes to the composer.
+  const panelDrop = useDragOver(files => void addPending(files));
+
   useEffect(() => {
     // Capture lands in the active page, so drop any search that would
     // hide the thing that was just captured, then point at it.
@@ -120,11 +191,15 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   const doneCount = snap.group_done && !q ? activeItems.filter(i => i.done).length : 0;
 
   // Searching looks across every page; otherwise you see the active one.
+  // A search reads what is on screen: the text and the file names, not the
+  // hashes behind them.
   const rows: Row[] = useMemo(() => {
     if (q) {
-      return snap.pages.flatMap(s =>
-        s.items.filter(i => i.text.toLowerCase().includes(q)).map(item => ({ item, page: s.name })),
-      );
+      const matches = (i: Item) => {
+        const { attachments, body } = splitItem(i.text);
+        return [body, ...attachments.map(a => a.name)].join(' ').toLowerCase().includes(q);
+      };
+      return snap.pages.flatMap(s => s.items.filter(matches).map(item => ({ item, page: s.name })));
     }
     if (!snap.group_done) return activeItems.map(item => ({ item, page: snap.active }));
     // Grouping is display-only: the markdown file keeps its real order, so
@@ -192,8 +267,9 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   const submit = async () => {
     const value = composerRef.current?.value ?? '';
     const text = value.trim();
-    if (!text) return;
-    await store.addItem(text);
+    if (!text && pending.length === 0) return;
+    await store.addItem(text, undefined, pending);
+    setPending([]);
     if (composerRef.current) {
       composerRef.current.value = '';
       composerRef.current.style.height = 'auto';
@@ -204,7 +280,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     const onKey = (e: KeyboardEvent) => {
       // A dialog covers the list, so a stray Delete would destroy a selection
       // the user cannot even see. Each dialog handles its own Escape.
-      if (palette) return;
+      if (palette || preview) return;
       const typing = isTypingTarget(e.target);
 
       if (e.metaKey && e.key.toLowerCase() === 'k') {
@@ -288,7 +364,19 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [copySelection, editing, host, palette, query, rows, searching, selected, snap.zoom, store]);
+  }, [
+    copySelection,
+    editing,
+    host,
+    palette,
+    preview,
+    query,
+    rows,
+    searching,
+    selected,
+    snap.zoom,
+    store,
+  ]);
 
   // Clicks must still select and double-clicks still edit, so a drag only
   // starts once the pointer has actually travelled.
@@ -339,7 +427,11 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
 
   return (
     <TooltipProvider>
-      <Panel focused={focused}>
+      <Panel
+        focused={focused}
+        {...panelDrop.props}
+        className={cn(panelDrop.over && 'border-ring ring-2 ring-ring/40 ring-inset')}
+      >
         <header
           // The drag-region attribute only fires on the element under the
           // pointer, so the gaps between buttons were the only grabbable
@@ -441,6 +533,11 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
                       onEdit={() => setEditing(row.item.id)}
                       onWarn={toast}
                       onEndEdit={() => setEditing(null)}
+                      onOpenAttachment={a => setPreview({ id: row.item.id, attachment: a })}
+                      onFiles={async files => {
+                        const added = await ingest(files);
+                        if (added.length > 0) void store.attach(row.item.id, added);
+                      }}
                       onClick={e => selectRow(index, e)}
                       selectionCount={selected.length}
                       onCopy={() =>
@@ -498,10 +595,24 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
         )}
 
         <div className="shrink-0 border-t p-2">
+          <AttachmentStrip
+            attachments={pending}
+            onOpen={a => setPreview({ id: null, attachment: a })}
+            onRemove={a => setPending(p => p.filter(x => x.ref !== a.ref))}
+            className="px-0.5 pt-1 pb-2"
+          />
           <textarea
             ref={composerRef}
             rows={1}
-            placeholder="Next prompt"
+            placeholder={
+              pending.length > 0 ? 'Say something about it, or just Enter' : 'Next prompt'
+            }
+            onPaste={e => {
+              const files = filesFrom(e.clipboardData);
+              if (files.length === 0) return;
+              e.preventDefault();
+              void addPending(files);
+            }}
             onInput={e => {
               const el = e.currentTarget;
               el.style.height = 'auto';
@@ -516,6 +627,20 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
             className="max-h-40 w-full resize-none rounded-lg bg-muted/50 px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus:bg-muted"
           />
         </div>
+
+        <AttachmentPreview
+          attachment={preview?.attachment ?? null}
+          onClose={() => setPreview(null)}
+          onNotice={toast}
+          onRemove={() => {
+            if (!preview) return;
+            if (preview.id === null) {
+              setPending(p => p.filter(x => x.ref !== preview.attachment.ref));
+            } else {
+              void store.detach(preview.id, preview.attachment.ref);
+            }
+          }}
+        />
 
         <PagePalette
           open={palette}
@@ -575,6 +700,9 @@ type RowProps = {
   onEdit: () => void;
   onEndEdit: () => void;
   onWarn: (message: string) => void;
+  onOpenAttachment: (a: Attachment) => void;
+  /// Files pasted while editing this row, or dropped onto it.
+  onFiles: (files: File[]) => void;
   onClick: (e: React.MouseEvent) => void;
   onCopy: () => void;
   onMerge: () => void;
@@ -591,6 +719,8 @@ function ItemRow({
   onEdit,
   onEndEdit,
   onWarn,
+  onOpenAttachment,
+  onFiles,
   onClick,
   onCopy,
   onMerge,
@@ -599,6 +729,8 @@ function ItemRow({
 }: RowProps) {
   const store = useStore();
   const { item } = row;
+  const { attachments, body } = splitItem(item.text);
+  const drop = useDragOver(onFiles);
   const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({
     id: item.id,
     disabled: !canDrag,
@@ -628,6 +760,7 @@ function ItemRow({
             ref={setNodeRef}
             style={{ transform: CSS.Transform.toString(transform), transition }}
             {...listeners}
+            {...drop.props}
             onClick={onClick}
             onDoubleClick={onEdit}
             className={cn(
@@ -636,6 +769,8 @@ function ItemRow({
               // The row itself follows the pointer, so lift it above its
               // neighbours while it travels across them.
               isDragging && 'relative z-10 bg-accent shadow-md',
+              // A file held over this row will join it, not the composer.
+              drop.over && 'bg-accent ring-2 ring-ring/60 ring-inset',
             )}
           />
         }
@@ -647,14 +782,25 @@ function ItemRow({
           className="mt-0.5"
         />
         <div className="min-w-0 flex-1">
+          <AttachmentStrip
+            attachments={attachments}
+            onOpen={onOpenAttachment}
+            className={cn('py-0.5', body || editing ? 'mb-1.5' : '')}
+          />
           <p
             ref={editRef}
             contentEditable={editing}
             suppressContentEditableWarning
             onClick={e => editing && e.stopPropagation()}
+            onPaste={e => {
+              const files = filesFrom(e.clipboardData);
+              if (files.length === 0) return;
+              e.preventDefault();
+              onFiles(files);
+            }}
             onBlur={e => {
               const text = e.currentTarget.innerText;
-              if (text !== item.text) void store.updateItem(item.id, text);
+              if (text !== body) void store.updateItem(item.id, text);
               onEndEdit();
             }}
             onKeyDown={e => {
@@ -665,22 +811,25 @@ function ItemRow({
               } else if (e.key === 'Escape') {
                 e.preventDefault();
                 const el = e.currentTarget;
-                if (el.innerText !== item.text && !discardArmed.current) {
+                if (el.innerText !== body && !discardArmed.current) {
                   discardArmed.current = true;
                   onWarn('Esc again to discard changes');
                   return;
                 }
-                el.innerText = item.text;
+                el.innerText = body;
                 el.blur();
               }
             }}
             className={cn(
               'text-sm break-words whitespace-pre-wrap',
               item.done && !editing && 'text-muted-foreground line-through',
-              editing && '-mx-1 -my-0.5 rounded-sm px-1 py-0.5 outline-2 outline-ring',
+              // An item that is only its attachments has no text line to show,
+              // but still needs somewhere to type when edited.
+              !body && !editing && 'hidden',
+              editing && '-mx-1 -my-0.5 min-h-5 rounded-sm px-1 py-0.5 outline-2 outline-ring',
             )}
           >
-            {item.text}
+            {body}
           </p>
           {showPage && <span className="text-[11px] text-muted-foreground">{row.page}</span>}
         </div>

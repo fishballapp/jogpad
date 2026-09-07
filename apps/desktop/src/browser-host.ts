@@ -1,4 +1,4 @@
-import type { FileName, Host } from '@jogpad/ui';
+import { createMemoryAttachments, type FileName, type Host } from '@jogpad/ui';
 
 const demoMarkdown = `## Inbox
 
@@ -46,6 +46,7 @@ export const browserHost: Host = {
       }
     },
   },
+  attachments: createMemoryAttachments(),
   window: {
     show: async () => {},
     hide: async () => {},

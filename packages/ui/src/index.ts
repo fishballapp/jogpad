@@ -5,14 +5,20 @@ export { PermissionBanner } from './components/permission-banner.tsx';
 export * from './context.tsx';
 export { runGesture } from './gesture.ts';
 export * from './host.ts';
-export type {
-  Doc,
-  Item,
-  Model,
-  Page,
-  Prefs,
-  Theme,
-  UpdateChannel,
+export { createMemoryAttachments } from './memory-attachments.ts';
+export {
+  type Attachment,
+  type Doc,
+  extensionOf,
+  type Item,
+  isImage,
+  isVideo,
+  type Model,
+  type Page,
+  type Prefs,
+  splitItem,
+  type Theme,
+  type UpdateChannel,
 } from './model.ts';
 export { default as SettingsWindow } from './SettingsWindow.tsx';
 export { createStore, type Events, type Snapshot, Store } from './store.ts';

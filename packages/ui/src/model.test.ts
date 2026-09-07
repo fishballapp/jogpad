@@ -4,11 +4,13 @@ import {
   DEFAULT_PAGE,
   type Doc,
   defaultPrefs,
+  joinItem,
   Model,
   normalisePageName,
   parseDoc,
   parsePrefs,
   serialiseDoc,
+  splitItem,
 } from './model.ts';
 
 function stripIds(doc: Doc): Array<[string, Array<[string, boolean]>]> {
@@ -260,4 +262,66 @@ test('set_zoom_clamp_and_rounding', () => {
   // Clamp lower bound 0.6
   assert.equal(model.setZoom(0.1), 0.6);
   assert.equal(model.prefs.zoom, 0.6);
+});
+
+test('attachments_lead_the_item_and_survive_a_round_trip', () => {
+  const md =
+    '## Inbox\n\n- [ ] ![shot.png](attachments/abc.png)\n  [invoice.pdf](attachments/def.pdf)\n  Ask about Q3\n\n';
+  const doc = parseDoc(md);
+  const { attachments, body } = splitItem(doc.pages[0].items[0].text);
+  assert.deepEqual(attachments, [
+    { name: 'shot.png', ref: 'attachments/abc.png' },
+    { name: 'invoice.pdf', ref: 'attachments/def.pdf' },
+  ]);
+  assert.equal(body, 'Ask about Q3');
+  assert.equal(joinItem(attachments, body), doc.pages[0].items[0].text);
+  assert.equal(serialiseDoc(doc), md);
+});
+
+test('a_link_in_the_middle_of_the_text_is_text', () => {
+  const { attachments, body } = splitItem('see\n![x](attachments/a.png)');
+  assert.equal(attachments.length, 0);
+  assert.equal(body, 'see\n![x](attachments/a.png)');
+});
+
+test('editing_the_body_keeps_the_attachments', () => {
+  const m = new Model(parseDoc(''), { ...defaultPrefs });
+  const id = m.addItem('hello', undefined, [{ name: 'a.png', ref: 'attachments/a.png' }]);
+  assert.ok(id);
+  m.updateItem(id as number, 'changed');
+  assert.equal(m.doc.pages[0].items[0].text, '![a.png](attachments/a.png)\nchanged');
+  // Blank body with a picture still there is still an item.
+  m.updateItem(id as number, '   ');
+  assert.equal(m.doc.pages[0].items[0].text, '![a.png](attachments/a.png)');
+  // Taking the picture away from an item with no body deletes it.
+  m.detach(id as number, 'attachments/a.png');
+  assert.equal(m.doc.pages[0].items.length, 0);
+});
+
+test('attach_dedupes_and_merge_puts_every_attachment_first', () => {
+  const m = new Model(parseDoc(''), { ...defaultPrefs });
+  const a = m.addItem('one', undefined, [{ name: 'a.png', ref: 'attachments/a.png' }]) as number;
+  const b = m.addItem('two', undefined, [{ name: 'b.pdf', ref: 'attachments/b.pdf' }]) as number;
+  assert.equal(m.attach(a, [{ name: 'a.png', ref: 'attachments/a.png' }]), true);
+  assert.equal(splitItem(m.doc.pages[0].items[0].text).attachments.length, 1);
+  m.mergeItems([a, b]);
+  assert.equal(
+    m.doc.pages[0].items[0].text,
+    '![a.png](attachments/a.png)\n[b.pdf](attachments/b.pdf)\none\n\ntwo',
+  );
+});
+
+test('copy_lists_attachments_as_paths_before_the_text', () => {
+  const m = new Model(parseDoc(''), { ...defaultPrefs });
+  const a = m.addItem('Ask about Q3', undefined, [
+    { name: 'a.png', ref: 'attachments/a.png' },
+  ]) as number;
+  const b = m.addItem('plain') as number;
+  const pathOf = (ref: string) => `/data/${ref}`;
+  assert.equal(m.listText([a], pathOf), 'Attached: /data/attachments/a.png\nAsk about Q3');
+  assert.equal(
+    m.listText([a, b], pathOf),
+    '1. Attached: /data/attachments/a.png\n   Ask about Q3\n2. plain',
+  );
+  assert.deepEqual(m.attachmentRefs([a, b]), ['attachments/a.png']);
 });

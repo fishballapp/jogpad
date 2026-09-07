@@ -25,7 +25,8 @@
         "resizable": true,
         "shadow": true,
         "backgroundColor": "#00000000",
-        "visible": false
+        "visible": false,
+        "dragDropEnabled": false
       },
       {
         "label": "settings",

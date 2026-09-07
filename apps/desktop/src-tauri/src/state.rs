@@ -44,6 +44,18 @@ impl AppState {
         }
     }
 
+    /// Maps an attachment ref, `attachments/<file>`, under `dir`. The file
+    /// part is one plain name: no separators, no dots-only names, so a ref
+    /// from the notes file can never reach outside the folder.
+    pub fn attachment_path(&self, attachment_ref: &str) -> Result<PathBuf, String> {
+        let file = attachment_ref
+            .strip_prefix("attachments/")
+            .filter(|f| !f.is_empty() && f.chars().all(|c| c.is_ascii_alphanumeric() || c == '.'))
+            .filter(|f| f.chars().any(|c| c != '.'))
+            .ok_or_else(|| format!("Not an attachment: {attachment_ref}"))?;
+        Ok(self.dir.join("attachments").join(file))
+    }
+
     pub fn window(&self) -> WindowState {
         lock(&self.window).clone()
     }
@@ -107,5 +119,27 @@ mod tests {
         assert_eq!(state.path("window.json").unwrap(), dir.join("window.json"));
         assert!(state.path("secret.txt").is_err());
         assert!(state.path("../notes.md").is_err());
+    }
+
+    #[test]
+    fn attachment_refs_stay_inside_the_folder() {
+        let dir = PathBuf::from("/tmp");
+        let state = AppState::new(
+            dir.clone(),
+            WindowState {
+                width: 380.0,
+                height: 720.0,
+                zoom: 1.0,
+            },
+        );
+        assert_eq!(
+            state.attachment_path("attachments/abc123.png").unwrap(),
+            dir.join("attachments").join("abc123.png")
+        );
+        assert!(state.attachment_path("attachments/../notes.md").is_err());
+        assert!(state.attachment_path("attachments/a/b.png").is_err());
+        assert!(state.attachment_path("attachments/..").is_err());
+        assert!(state.attachment_path("attachments/").is_err());
+        assert!(state.attachment_path("notes.md").is_err());
     }
 }

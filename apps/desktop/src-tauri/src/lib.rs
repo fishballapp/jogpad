@@ -16,6 +16,43 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, LogicalSize, Manager};
 
+/// Serves `attachment://localhost/<file>` out of the attachments folder, so
+/// the webview can show a picture without any path or scope configuration.
+fn serve_attachment(app: &AppHandle, request: http::Request<Vec<u8>>) -> http::Response<Vec<u8>> {
+    let file = request.uri().path().trim_start_matches('/');
+    let bytes = app
+        .try_state::<AppState>()
+        .and_then(|state| state.attachment_path(&format!("attachments/{file}")).ok())
+        .and_then(|path| std::fs::read(path).ok());
+    match bytes {
+        Some(bytes) => {
+            let mime = match file.rsplit_once('.').map(|(_, e)| e) {
+                Some("png") => "image/png",
+                Some("jpg") | Some("jpeg") => "image/jpeg",
+                Some("gif") => "image/gif",
+                Some("webp") => "image/webp",
+                Some("svg") => "image/svg+xml",
+                Some("avif") => "image/avif",
+                Some("bmp") => "image/bmp",
+                Some("heic") => "image/heic",
+                Some("mp4") | Some("m4v") => "video/mp4",
+                Some("mov") => "video/quicktime",
+                Some("webm") => "video/webm",
+                Some("pdf") => "application/pdf",
+                _ => "application/octet-stream",
+            };
+            http::Response::builder()
+                .header("Content-Type", mime)
+                .body(bytes)
+                .unwrap_or_else(|_| http::Response::new(Vec::new()))
+        }
+        None => http::Response::builder()
+            .status(404)
+            .body(Vec::new())
+            .unwrap_or_else(|_| http::Response::new(Vec::new())),
+    }
+}
+
 pub(crate) fn input_monitoring() -> bool {
     #[cfg(target_os = "macos")]
     {
@@ -214,11 +251,18 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(on_window_event)
+        .register_uri_scheme_protocol("attachment", |ctx, request| {
+            serve_attachment(ctx.app_handle(), request)
+        })
         .invoke_handler(tauri::generate_handler![
             commands::fs_read,
             commands::fs_write,
             commands::fs_describe,
             commands::fs_reveal,
+            commands::attachment_write,
+            commands::attachment_path,
+            commands::attachment_reveal,
+            commands::attachment_copy_image,
             commands::permissions,
             commands::request_permissions,
             commands::show_window,

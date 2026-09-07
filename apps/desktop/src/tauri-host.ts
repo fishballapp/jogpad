@@ -1,4 +1,5 @@
 import type {
+  AttachmentRef,
   FileName,
   GestureInput,
   Host,
@@ -27,6 +28,20 @@ export const tauriHost: Host = {
   },
   clipboard: {
     write: (text: string) => writeText(text),
+  },
+  attachments: {
+    // Raw body, not JSON: a screenshot as a JSON array of numbers is slow.
+    put: (bytes: Uint8Array, name: string) =>
+      invoke<AttachmentRef>('attachment_write', bytes, {
+        headers: { 'x-name': encodeURIComponent(name) },
+      }),
+    // Served by Rust under its own scheme, so no asset-scope config and no
+    // async path lookup before a row can render.
+    url: (ref: AttachmentRef) => `attachment://localhost/${ref.slice('attachments/'.length)}`,
+    path: (ref: AttachmentRef) => invoke<string>('attachment_path', { attachmentRef: ref }),
+    reveal: (ref: AttachmentRef) => invoke<void>('attachment_reveal', { attachmentRef: ref }),
+    copyImage: (ref: AttachmentRef) =>
+      invoke<void>('attachment_copy_image', { attachmentRef: ref }),
   },
   window: {
     show: ({ focus }: { focus: boolean }) => invoke<void>('show_window', { focus }),

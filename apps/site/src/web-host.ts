@@ -1,4 +1,4 @@
-import type { FileName, GestureInput, Host } from '@jogpad/ui';
+import { createMemoryAttachments, type FileName, type GestureInput, type Host } from '@jogpad/ui';
 
 export const demoMarkdown = `## Try it
 
@@ -147,6 +147,7 @@ export function createWebHost(opts: {
         }
       },
     },
+    attachments: createMemoryAttachments(),
     window: {
       show: async ({ focus }) => {
         opts.onShow(focus);

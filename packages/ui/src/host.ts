@@ -5,6 +5,8 @@ export type Unlisten = () => void;
 export type UpdateInfo = { version: string; notes: string | null };
 export type GestureInput = { focused: boolean; selection: string | null };
 export type Permissions = { trusted: boolean; inputMonitoring: boolean };
+/// `attachments/<hash>.<ext>`, the path an item writes into notes.md.
+export type AttachmentRef = string;
 
 export interface Host {
   fs: {
@@ -19,6 +21,18 @@ export interface Host {
     reveal(name: FileName): Promise<void>;
   };
   clipboard: { write(text: string): Promise<void> };
+  attachments: {
+    /// Keep the bytes and hand back the ref to write into the item. The same
+    /// bytes give the same ref, so a screenshot pasted twice is one file.
+    put(bytes: Uint8Array, name: string): Promise<AttachmentRef>;
+    /// Something an <img> or <video> can load. Synchronous: rows render from it.
+    url(ref: AttachmentRef): string;
+    /// The path someone outside this app can open. Goes into copied text.
+    path(ref: AttachmentRef): Promise<string>;
+    reveal(ref: AttachmentRef): Promise<void>;
+    /// Put the picture itself on the clipboard, for pasting into a chat box.
+    copyImage(ref: AttachmentRef): Promise<void>;
+  };
   window: {
     /// Bring the panel up. With `focus`, take the keyboard and ask the UI to
     /// focus its composer (the `focus-input` event). Without it, the panel is
