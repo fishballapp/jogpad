@@ -137,6 +137,65 @@ pub fn attachment_copy_image(app: AppHandle, attachment_ref: String) -> Result<(
     }
 }
 
+/// A window the size of the screen the pad is on, showing one attachment
+/// over everything. Rebuilt on every open: the page reads the URL once, and
+/// tearing down is cheaper than a second channel to tell it what to show.
+#[tauri::command]
+pub fn open_preview(app: AppHandle, attachment_ref: String, name: String) -> Result<(), String> {
+    app.state::<AppState>().attachment_path(&attachment_ref)?;
+    if let Some(old) = app.get_webview_window("preview") {
+        let _ = old.destroy();
+    }
+    let main = app
+        .get_webview_window("main")
+        .ok_or_else(|| "The pad's window is gone.".to_string())?;
+    let monitor = main
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| app.primary_monitor().ok().flatten())
+        .ok_or_else(|| "No display to show it on.".to_string())?;
+    let scale = monitor.scale_factor();
+    let size = monitor.size().to_logical::<f64>(scale);
+    let position = monitor.position().to_logical::<f64>(scale);
+    let url = format!(
+        "index.html?window=preview&ref={}&name={}",
+        percent_encode(&attachment_ref),
+        percent_encode(&name)
+    );
+    let window =
+        tauri::WebviewWindowBuilder::new(&app, "preview", tauri::WebviewUrl::App(url.into()))
+            .title("Preview")
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .resizable(false)
+            .position(position.x, position.y)
+            .inner_size(size.width, size.height)
+            .focused(true)
+            .build()
+            .map_err(|e| e.to_string())?;
+    // Same treatment as settings, one level higher still, so it covers the
+    // pad and shows inside full-screen Spaces without activating the app.
+    #[cfg(target_os = "macos")]
+    crate::panel::convert(&window, crate::panel::NS_FLOATING_WINDOW_LEVEL + 2);
+    let _ = window.set_focus();
+    Ok(())
+}
+
+fn percent_encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
 #[tauri::command]
 pub fn fs_describe(app: AppHandle, name: String) -> Result<String, String> {
     let path = app.state::<AppState>().path(&name)?;
@@ -234,6 +293,9 @@ pub fn hide_window(app: AppHandle) {
     // The next tap should bring back just the pad, not settings over it.
     if let Some(settings) = app.get_webview_window("settings") {
         let _ = settings.hide();
+    }
+    if let Some(preview) = app.get_webview_window("preview") {
+        let _ = preview.destroy();
     }
 }
 

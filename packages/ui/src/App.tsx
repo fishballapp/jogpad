@@ -20,7 +20,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AttachmentPreview, AttachmentStrip, filesFrom } from './components/attachments.tsx';
+import { AttachmentStrip, filesFrom } from './components/attachments.tsx';
 import { PagePalette } from './components/page-palette.tsx';
 import { Panel } from './components/panel.tsx';
 import { Button } from './components/ui/button.tsx';
@@ -46,9 +46,6 @@ import { useTheme } from './theme.ts';
 import { cn } from './utils.ts';
 
 type Row = { item: Item; page: string };
-/// What the preview is showing, and which item it belongs to. `null` for a
-/// file still waiting in the composer.
-type Preview = { id: number | null; attachment: Attachment };
 
 /// Counts enter/leave pairs so a drag passing over children does not flicker.
 function useDragOver(onDrop: (files: File[]) => void) {
@@ -106,7 +103,6 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   // Files pasted or dropped while composing wait here until Enter, the way
   // an email holds its attachments above the message.
   const [pending, setPending] = useState<Attachment[]>([]);
-  const [preview, setPreview] = useState<Preview | null>(null);
   // The panel has no title bar, so nothing else tells you whether typing will
   // land here or in the app behind it.
   const [focused, setFocused] = useState(true);
@@ -164,6 +160,11 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
 
   // A drop anywhere in the pad that is not on a row goes to the composer.
   const panelDrop = useDragOver(files => void addPending(files));
+
+  const openAttachment = useCallback(
+    (a: Attachment) => void host.attachments.preview(a).catch(e => toast(`Could not open: ${e}`)),
+    [host, toast],
+  );
 
   useEffect(() => {
     // Capture lands in the active page, so drop any search that would
@@ -280,7 +281,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     const onKey = (e: KeyboardEvent) => {
       // A dialog covers the list, so a stray Delete would destroy a selection
       // the user cannot even see. Each dialog handles its own Escape.
-      if (palette || preview) return;
+      if (palette) return;
       const typing = isTypingTarget(e.target);
 
       if (e.metaKey && e.key.toLowerCase() === 'k') {
@@ -364,19 +365,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [
-    copySelection,
-    editing,
-    host,
-    palette,
-    preview,
-    query,
-    rows,
-    searching,
-    selected,
-    snap.zoom,
-    store,
-  ]);
+  }, [copySelection, editing, host, palette, query, rows, searching, selected, snap.zoom, store]);
 
   // Clicks must still select and double-clicks still edit, so a drag only
   // starts once the pointer has actually travelled.
@@ -533,7 +522,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
                       onEdit={() => setEditing(row.item.id)}
                       onWarn={toast}
                       onEndEdit={() => setEditing(null)}
-                      onOpenAttachment={a => setPreview({ id: row.item.id, attachment: a })}
+                      onOpenAttachment={openAttachment}
                       onFiles={async files => {
                         const added = await ingest(files);
                         if (added.length > 0) void store.attach(row.item.id, added);
@@ -597,7 +586,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
         <div className="shrink-0 border-t p-2">
           <AttachmentStrip
             attachments={pending}
-            onOpen={a => setPreview({ id: null, attachment: a })}
+            onOpen={openAttachment}
             onRemove={a => setPending(p => p.filter(x => x.ref !== a.ref))}
             className="px-0.5 pt-1 pb-2"
           />
@@ -627,20 +616,6 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
             className="max-h-40 w-full resize-none rounded-lg bg-muted/50 px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus:bg-muted"
           />
         </div>
-
-        <AttachmentPreview
-          attachment={preview?.attachment ?? null}
-          onClose={() => setPreview(null)}
-          onNotice={toast}
-          onRemove={() => {
-            if (!preview) return;
-            if (preview.id === null) {
-              setPending(p => p.filter(x => x.ref !== preview.attachment.ref));
-            } else {
-              void store.detach(preview.id, preview.attachment.ref);
-            }
-          }}
-        />
 
         <PagePalette
           open={palette}
@@ -785,6 +760,7 @@ function ItemRow({
           <AttachmentStrip
             attachments={attachments}
             onOpen={onOpenAttachment}
+            onRemove={a => void store.detach(item.id, a.ref)}
             className={cn('py-0.5', body || editing ? 'mb-1.5' : '')}
           />
           <p

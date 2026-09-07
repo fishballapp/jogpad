@@ -20,5 +20,6 @@ export {
   type Theme,
   type UpdateChannel,
 } from './model.ts';
+export { default as PreviewWindow } from './PreviewWindow.tsx';
 export { default as SettingsWindow } from './SettingsWindow.tsx';
 export { createStore, type Events, type Snapshot, Store } from './store.ts';

@@ -4,6 +4,7 @@ import {
   HostProvider,
   PanelMenu,
   PermissionBanner,
+  PreviewWindow,
   runGesture,
   SettingsWindow,
 } from '@jogpad/ui';
@@ -15,11 +16,11 @@ import { inTauri, tauriHost } from './tauri-host.ts';
 
 const host = inTauri ? tauriHost : browserHost;
 const store = await createStore(host);
-const isSettings = new URLSearchParams(location.search).get('window') === 'settings';
+const which = new URLSearchParams(location.search).get('window');
 
-// Rust broadcasts the gesture to every window and the settings window runs
-// this same bundle, so only the panel may act on it or a capture lands twice.
-if (!isSettings) void host.onGesture(g => void runGesture(g, store, host));
+// Rust broadcasts the gesture to every window and the other windows run this
+// same bundle, so only the panel may act on it or a capture lands twice.
+if (!which) void host.onGesture(g => void runGesture(g, store, host));
 
 /// A render error used to unmount everything and leave a blank panel, which
 /// looks exactly like a crash: the process is still alive, no report is
@@ -58,8 +59,10 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <HostProvider host={host} store={store}>
-        {isSettings ? (
+        {which === 'settings' ? (
           <SettingsWindow />
+        ) : which === 'preview' ? (
+          <PreviewWindow />
         ) : (
           <App menu={<PanelMenu />} notice={<PermissionBanner />} />
         )}

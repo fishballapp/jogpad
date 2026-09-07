@@ -29,6 +29,11 @@ export function createMemoryAttachments(): Host['attachments'] {
     reveal: async () => {
       throw new Error('Nothing to reveal: attachments live in memory here.');
     },
+    preview: async a => {
+      const url = urls.get(a.ref) ?? URL.createObjectURL(blobs.get(a.ref) ?? new Blob());
+      urls.set(a.ref, url);
+      window.open(url, '_blank');
+    },
     copyImage: async ref => {
       const blob = blobs.get(ref);
       if (!blob) throw new Error('That attachment is gone.');

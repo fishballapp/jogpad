@@ -1,4 +1,4 @@
-import type { Theme, UpdateChannel } from './model.ts';
+import type { Attachment, Theme, UpdateChannel } from './model.ts';
 
 export type FileName = 'notes.md' | 'prefs.json';
 export type Unlisten = () => void;
@@ -32,6 +32,9 @@ export interface Host {
     reveal(ref: AttachmentRef): Promise<void>;
     /// Put the picture itself on the clipboard, for pasting into a chat box.
     copyImage(ref: AttachmentRef): Promise<void>;
+    /// Show one attachment large, outside the pad: the desktop opens a window
+    /// over the whole screen, the web opens a tab.
+    preview(attachment: Attachment): Promise<void>;
   };
   window: {
     /// Bring the panel up. With `focus`, take the keyboard and ask the UI to

@@ -1,4 +1,5 @@
 import type {
+  Attachment,
   AttachmentRef,
   FileName,
   GestureInput,
@@ -43,6 +44,8 @@ export const tauriHost: Host = {
     reveal: (ref: AttachmentRef) => invoke<void>('attachment_reveal', { attachmentRef: ref }),
     copyImage: (ref: AttachmentRef) =>
       invoke<void>('attachment_copy_image', { attachmentRef: ref }),
+    preview: (a: Attachment) =>
+      invoke<void>('open_preview', { attachmentRef: a.ref, name: a.name }),
   },
   window: {
     show: ({ focus }: { focus: boolean }) => invoke<void>('show_window', { focus }),

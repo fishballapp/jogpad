@@ -106,9 +106,9 @@ pub(crate) fn apply_native_theme(app: &AppHandle, theme: &str) -> Result<(), Str
     Ok(())
 }
 
-/// Whether typing lands in JogPad, in either the panel or settings.
+/// Whether typing lands in JogPad: the panel, settings, or a preview.
 pub(crate) fn has_focus(app: &AppHandle) -> bool {
-    ["main", "settings"].into_iter().any(|label| {
+    ["main", "settings", "preview"].into_iter().any(|label| {
         app.get_webview_window(label)
             .and_then(|w| Some(w.is_visible().ok()? && w.is_focused().ok()?))
             .unwrap_or(false)
@@ -263,6 +263,7 @@ pub fn run() {
             commands::attachment_path,
             commands::attachment_reveal,
             commands::attachment_copy_image,
+            commands::open_preview,
             commands::permissions,
             commands::request_permissions,
             commands::show_window,

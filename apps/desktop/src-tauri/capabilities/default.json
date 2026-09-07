@@ -2,10 +2,11 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the app windows",
-  "windows": ["main", "settings"],
+  "windows": ["main", "settings", "preview"],
   "permissions": [
     "core:default",
     "opener:default",
+    "clipboard-manager:allow-write-text",
     "core:window:allow-start-dragging",
     "core:window:allow-hide",
     "core:webview:allow-set-webview-zoom"
