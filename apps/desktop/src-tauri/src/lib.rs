@@ -121,36 +121,30 @@ pub(crate) fn is_visible(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
-/// Reads window state off disk. If window.json is missing, fall back to
-/// width, height, zoom from prefs.json (older builds kept them there),
-/// else defaults. Theme is peeked from prefs.json for native window setup.
+/// Reads window state off disk. Size and zoom come from window.json, or
+/// from prefs.json for a profile older builds wrote, else defaults. Theme is
+/// peeked from prefs.json for native window setup.
 fn load_state(app: &AppHandle) -> tauri::Result<(AppState, String)> {
     let dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&dir)?;
-    let window_path = dir.join("window.json");
-    let prefs_path = dir.join("prefs.json");
-
-    let window_val: Option<serde_json::Value> = std::fs::read_to_string(&window_path)
-        .ok()
-        .and_then(|json| serde_json::from_str(&json).ok());
-
-    let prefs_val: Option<serde_json::Value> = std::fs::read_to_string(&prefs_path)
-        .ok()
-        .and_then(|json| serde_json::from_str(&json).ok());
-
-    let (width, height, zoom) = if let Some(w) = window_val {
-        let width = w.get("width").and_then(|v| v.as_f64()).unwrap_or(380.0);
-        let height = w.get("height").and_then(|v| v.as_f64()).unwrap_or(720.0);
-        let zoom = w.get("zoom").and_then(|v| v.as_f64()).unwrap_or(1.0);
-        (width, height, zoom)
-    } else if let Some(p) = prefs_val.as_ref() {
-        let width = p.get("width").and_then(|v| v.as_f64()).unwrap_or(380.0);
-        let height = p.get("height").and_then(|v| v.as_f64()).unwrap_or(720.0);
-        let zoom = p.get("zoom").and_then(|v| v.as_f64()).unwrap_or(1.0);
-        (width, height, zoom)
-    } else {
-        (380.0, 720.0, 1.0)
+    let read_json = |name: &str| -> Option<serde_json::Value> {
+        let json = std::fs::read_to_string(dir.join(name)).ok()?;
+        serde_json::from_str(&json).ok()
     };
+    let prefs_val = read_json("prefs.json");
+    let window_val = read_json("window.json").or_else(|| prefs_val.clone());
+    let number = |key: &str, default: f64| {
+        window_val
+            .as_ref()
+            .and_then(|w| w.get(key))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(default)
+    };
+    let (width, height, zoom) = (
+        number("width", 380.0),
+        number("height", 720.0),
+        number("zoom", 1.0),
+    );
 
     let zoom = zoom.clamp(0.6, 2.0);
     let theme = match prefs_val
