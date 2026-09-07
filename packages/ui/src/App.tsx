@@ -616,7 +616,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
                 void submit();
               }
             }}
-            className="max-h-40 w-full resize-none rounded-lg bg-muted/50 py-2 pr-9 pl-2.5 text-sm outline-none placeholder:text-muted-foreground focus:bg-muted"
+            className="block max-h-40 w-full resize-none rounded-lg bg-muted/50 py-2 pr-9 pl-2.5 text-sm outline-none placeholder:text-muted-foreground focus:bg-muted"
           />
           {/* The picker for anyone who would rather browse than paste or
               drop. It lands in the draft like the other two. */}
