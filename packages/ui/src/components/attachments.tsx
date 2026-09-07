@@ -49,11 +49,14 @@ export function AttachmentStrip({
               />
             ) : isVideo(a.name) ? (
               <span className="relative block h-full">
+                {/* WebKit paints nothing for a video it has only read the
+                    metadata of. Seeking a hair past the start makes it
+                    decode and show the first frame. */}
                 <video
-                  src={host.attachments.url(a.ref)}
+                  src={`${host.attachments.url(a.ref)}#t=0.001`}
                   muted
                   playsInline
-                  preload="metadata"
+                  preload="auto"
                   className="h-full max-w-28 object-cover"
                 />
                 <Play

@@ -516,7 +516,9 @@ export class Model {
       const { attachments, body } = splitItem(item.text);
       const lines: string[] = [];
       if (attachments.length > 0) {
-        lines.push(`Attached: ${attachments.map(a => pathOf(a.ref)).join(', ')}`);
+        // Backticks: the paths have spaces in them, and every reader of this
+        // text speaks markdown.
+        lines.push(`Attached: ${attachments.map(a => `\`${pathOf(a.ref)}\``).join(', ')}`);
       }
       if (body) lines.push(body);
       return lines.join('\n');

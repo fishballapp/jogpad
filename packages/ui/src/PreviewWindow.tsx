@@ -13,9 +13,16 @@ export default function PreviewWindow() {
   const snap = useSnapshot();
   useTheme(snap.theme);
   const [flash, setFlash] = useState<string | null>(null);
+  // The window is only ever hidden, never closed, and the next open
+  // navigates it afresh. So once it goes, render nothing: that unmounts the
+  // video, which would otherwise keep playing behind an invisible window.
+  const [gone, setGone] = useState(false);
   const params = new URLSearchParams(location.search);
   const a: Attachment = { ref: params.get('ref') ?? '', name: params.get('name') ?? '' };
-  const close = () => void host.window.close();
+  const close = () => {
+    setGone(true);
+    void host.window.close();
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -24,8 +31,16 @@ export default function PreviewWindow() {
         close();
       }
     };
+    // Hidden by someone else, such as the pad hiding on ⌘W: same teardown.
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') setGone(true);
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   });
 
   const run = async (label: string, action: () => Promise<void>) => {
@@ -40,6 +55,7 @@ export default function PreviewWindow() {
 
   const url = host.attachments.url(a.ref);
   const stop = (e: React.MouseEvent) => e.stopPropagation();
+  if (gone) return null;
   return (
     <div
       className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-black/70 p-10 font-sans text-foreground backdrop-blur-sm"

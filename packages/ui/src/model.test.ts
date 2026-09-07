@@ -318,10 +318,10 @@ test('copy_lists_attachments_as_paths_before_the_text', () => {
   ]) as number;
   const b = m.addItem('plain') as number;
   const pathOf = (ref: string) => `/data/${ref}`;
-  assert.equal(m.listText([a], pathOf), 'Attached: /data/attachments/a.png\nAsk about Q3');
+  assert.equal(m.listText([a], pathOf), 'Attached: `/data/attachments/a.png`\nAsk about Q3');
   assert.equal(
     m.listText([a, b], pathOf),
-    '1. Attached: /data/attachments/a.png\n   Ask about Q3\n2. plain',
+    '1. Attached: `/data/attachments/a.png`\n   Ask about Q3\n2. plain',
   );
   assert.deepEqual(m.attachmentRefs([a, b]), ['attachments/a.png']);
 });
