@@ -1,4 +1,4 @@
-import { createMemoryAttachments, type FileName, type GestureInput, type Host } from '@jogpad/ui';
+import { createMemoryHost, type GestureInput, type Host } from '@jogpad/ui';
 
 export const demoMarkdown = `## Try it
 
@@ -62,9 +62,6 @@ export function createWebHost(opts: {
   /// First drag. The page swaps in a placeholder where the panel was.
   onDetach: () => void;
 }): Host {
-  const files = new Map<FileName, string>([['notes.md', demoMarkdown]]);
-  const watchers = new Map<FileName, Set<() => void>>();
-
   // startDragging gets no event, so remember where the last press was. The
   // listener is installed with the gesture listener below, which owns cleanup.
   const pointer = { x: 0, y: 0, id: 0, target: null as Element | null };
@@ -115,39 +112,7 @@ export function createWebHost(opts: {
   };
 
   return {
-    fs: {
-      read: async (name: FileName) => files.get(name) ?? null,
-      write: async (name: FileName, text: string) => {
-        files.set(name, text);
-        const set = watchers.get(name);
-        if (set) {
-          for (const cb of Array.from(set)) {
-            cb();
-          }
-        }
-      },
-      watch: async (name: FileName, onChange: () => void) => {
-        let set = watchers.get(name);
-        if (!set) {
-          set = new Set();
-          watchers.set(name, set);
-        }
-        set.add(onChange);
-        return () => {
-          set?.delete(onChange);
-        };
-      },
-      describe: async (_name: FileName) => 'In memory. Reload to reset.',
-      reveal: async (_name: FileName) => {},
-    },
-    clipboard: {
-      write: async (text: string) => {
-        if (typeof navigator !== 'undefined' && navigator.clipboard) {
-          await navigator.clipboard.writeText(text);
-        }
-      },
-    },
-    attachments: createMemoryAttachments(),
+    ...createMemoryHost(demoMarkdown),
     window: {
       show: async ({ focus }) => {
         opts.onShow(focus);
@@ -169,23 +134,6 @@ export function createWebHost(opts: {
       },
       setZoom: async () => {},
       setTheme: async () => {},
-    },
-    permissions: {
-      status: async () => ({ trusted: true, inputMonitoring: true }),
-      onChange: async () => () => {},
-      request: async () => {},
-    },
-    updates: {
-      version: async () => 'web',
-      check: async () => null,
-      install: async () => {
-        throw new Error('No updates on the web');
-      },
-    },
-    settings: {
-      open: async () => {
-        throw new Error('No settings window on the web');
-      },
     },
     onGesture: async (handler: (g: GestureInput) => void) => {
       let lastShiftDown = 0;

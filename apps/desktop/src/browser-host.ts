@@ -1,4 +1,4 @@
-import { createMemoryAttachments, type FileName, type Host } from '@jogpad/ui';
+import { createMemoryHost } from '@jogpad/ui';
 
 const demoMarkdown = `## Inbox
 
@@ -12,68 +12,4 @@ const demoMarkdown = `## Inbox
 - [ ] Split the store module
 `;
 
-const files = new Map<FileName, string>([['notes.md', demoMarkdown]]);
-const watchers = new Map<FileName, Set<() => void>>();
-
-export const browserHost: Host = {
-  fs: {
-    read: async name => files.get(name) ?? null,
-    write: async (name, text) => {
-      files.set(name, text);
-      const set = watchers.get(name);
-      if (set) {
-        for (const cb of Array.from(set)) cb();
-      }
-    },
-    watch: async (name, onChange) => {
-      let set = watchers.get(name);
-      if (!set) {
-        set = new Set();
-        watchers.set(name, set);
-      }
-      set.add(onChange);
-      return () => {
-        set?.delete(onChange);
-      };
-    },
-    describe: async () => 'In memory. Reload to reset.',
-    reveal: async () => {},
-  },
-  clipboard: {
-    write: async text => {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(text);
-      }
-    },
-  },
-  attachments: createMemoryAttachments(),
-  window: {
-    show: async () => {},
-    hide: async () => {},
-    activate: async () => {},
-    close: async () => {},
-    quit: async () => {},
-    startDragging: () => {},
-    onFocusChanged: async () => () => {},
-    setZoom: async () => {},
-    setTheme: async () => {},
-  },
-  permissions: {
-    status: async () => ({ trusted: true, inputMonitoring: true }),
-    onChange: async () => () => {},
-    request: async () => {},
-  },
-  updates: {
-    version: async () => 'browser',
-    check: async () => null,
-    install: async () => {
-      throw new Error('No updates in browser');
-    },
-  },
-  settings: {
-    open: async () => {
-      throw new Error('No settings window in browser');
-    },
-  },
-  onGesture: async () => () => {},
-};
+export const browserHost = createMemoryHost(demoMarkdown);

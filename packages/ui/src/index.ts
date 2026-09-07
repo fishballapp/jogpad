@@ -6,6 +6,7 @@ export * from './context.tsx';
 export { runGesture } from './gesture.ts';
 export * from './host.ts';
 export { createMemoryAttachments } from './memory-attachments.ts';
+export { createMemoryHost } from './memory-host.ts';
 export {
   type Attachment,
   type Doc,
