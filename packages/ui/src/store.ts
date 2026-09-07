@@ -74,7 +74,7 @@ export async function createStore(host: Host): Promise<Store> {
   await host.fs.watch('prefs.json', async () => {
     try {
       const text = await host.fs.read('prefs.json');
-      if (store.wroteRecently('prefs.json', text)) return;
+      if (store.consumeEcho('prefs.json', text)) return;
       const parsed = parsePrefs(text);
       store.model.prefs = parsed.prefs;
       store.extra = parsed.extra;
@@ -87,7 +87,7 @@ export async function createStore(host: Host): Promise<Store> {
   await host.fs.watch('notes.md', async () => {
     try {
       const text = await host.fs.read('notes.md');
-      if (store.wroteRecently('notes.md', text)) return;
+      if (store.consumeEcho('notes.md', text)) return;
       store.model.doc = parseDoc(text ?? '');
       // What someone else removed is theirs to clean up. Forgetting it here
       // means the next save cannot mistake it for something we dropped.
@@ -173,7 +173,10 @@ export class Store {
     }
   }
 
-  wroteRecently(name: FileName, text: string | null): boolean {
+  /// Whether a change event is this store's own write coming back. Call it
+  /// once per event, since a foreign text also forgets the last landed write:
+  /// a second probe for the same event would answer differently.
+  consumeEcho(name: FileName, text: string | null): boolean {
     if (text !== null && (text === this.writing[name] || text === this.written[name])) return true;
     // A different writer may later restore one of our old values. Only the
     // current write and its latest successful predecessor can be echoes.

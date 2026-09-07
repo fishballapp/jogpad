@@ -291,14 +291,14 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing || e.defaultPrevented) return;
-      // A dialog covers the list, so a stray Delete would destroy a selection
-      // the user cannot even see. Each dialog handles its own Escape.
-      if (
-        palette ||
-        (e.target instanceof Element && e.target.closest('[role="dialog"], [role="menu"]'))
-      )
-        return;
+      // The palette's input owns every key.
+      if (palette) return;
       const typing = isTypingTarget(e.target);
+      // A dialog or menu covers the list, so a stray Delete would destroy a
+      // selection the user cannot even see, and each handles its own Escape.
+      // The ⌘ chords above still apply: the menu lists ⌘W and ⌘Q itself.
+      const overlaid =
+        e.target instanceof Element && e.target.closest('[role="dialog"], [role="menu"]') !== null;
 
       if (e.metaKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -332,6 +332,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
         void store.setZoom(e.key === '0' ? 1 : zoom + (e.key === '-' ? -0.1 : 0.1));
         return;
       }
+      if (overlaid) return;
       if (e.key === 'Escape') {
         if (editing !== null) return;
         if (query || searching) {

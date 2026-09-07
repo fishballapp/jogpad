@@ -325,3 +325,10 @@ test('copy_lists_attachments_as_paths_before_the_text', () => {
   );
   assert.deepEqual(m.attachmentRefs([a, b]), ['attachments/a.png']);
 });
+
+test('a_note_added_to_a_page_with_a_blank_name_is_not_lost', () => {
+  const doc = parseDoc('##  \n\n- [ ] old\n');
+  const model = new Model(doc, { ...defaultPrefs, active: '' });
+  assert.notEqual(model.addItem('new'), null);
+  assert.ok(model.doc.pages.some(p => p.items.some(i => i.text === 'new')));
+});

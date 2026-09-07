@@ -47,9 +47,13 @@ export function PanelMenu() {
       const generation = ++checkGenRef.current;
       setChecking(true);
       // Rust clears the pending offer when a check starts, including one
-      // that fails. Do not leave the previous offer looking installable.
-      setUpdate(null);
-      setUpdateDialogOpen(false);
+      // that fails, so a check you asked for starts from nothing. The hourly
+      // one does not: it must not close the dialog you are reading, or an
+      // install in progress.
+      if (userInitiated) {
+        setUpdate(null);
+        setUpdateDialogOpen(false);
+      }
       try {
         const info = await host.updates.check(snap.update_channel);
         if (generation !== checkGenRef.current) return;

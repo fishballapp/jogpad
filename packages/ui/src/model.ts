@@ -287,14 +287,9 @@ export class Model {
     const trimmed = joinItem(attachments, text.trim());
     if (isBlankItem(trimmed)) return null;
 
-    let pageName: string;
-    if (page !== undefined) {
-      const norm = normalisePageName(page);
-      if (!norm) return null;
-      pageName = norm;
-    } else {
-      pageName = this.prefs.active;
-    }
+    // A hand-edited file can hold a page whose name fails normalisation (a
+    // blank heading). The note still has to land somewhere.
+    const pageName = normalisePageName(page ?? this.prefs.active) ?? DEFAULT_PAGE;
 
     const id = nextId++;
     this.pageMut(pageName).items.push({
