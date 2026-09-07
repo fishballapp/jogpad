@@ -10,6 +10,7 @@ function slowHost() {
   const watchers = new Map<FileName, Set<() => void>>();
   let delay = 30;
   const writes: string[] = [];
+  const removed: string[] = [];
   const host: Host = {
     fs: {
       read: async name => disk.get(name) ?? null,
@@ -31,6 +32,17 @@ function slowHost() {
       reveal: async () => {},
     },
     clipboard: { write: async () => {} },
+    attachments: {
+      put: async (_bytes, name) => `attachments/${name}`,
+      url: ref => ref,
+      path: async ref => ref,
+      reveal: async () => {},
+      remove: async ref => {
+        removed.push(ref);
+      },
+      copyImage: async () => {},
+      preview: async () => {},
+    },
     window: {
       show: async () => {},
       hide: async () => {},
@@ -50,8 +62,44 @@ function slowHost() {
     settings: { open: async () => {} },
     onGesture: async () => () => {},
   };
-  return { host, disk, writes };
+  return { host, disk, writes, removed };
 }
+
+/// Enough of a File for the store: a name and bytes.
+const fakeFile = (name: string) =>
+  ({ name, type: '', arrayBuffer: async () => new ArrayBuffer(0) }) as unknown as File;
+
+test('a file goes when its last reference does, and stays while any remains', async () => {
+  const { host, removed } = slowHost();
+  const store = await createStore(host);
+  await store.addItem('one', undefined, [fakeFile('a.png')]);
+  await store.addItem('two', undefined, [fakeFile('a.png'), fakeFile('b.pdf')]);
+  const [first, second] = store.model.doc.pages[0].items.map(i => i.id);
+  assert.ok(first !== undefined && second !== undefined);
+
+  await store.deleteItems([first]);
+  assert.deepEqual(removed, [], 'a.png is still on the second item');
+
+  await store.detach(second, 'attachments/a.png');
+  assert.deepEqual(removed, ['attachments/a.png']);
+
+  await store.deletePage(store.model.prefs.active);
+  assert.deepEqual(removed, ['attachments/a.png', 'attachments/b.pdf']);
+});
+
+test('what an outside edit removed is not ours to trash', async () => {
+  const { host, disk, removed } = slowHost();
+  const store = await createStore(host);
+  await store.addItem('one', undefined, [fakeFile('a.png')]);
+
+  // Someone else rewrites the file without the attachment.
+  disk.set('notes.md', '## Inbox\n\n- [ ] one\n\n');
+  await host.fs.write('notes.md', disk.get('notes.md') ?? '');
+  await new Promise(r => setTimeout(r, 50));
+
+  await store.addItem('two');
+  assert.deepEqual(removed, []);
+});
 
 test('burst of unawaited edits lands in order and the last one wins on disk', async () => {
   const { host, disk, writes } = slowHost();

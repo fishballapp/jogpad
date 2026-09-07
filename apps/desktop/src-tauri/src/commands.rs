@@ -65,8 +65,10 @@ pub fn attachment_write(app: AppHandle, request: Request<'_>) -> Result<String, 
     } else {
         ext
     };
-    let hash = Sha256::digest(bytes);
-    let attachment_ref = format!("attachments/{:x}.{ext}", hash);
+    // Twelve hex digits of the hash: 48 bits is plenty for one person's
+    // folder, and a full digest makes an ugly path in copied text.
+    let hash = format!("{:x}", Sha256::digest(bytes));
+    let attachment_ref = format!("attachments/{}.{ext}", &hash[..12]);
     let path = app.state::<AppState>().attachment_path(&attachment_ref)?;
     if !path.exists() {
         crate::store::write_atomic(&path, bytes)
@@ -103,6 +105,28 @@ pub fn attachment_path(app: AppHandle, attachment_ref: String) -> Result<String,
 pub fn attachment_reveal(app: AppHandle, attachment_ref: String) -> Result<(), String> {
     let path = app.state::<AppState>().attachment_path(&attachment_ref)?;
     tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| e.to_string())
+}
+
+/// To the Trash, so a wrong removal is one Finder "Put Back" away. A file
+/// that is already gone is not an error: the reference was the thing.
+#[tauri::command]
+pub fn attachment_remove(app: AppHandle, attachment_ref: String) -> Result<(), String> {
+    let path = app.state::<AppState>().attachment_path(&attachment_ref)?;
+    if !path.exists() {
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_foundation::{NSFileManager, NSString, NSURL};
+        let url = NSURL::fileURLWithPath(&NSString::from_str(&path.display().to_string()));
+        NSFileManager::defaultManager()
+            .trashItemAtURL_resultingItemURL_error(&url, None)
+            .map_err(|e| e.localizedDescription().to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        std::fs::remove_file(&path).map_err(|e| e.to_string())
+    }
 }
 
 /// The picture itself on the pasteboard, decoded by AppKit so every format

@@ -35,7 +35,13 @@ objc2-app-kit = { version = "0.3", features = [
   "NSRunningApplication",
   "NSWindow",
 ] }
-objc2-foundation = { version = "0.3", features = ["NSString", "NSArray"] }
+objc2-foundation = { version = "0.3", features = [
+  "NSArray",
+  "NSError",
+  "NSFileManager",
+  "NSString",
+  "NSURL",
+] }
 core-graphics = "0.25"
 core-foundation = "0.10"
 accessibility-sys = "0.2"

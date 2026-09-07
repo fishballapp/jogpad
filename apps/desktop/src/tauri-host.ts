@@ -42,6 +42,7 @@ export const tauriHost: Host = {
     url: (ref: AttachmentRef) => `attachment://localhost/${ref.slice('attachments/'.length)}`,
     path: (ref: AttachmentRef) => invoke<string>('attachment_path', { attachmentRef: ref }),
     reveal: (ref: AttachmentRef) => invoke<void>('attachment_reveal', { attachmentRef: ref }),
+    remove: (ref: AttachmentRef) => invoke<void>('attachment_remove', { attachmentRef: ref }),
     copyImage: (ref: AttachmentRef) =>
       invoke<void>('attachment_copy_image', { attachmentRef: ref }),
     preview: (a: Attachment) =>

@@ -11,7 +11,8 @@ export function createMemoryAttachments(): Host['attachments'] {
     put: async (bytes, name) => {
       const digest = await crypto.subtle.digest('SHA-256', bytes as BufferSource);
       const hex = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
-      const ref = `attachments/${hex}.${extensionOf(name) || 'bin'}`;
+      // Twelve digits, the same as the desktop writes.
+      const ref = `attachments/${hex.slice(0, 12)}.${extensionOf(name) || 'bin'}`;
       if (!blobs.has(ref)) blobs.set(ref, new Blob([bytes as BlobPart]));
       return ref;
     },
@@ -26,6 +27,12 @@ export function createMemoryAttachments(): Host['attachments'] {
       return url;
     },
     path: async ref => ref,
+    remove: async ref => {
+      blobs.delete(ref);
+      const url = urls.get(ref);
+      if (url) URL.revokeObjectURL(url);
+      urls.delete(ref);
+    },
     reveal: async () => {
       throw new Error('Nothing to reveal: attachments live in memory here.');
     },

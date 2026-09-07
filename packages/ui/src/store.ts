@@ -3,6 +3,7 @@ import {
   type Attachment,
   DEFAULT_PAGE,
   type Doc,
+  docRefs,
   type Item,
   Model,
   type Page,
@@ -88,6 +89,9 @@ export async function createStore(host: Host): Promise<Store> {
       const text = await host.fs.read('notes.md');
       if (store.wroteRecently('notes.md', text)) return;
       store.model.doc = parseDoc(text ?? '');
+      // What someone else removed is theirs to clean up. Forgetting it here
+      // means the next save cannot mistake it for something we dropped.
+      store.saved = docRefs(store.model.doc);
       if (!store.model.doc.pages.some(p => p.name === store.model.prefs.active)) {
         store.model.prefs.active = store.model.doc.pages[0]?.name ?? DEFAULT_PAGE;
       }
@@ -117,6 +121,10 @@ export class Store {
   private queue: Promise<void> = Promise.resolve();
   private recent: Record<FileName, string[]> = { 'notes.md': [], 'prefs.json': [] };
   private listeners = new Map<keyof Events, Set<(payload: unknown) => void>>();
+  /// The attachment refs in the document as last written. A file exists on
+  /// disk exactly when something here references it; every notes write
+  /// settles the difference, so no mutation can forget to.
+  saved: Set<string>;
 
   constructor(
     host: Host,
@@ -130,6 +138,7 @@ export class Store {
     this.extra = extra;
     this.readOnly = readOnly;
     this.error = error;
+    this.saved = docRefs(model.doc);
   }
 
   snapshot(): Snapshot {
@@ -193,8 +202,25 @@ export class Store {
   /// The UI sees the change at once; the disk catches up in order.
   async saveNotes(): Promise<void> {
     this.emit('notes', this.snapshot());
+    await this.writeNotes();
+  }
+
+  /// The one way notes reach the disk. After the write lands, any file the
+  /// document no longer mentions goes; a failure there is left alone, since
+  /// the notes are safe and an unreferenced file is only clutter.
+  private async writeNotes(): Promise<void> {
     if (this.readOnly) return;
     await this.write('notes.md', serialiseDoc(this.model.doc));
+    const now = docRefs(this.model.doc);
+    const gone = [...this.saved].filter(ref => !now.has(ref));
+    this.saved = now;
+    for (const ref of gone) {
+      try {
+        await this.host.attachments.remove(ref);
+      } catch {
+        // Left where it is.
+      }
+    }
   }
 
   private async savePrefs(): Promise<void> {
@@ -209,16 +235,26 @@ export class Store {
     // told about yet and drop the selection as stale.
     this.emit('notes', this.snapshot());
     this.emit('captured', id);
-    if (!this.readOnly) await this.write('notes.md', serialiseDoc(this.model.doc));
+    await this.writeNotes();
   }
 
-  async addItem(text: string, page?: string, attachments: Attachment[] = []): Promise<void> {
+  /// Files are written first, so the refs the item carries are real by the
+  /// time notes.md mentions them.
+  async addItem(text: string, page?: string, files: File[] = []): Promise<void> {
+    const attachments = await this.storeFiles(files);
     if (this.model.addItem(text, page, attachments) !== null) await this.saveNotes();
   }
 
-  /// Store the files with the host first, then write their refs into the
-  /// item. A file that fails to store is left out and named in the error.
-  async storeFiles(files: File[]): Promise<Attachment[]> {
+  async attach(id: number, files: File[]): Promise<void> {
+    const attachments = await this.storeFiles(files);
+    if (this.model.attach(id, attachments)) await this.saveNotes();
+  }
+
+  private async storeFiles(files: File[]): Promise<Attachment[]> {
+    if (files.length === 0) return [];
+    // A file written now would never be referenced by a notes file that
+    // cannot be written, and nothing would ever clean it up.
+    if (this.readOnly) throw new Error('Nothing is being saved, so nothing can be attached.');
     const out: Attachment[] = [];
     for (const file of files) {
       const bytes = new Uint8Array(await file.arrayBuffer());
@@ -226,10 +262,6 @@ export class Store {
       out.push({ name, ref: await this.host.attachments.put(bytes, name) });
     }
     return out;
-  }
-
-  async attach(id: number, attachments: Attachment[]): Promise<void> {
-    if (this.model.attach(id, attachments)) await this.saveNotes();
   }
 
   async detach(id: number, ref: string): Promise<void> {

@@ -40,6 +40,18 @@ export function joinItem(attachments: Attachment[], body: string): string {
   return lines.join('\n');
 }
 
+/// Every attachment ref the document mentions. What is on disk should be
+/// exactly this set; the store keeps it so.
+export function docRefs(doc: Doc): Set<string> {
+  const refs = new Set<string>();
+  for (const page of doc.pages) {
+    for (const item of page.items) {
+      for (const a of splitItem(item.text).attachments) refs.add(a.ref);
+    }
+  }
+  return refs;
+}
+
 /// Whether an item has anything in it. Attachments count: a picture with
 /// nothing written under it is still an item.
 export const isBlankItem = (text: string) => text.trim() === '';

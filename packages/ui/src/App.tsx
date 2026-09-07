@@ -20,7 +20,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AttachmentStrip, filesFrom } from './components/attachments.tsx';
+import { AttachmentStrip, filesFrom, type Thumb } from './components/attachments.tsx';
 import { PagePalette } from './components/page-palette.tsx';
 import { Panel } from './components/panel.tsx';
 import { Button } from './components/ui/button.tsx';
@@ -101,8 +101,10 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   const [doneCollapsed, setDoneCollapsed] = useState(true);
   const [flash, setFlash] = useState<string | null>(null);
   // Files pasted or dropped while composing wait here until Enter, the way
-  // an email holds its attachments above the message.
-  const [pending, setPending] = useState<Attachment[]>([]);
+  // an email holds its attachments above the message. In memory only:
+  // nothing reaches the disk until the item does, so a draft thrown away
+  // leaves nothing behind.
+  const [draft, setDraft] = useState<Array<{ file: File; url: string }>>([]);
   // The panel has no title bar, so nothing else tells you whether typing will
   // land here or in the app behind it.
   const [focused, setFocused] = useState(true);
@@ -134,32 +136,27 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     window.setTimeout(() => setFlash(f => (f === message ? null : f)), 1600);
   }, []);
 
-  /// Store files with the host; the caller decides where the refs go.
-  const ingest = useCallback(
-    async (files: File[]): Promise<Attachment[]> => {
-      if (files.length === 0) return [];
-      try {
-        return await store.storeFiles(files);
-      } catch (e) {
-        toast(`Could not attach: ${e instanceof Error ? e.message : e}`);
-        return [];
-      }
-    },
+  const addToDraft = useCallback((files: File[]) => {
+    if (files.length === 0) return;
+    setDraft(prev => [...prev, ...files.map(file => ({ file, url: URL.createObjectURL(file) }))]);
+    composerRef.current?.focus();
+  }, []);
+
+  const dropFromDraft = useCallback((url: string) => {
+    URL.revokeObjectURL(url);
+    setDraft(prev => prev.filter(d => d.url !== url));
+  }, []);
+
+  const attachTo = useCallback(
+    (id: number, files: File[]) =>
+      void store
+        .attach(id, files)
+        .catch(e => toast(`Could not attach: ${e instanceof Error ? e.message : e}`)),
     [store, toast],
   );
 
-  const addPending = useCallback(
-    async (files: File[]) => {
-      const added = await ingest(files);
-      if (added.length === 0) return;
-      setPending(prev => [...prev, ...added.filter(a => !prev.some(p => p.ref === a.ref))]);
-      composerRef.current?.focus();
-    },
-    [ingest],
-  );
-
   // A drop anywhere in the pad that is not on a row goes to the composer.
-  const panelDrop = useDragOver(files => void addPending(files));
+  const panelDrop = useDragOver(addToDraft);
 
   const openAttachment = useCallback(
     (a: Attachment) => void host.attachments.preview(a).catch(e => toast(`Could not open: ${e}`)),
@@ -268,9 +265,19 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   const submit = async () => {
     const value = composerRef.current?.value ?? '';
     const text = value.trim();
-    if (!text && pending.length === 0) return;
-    await store.addItem(text, undefined, pending);
-    setPending([]);
+    if (!text && draft.length === 0) return;
+    try {
+      await store.addItem(
+        text,
+        undefined,
+        draft.map(d => d.file),
+      );
+    } catch (e) {
+      toast(`Could not attach: ${e instanceof Error ? e.message : e}`);
+      return;
+    }
+    for (const d of draft) URL.revokeObjectURL(d.url);
+    setDraft([]);
     if (composerRef.current) {
       composerRef.current.value = '';
       composerRef.current.style.height = 'auto';
@@ -523,10 +530,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
                       onWarn={toast}
                       onEndEdit={() => setEditing(null)}
                       onOpenAttachment={openAttachment}
-                      onFiles={async files => {
-                        const added = await ingest(files);
-                        if (added.length > 0) void store.attach(row.item.id, added);
-                      }}
+                      onFiles={files => attachTo(row.item.id, files)}
                       onClick={e => selectRow(index, e)}
                       selectionCount={selected.length}
                       onCopy={() =>
@@ -585,22 +589,19 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
 
         <div className="shrink-0 border-t p-2">
           <AttachmentStrip
-            attachments={pending}
-            onOpen={openAttachment}
-            onRemove={a => setPending(p => p.filter(x => x.ref !== a.ref))}
+            items={draft.map(d => ({ key: d.url, name: d.file.name, url: d.url }))}
+            onRemove={t => dropFromDraft(t.url)}
             className="px-0.5 pt-1 pb-2"
           />
           <textarea
             ref={composerRef}
             rows={1}
-            placeholder={
-              pending.length > 0 ? 'Say something about it, or just Enter' : 'Next prompt'
-            }
+            placeholder={draft.length > 0 ? 'Say something about it, or just Enter' : 'Next prompt'}
             onPaste={e => {
               const files = filesFrom(e.clipboardData);
               if (files.length === 0) return;
               e.preventDefault();
-              void addPending(files);
+              addToDraft(files);
             }}
             onInput={e => {
               const el = e.currentTarget;
@@ -702,9 +703,16 @@ function ItemRow({
   onDelete,
   canDrag,
 }: RowProps) {
+  const host = useHost();
   const store = useStore();
   const { item } = row;
   const { attachments, body } = splitItem(item.text);
+  const thumbs = new Map<string, Thumb & { attachment: Attachment }>(
+    attachments.map(a => [
+      a.ref,
+      { key: a.ref, name: a.name, url: host.attachments.url(a.ref), attachment: a },
+    ]),
+  );
   const drop = useDragOver(onFiles);
   const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({
     id: item.id,
@@ -758,9 +766,12 @@ function ItemRow({
         />
         <div className="min-w-0 flex-1">
           <AttachmentStrip
-            attachments={attachments}
-            onOpen={onOpenAttachment}
-            onRemove={a => void store.detach(item.id, a.ref)}
+            items={[...thumbs.values()]}
+            onOpen={t => {
+              const a = thumbs.get(t.key)?.attachment;
+              if (a) onOpenAttachment(a);
+            }}
+            onRemove={t => void store.detach(item.id, t.key)}
             className={cn('py-0.5', body || editing ? 'mb-1.5' : '')}
           />
           <p

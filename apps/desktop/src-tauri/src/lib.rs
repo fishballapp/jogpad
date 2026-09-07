@@ -262,6 +262,7 @@ pub fn run() {
             commands::attachment_write,
             commands::attachment_path,
             commands::attachment_reveal,
+            commands::attachment_remove,
             commands::attachment_copy_image,
             commands::open_preview,
             commands::permissions,

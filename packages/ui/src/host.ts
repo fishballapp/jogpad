@@ -32,6 +32,9 @@ export interface Host {
     reveal(ref: AttachmentRef): Promise<void>;
     /// Put the picture itself on the clipboard, for pasting into a chat box.
     copyImage(ref: AttachmentRef): Promise<void>;
+    /// Take a file away for good, or as near as the platform allows: the
+    /// desktop moves it to the Trash. Called once nothing references it.
+    remove(ref: AttachmentRef): Promise<void>;
     /// Show one attachment large, outside the pad: the desktop opens a window
     /// over the whole screen, the web opens a tab.
     preview(attachment: Attachment): Promise<void>;

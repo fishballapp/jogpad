@@ -1,48 +1,51 @@
 import { File as FileIcon, Play, X } from '@phosphor-icons/react';
-import { useHost } from '../context.tsx';
-import { type Attachment, isImage, isVideo } from '../model.ts';
+import { isImage, isVideo } from '../model.ts';
 import { cn } from '../utils.ts';
+
+/// Something the strip can draw: a saved attachment or a file still in the
+/// composer. `url` is whatever an <img> can load.
+export type Thumb = { key: string; name: string; url: string };
 
 /// The strip that leads an item, or waits above the composer: thumbnails for
 /// pictures and clips, a named chip for anything else. Click opens the
 /// preview; the corner cross takes it away.
 export function AttachmentStrip({
-  attachments,
+  items,
   onOpen,
   onRemove,
   className,
 }: {
-  attachments: Attachment[];
-  onOpen: (a: Attachment) => void;
-  onRemove?: (a: Attachment) => void;
+  items: Thumb[];
+  onOpen?: (t: Thumb) => void;
+  onRemove?: (t: Thumb) => void;
   className?: string;
 }) {
-  const host = useHost();
-  if (attachments.length === 0) return null;
+  if (items.length === 0) return null;
   return (
     <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
-      {attachments.map(a => (
+      {items.map(a => (
         // Only the thumbnails keep clicks to themselves: a click on a picture
         // opens it and a double-click must not start editing the text. The
         // gaps around them still select the row.
         <div
-          key={a.ref}
+          key={a.key}
           className="group/att relative"
           onClick={e => e.stopPropagation()}
           onDoubleClick={e => e.stopPropagation()}
         >
           <button
             type="button"
-            onClick={() => onOpen(a)}
-            aria-label={`Open ${a.name}`}
+            onClick={() => onOpen?.(a)}
+            aria-label={onOpen ? `Open ${a.name}` : a.name}
             className={cn(
-              'block overflow-hidden rounded-md ring-1 ring-foreground/10 outline-none transition-[box-shadow,transform] focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]',
+              'block overflow-hidden rounded-md ring-1 ring-foreground/10 outline-none transition-[box-shadow,transform] focus-visible:ring-2 focus-visible:ring-ring',
+              onOpen ? 'active:scale-[0.98]' : 'cursor-default',
               isImage(a.name) || isVideo(a.name) ? 'h-14 bg-muted' : 'h-7',
             )}
           >
             {isImage(a.name) ? (
               <img
-                src={host.attachments.url(a.ref)}
+                src={a.url}
                 alt={a.name}
                 draggable={false}
                 className="h-full max-w-28 object-cover"
@@ -53,7 +56,7 @@ export function AttachmentStrip({
                     metadata of. Seeking a hair past the start makes it
                     decode and show the first frame. */}
                 <video
-                  src={`${host.attachments.url(a.ref)}#t=0.001`}
+                  src={`${a.url}#t=0.001`}
                   muted
                   playsInline
                   preload="auto"
