@@ -279,6 +279,15 @@ pub fn run() {
             let handle = app.handle().clone();
             let (state, theme) = load_state(&handle)?;
 
+            // A shipped app has no stderr, and a panic that aborts the
+            // process leaves a crash report without the message. Keep the
+            // last one beside the notes.
+            let panic_log = state.dir.join("panic.log");
+            let version = app.package_info().version.to_string();
+            std::panic::set_hook(Box::new(move |info| {
+                let _ = std::fs::write(&panic_log, format!("{version} {info}\n"));
+            }));
+
             app.manage(commands::PendingUpdate::default());
             app.manage(state);
 

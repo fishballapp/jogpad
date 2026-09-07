@@ -83,19 +83,23 @@ export function PanelMenu() {
 
   return (
     <>
-      {update && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button variant="ghost" size="icon-sm" onClick={() => setUpdateDialogOpen(true)} />
-            }
-            aria-label={`Update to v${update.version}`}
-          >
-            <ArrowCircleDown className="text-primary" />
-          </TooltipTrigger>
-          <TooltipContent>{`Update to v${update.version}`}</TooltipContent>
-        </Tooltip>
-      )}
+      {/* A slot that is always there, first in the header's controls, so an
+          update appearing moves nothing else. */}
+      <span className="-order-1 flex size-7 items-center justify-center">
+        {update && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button variant="ghost" size="icon-sm" onClick={() => setUpdateDialogOpen(true)} />
+              }
+              aria-label={`Update to v${update.version}`}
+            >
+              <ArrowCircleDown className="text-primary" />
+            </TooltipTrigger>
+            <TooltipContent>{`Update to v${update.version}`}</TooltipContent>
+          </Tooltip>
+        )}
+      </span>
 
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />} aria-label="More">

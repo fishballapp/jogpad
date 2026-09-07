@@ -138,14 +138,12 @@ pub fn attachment_copy_image(app: AppHandle, attachment_ref: String) -> Result<(
 }
 
 /// A window the size of the screen the pad is on, showing one attachment
-/// over everything. Rebuilt on every open: the page reads the URL once, and
-/// tearing down is cheaper than a second channel to tell it what to show.
+/// over everything. Made once and then only hidden, like settings: closing
+/// a window whose class was swapped to a panel aborts the process (seen on
+/// 0.1.6-0.dev.53). Each open re-navigates it, so the page reads the URL once.
 #[tauri::command]
 pub fn open_preview(app: AppHandle, attachment_ref: String, name: String) -> Result<(), String> {
     app.state::<AppState>().attachment_path(&attachment_ref)?;
-    if let Some(old) = app.get_webview_window("preview") {
-        let _ = old.destroy();
-    }
     let main = app
         .get_webview_window("main")
         .ok_or_else(|| "The pad's window is gone.".to_string())?;
@@ -158,13 +156,27 @@ pub fn open_preview(app: AppHandle, attachment_ref: String, name: String) -> Res
     let scale = monitor.scale_factor();
     let size = monitor.size().to_logical::<f64>(scale);
     let position = monitor.position().to_logical::<f64>(scale);
-    let url = format!(
-        "index.html?window=preview&ref={}&name={}",
+    let query = format!(
+        "window=preview&ref={}&name={}",
         percent_encode(&attachment_ref),
         percent_encode(&name)
     );
-    let window =
-        tauri::WebviewWindowBuilder::new(&app, "preview", tauri::WebviewUrl::App(url.into()))
+
+    let window = match app.get_webview_window("preview") {
+        Some(window) => {
+            let mut url = window.url().map_err(|e| e.to_string())?;
+            url.set_query(Some(&query));
+            window.navigate(url).map_err(|e| e.to_string())?;
+            let _ = window.set_position(tauri::LogicalPosition::new(position.x, position.y));
+            let _ = window.set_size(LogicalSize::new(size.width, size.height));
+            window
+        }
+        None => {
+            let window = tauri::WebviewWindowBuilder::new(
+                &app,
+                "preview",
+                tauri::WebviewUrl::App(format!("index.html?{query}").into()),
+            )
             .title("Preview")
             .decorations(false)
             .transparent(true)
@@ -176,10 +188,15 @@ pub fn open_preview(app: AppHandle, attachment_ref: String, name: String) -> Res
             .focused(true)
             .build()
             .map_err(|e| e.to_string())?;
-    // Same treatment as settings, one level higher still, so it covers the
-    // pad and shows inside full-screen Spaces without activating the app.
-    #[cfg(target_os = "macos")]
-    crate::panel::convert(&window, crate::panel::NS_FLOATING_WINDOW_LEVEL + 2);
+            // Same treatment as settings, one level higher still, so it covers
+            // the pad and shows inside full-screen Spaces without activating
+            // the app.
+            #[cfg(target_os = "macos")]
+            crate::panel::convert(&window, crate::panel::NS_FLOATING_WINDOW_LEVEL + 2);
+            window
+        }
+    };
+    let _ = window.show();
     let _ = window.set_focus();
     Ok(())
 }
@@ -295,7 +312,7 @@ pub fn hide_window(app: AppHandle) {
         let _ = settings.hide();
     }
     if let Some(preview) = app.get_webview_window("preview") {
-        let _ = preview.destroy();
+        let _ = preview.hide();
     }
 }
 
