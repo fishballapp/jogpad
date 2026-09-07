@@ -209,44 +209,23 @@ export function parsePrefs(json: string | null): { prefs: Prefs; extra: Record<s
   }
 
   const raw = obj as Record<string, unknown>;
-  const extra: Record<string, unknown> = {};
-
-  const knownKeys = new Set([
-    'active',
-    'zoom',
-    'update_channel',
-    'check_on_copy',
-    'group_done',
-    'theme',
-  ]);
-
-  for (const [k, v] of Object.entries(raw)) {
-    if (!knownKeys.has(k)) {
-      extra[k] = v;
-    }
-  }
-
-  const active = typeof raw.active === 'string' ? raw.active : defaultPrefs.active;
-  const zoom =
-    typeof raw.zoom === 'number' && Number.isFinite(raw.zoom) ? raw.zoom : defaultPrefs.zoom;
-  const update_channel: UpdateChannel =
-    raw.update_channel === 'beta' || raw.update_channel === 'dev' ? raw.update_channel : 'stable';
-  const check_on_copy = typeof raw.check_on_copy === 'boolean' ? raw.check_on_copy : true;
-  const group_done = typeof raw.group_done === 'boolean' ? raw.group_done : true;
-  const theme: Theme = raw.theme === 'light' || raw.theme === 'system' ? raw.theme : 'dark';
-
-  return {
-    prefs: {
-      active,
-      zoom,
-      update_channel,
-      check_on_copy,
-      group_done,
-      theme,
-    },
-    extra,
+  const extra = Object.fromEntries(Object.entries(raw).filter(([k]) => !(k in defaultPrefs)));
+  const prefs: Prefs = {
+    active: typeof raw.active === 'string' ? raw.active : defaultPrefs.active,
+    zoom: typeof raw.zoom === 'number' && Number.isFinite(raw.zoom) ? raw.zoom : defaultPrefs.zoom,
+    update_channel: isChannel(raw.update_channel)
+      ? raw.update_channel
+      : defaultPrefs.update_channel,
+    check_on_copy:
+      typeof raw.check_on_copy === 'boolean' ? raw.check_on_copy : defaultPrefs.check_on_copy,
+    group_done: typeof raw.group_done === 'boolean' ? raw.group_done : defaultPrefs.group_done,
+    theme: isTheme(raw.theme) ? raw.theme : defaultPrefs.theme,
   };
+  return { prefs, extra };
 }
+
+const isChannel = (v: unknown): v is UpdateChannel => v === 'stable' || v === 'beta' || v === 'dev';
+const isTheme = (v: unknown): v is Theme => v === 'dark' || v === 'light' || v === 'system';
 
 export class Model {
   doc: Doc;
@@ -388,8 +367,7 @@ export class Model {
   }
 
   deleteItems(ids: number[]): boolean {
-    this.takeItems(ids);
-    return true;
+    return this.takeItems(ids).length > 0;
   }
 
   moveItems(ids: number[], page: string): boolean {
@@ -463,7 +441,9 @@ export class Model {
   }
 
   deletePage(page: string): boolean {
-    this.doc.pages = this.doc.pages.filter(s => s.name !== page);
+    const kept = this.doc.pages.filter(s => s.name !== page);
+    if (kept.length === this.doc.pages.length) return false;
+    this.doc.pages = kept;
     if (this.doc.pages.length === 0) {
       this.pageMut(DEFAULT_PAGE);
     }
