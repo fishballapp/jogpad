@@ -4,6 +4,26 @@ The release workflow reads these sections. A tag whose version has no section
 here fails before it builds anything, which is the point: notes written after
 the fact never get written.
 
+## 0.1.6
+
+Everything from 0.1.6-beta.1, for anyone on the stable channel coming
+from 0.1.5.
+
+Items can hold attachments. Paste an image, drop a file onto the pad, or
+use the paperclip in the composer. Files live under `attachments/` beside
+notes.md and the item keeps them as leading markdown links, so an older
+build still shows them as text. Clicking an attachment opens a preview over
+the whole screen with Reveal in Finder, Copy image, Copy path and Remove.
+Copying an item with attachments puts an Attached: line of paths first.
+A file is trashed once nothing in notes.md refers to it.
+
+Settings › Updates shows the running version.
+
+Fixes: the composer submits once per Enter and no longer treats IME
+composition keys as shortcuts, closing search clears it, keyboard chords
+work from the menu, and a newer update check replaces an older offer
+instead of stacking on it.
+
 ## 0.1.6-beta.1
 
 Items can hold attachments. Paste an image, drop a file onto the pad, or
