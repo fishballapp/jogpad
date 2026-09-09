@@ -4,6 +4,11 @@ The release workflow reads these sections. A tag whose version has no section
 here fails before it builds anything, which is the point: notes written after
 the fact never get written.
 
+## 0.1.7
+
+Fixes the scrollbars macOS 26 draws around the composer. The input stays
+clean until a draft outgrows its height, and only then scrolls vertically.
+
 ## 0.1.6
 
 Everything from 0.1.6-beta.1, for anyone on the stable channel coming
