@@ -328,6 +328,10 @@ export class Store {
     await this.saveNotes();
   }
 
+  async movePageBefore(name: string, before: string | null): Promise<void> {
+    if (this.model.movePageBefore(name, before)) await this.saveNotes();
+  }
+
   async deletePage(page: string): Promise<void> {
     if (!this.model.deletePage(page)) return;
     await this.savePrefs();

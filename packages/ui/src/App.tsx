@@ -669,6 +669,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
           onPick={name => void store.setActive(name)}
           onRename={(from, to) => void store.renamePage(from, to)}
           onDelete={name => void store.deletePage(name)}
+          onMove={(name, before) => void store.movePageBefore(name, before)}
         />
 
         <Flash message={flash} />

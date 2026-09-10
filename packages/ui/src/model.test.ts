@@ -48,6 +48,18 @@ test('page_names_reject_anything_that_would_break_the_file', () => {
   assert.equal(normalisePageName('Inbox\rInjected'), null);
 });
 
+test('move_page_before_reorders_headings', () => {
+  const model = new Model(parseDoc('## A\n\n## B\n\n## C\n'), { ...defaultPrefs });
+  const names = () => model.doc.pages.map(p => p.name);
+  assert.equal(model.movePageBefore('C', 'A'), true);
+  assert.deepEqual(names(), ['C', 'A', 'B']);
+  assert.equal(model.movePageBefore('C', null), true);
+  assert.deepEqual(names(), ['A', 'B', 'C']);
+  assert.equal(model.movePageBefore('A', 'A'), false);
+  assert.equal(model.movePageBefore('Missing', 'A'), false);
+  assert.deepEqual(names(), ['A', 'B', 'C']);
+});
+
 test('move_items_before_reorders_within_and_across_pages', () => {
   const doc = parseDoc('## A\n\n- [ ] one\n- [ ] two\n- [ ] three\n\n## B\n\n');
   const model = new Model(doc, { ...defaultPrefs });

@@ -448,6 +448,17 @@ export class Model {
     return true;
   }
 
+  movePageBefore(name: string, before: string | null): boolean {
+    const from = this.doc.pages.findIndex(p => p.name === name);
+    if (from < 0 || name === before) return false;
+    const [page] = this.doc.pages.splice(from, 1);
+    if (!page) return false;
+    const to = before === null ? -1 : this.doc.pages.findIndex(p => p.name === before);
+    if (to < 0) this.doc.pages.push(page);
+    else this.doc.pages.splice(to, 0, page);
+    return true;
+  }
+
   moveItemsBefore(ids: number[], before: number | null, page: string): boolean {
     const normPage = normalisePageName(page);
     if (!normPage) return false;

@@ -1,3 +1,14 @@
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { PencilSimpleIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Page } from '../model.ts';
@@ -13,6 +24,7 @@ type Props = {
   onPick: (name: string) => void;
   onRename: (from: string, to: string) => void;
   onDelete: (name: string) => void;
+  onMove: (name: string, before: string | null) => void;
 };
 
 export function PagePalette({
@@ -23,6 +35,7 @@ export function PagePalette({
   onPick,
   onRename,
   onDelete,
+  onMove,
 }: Props) {
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
@@ -30,6 +43,7 @@ export function PagePalette({
   // the page's items with it, so it asks twice, unless there are none to take.
   const [renaming, setRenaming] = useState<string | null>(null);
   const [armed, setArmed] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -48,6 +62,22 @@ export function PagePalette({
   // Offer to create the page only when nothing already has that exact name.
   const creating = query.trim().length > 0 && !pages.some(s => s.name === query.trim());
   const rows = creating ? [...matches, null] : matches;
+
+  // Same gesture as reordering items. A filtered list hides the pages a drop
+  // would land between, so sorting only runs on the full list.
+  const sortable = !query.trim() && renaming === null;
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const handleDragEnd = ({ active: dragged, over }: DragEndEvent) => {
+    // The sensor focuses the dragged row; the keyboard belongs to the input.
+    inputRef.current?.focus();
+    if (!over || dragged.id === over.id) return;
+    const from = pages.findIndex(p => p.name === dragged.id);
+    const to = pages.findIndex(p => p.name === over.id);
+    if (from < 0 || to < 0) return;
+    // Dropping below a page means "after it", which is "before the next one".
+    const before = from < to ? (pages[to + 1]?.name ?? null) : String(over.id);
+    onMove(String(dragged.id), before);
+  };
 
   // Moving off a row disarms its delete, so the second click always lands on
   // the row the first one armed.
@@ -74,6 +104,7 @@ export function PagePalette({
       >
         <DialogTitle className="sr-only">Switch page</DialogTitle>
         <input
+          ref={inputRef}
           autoFocus
           value={query}
           placeholder="Go to or create a page"
@@ -103,100 +134,150 @@ export function PagePalette({
           }}
           className="w-full bg-transparent px-3 py-3 text-sm outline-none placeholder:text-muted-foreground"
         />
-        <div role="listbox" className="max-h-64 overflow-y-auto border-t p-1">
-          {rows.map((row, i) =>
-            row && renaming === row.name ? (
-              <RenameRow
-                key={row.name}
-                name={row.name}
-                taken={pages.map(p => p.name)}
-                onCancel={() => setRenaming(null)}
-                onCommit={to => {
-                  setRenaming(null);
-                  onRename(row.name, to);
-                }}
-              />
-            ) : (
-              <div
-                key={row ? row.name : '__new'}
-                role="option"
-                // The palette's input owns the keyboard, so rows are pointer
-                // targets that never take focus away from it.
-                tabIndex={-1}
-                aria-selected={i === cursor}
-                onMouseEnter={() => moveCursor(i)}
-                onClick={() => commit(i)}
-                className={cn(
-                  'flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm',
-                  i === cursor && 'bg-accent text-accent-foreground',
-                )}
-              >
-                {row ? (
-                  <>
-                    {i < 9 ? (
-                      <Kbd className="w-8 shrink-0">⌘{i + 1}</Kbd>
-                    ) : (
-                      <span className="w-8 shrink-0" />
-                    )}
-                    <span className="truncate">{row.name}</span>
-                    {row.name === active && (
-                      <span className="ml-1 text-xs text-muted-foreground">Selected</span>
-                    )}
-                    {/* Actions sit before the count so it never shifts on hover. */}
-                    <span className="ml-auto flex shrink-0 items-center gap-1">
-                      {i === cursor && (
-                        <>
-                          <RowAction
-                            label={`Rename ${row.name}`}
-                            onClick={() => {
-                              setArmed(null);
-                              setRenaming(row.name);
-                            }}
-                          >
-                            <PencilSimpleIcon className="size-3.5" />
-                          </RowAction>
-                          <RowAction
-                            label={
-                              armed === row.name
-                                ? `Confirm deleting ${row.name}`
-                                : `Delete ${row.name}`
-                            }
-                            onClick={() => {
-                              if (armed === row.name || row.items.length === 0) {
-                                setArmed(null);
-                                onDelete(row.name);
-                              } else {
-                                setArmed(row.name);
-                              }
-                            }}
-                          >
-                            <TrashIcon
-                              className={cn('size-3.5', armed === row.name && 'text-destructive')}
-                            />
-                          </RowAction>
-                        </>
-                      )}
-                      {armed === row.name ? (
-                        <span className="text-xs text-destructive">
-                          Delete {row.items.length} item{row.items.length === 1 ? '' : 's'}?
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{row.items.length}</span>
-                      )}
-                    </span>
-                  </>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={pages.map(p => p.name)} strategy={verticalListSortingStrategy}>
+            <div role="listbox" className="max-h-64 overflow-y-auto border-t p-1">
+              {rows.map((row, i) =>
+                row && renaming === row.name ? (
+                  <RenameRow
+                    key={row.name}
+                    name={row.name}
+                    taken={pages.map(p => p.name)}
+                    onCancel={() => setRenaming(null)}
+                    onCommit={to => {
+                      setRenaming(null);
+                      onRename(row.name, to);
+                    }}
+                  />
                 ) : (
-                  <>
-                    <PlusIcon className="size-3.5 shrink-0 opacity-50" />
-                    <span className="truncate">Create "{query.trim()}"</span>
-                  </>
-                )}
-              </div>
-            ),
-          )}
-        </div>
+                  <Row
+                    key={row ? row.name : '__new'}
+                    id={row ? row.name : '__new'}
+                    sortable={sortable && row !== null}
+                    selected={i === cursor}
+                    onMouseEnter={() => moveCursor(i)}
+                    onClick={() => commit(i)}
+                  >
+                    {row ? (
+                      <>
+                        {i < 9 ? (
+                          <Kbd className="w-8 shrink-0">⌘{i + 1}</Kbd>
+                        ) : (
+                          <span className="w-8 shrink-0" />
+                        )}
+                        <span className="truncate">{row.name}</span>
+                        {row.name === active && (
+                          <span className="ml-1 text-xs text-muted-foreground">Selected</span>
+                        )}
+                        {/* Actions sit before the count so it never shifts on hover. */}
+                        <span className="ml-auto flex shrink-0 items-center gap-1">
+                          {i === cursor && (
+                            <>
+                              <RowAction
+                                label={`Rename ${row.name}`}
+                                onClick={() => {
+                                  setArmed(null);
+                                  setRenaming(row.name);
+                                }}
+                              >
+                                <PencilSimpleIcon className="size-3.5" />
+                              </RowAction>
+                              <RowAction
+                                label={
+                                  armed === row.name
+                                    ? `Confirm deleting ${row.name}`
+                                    : `Delete ${row.name}`
+                                }
+                                onClick={() => {
+                                  if (armed === row.name || row.items.length === 0) {
+                                    setArmed(null);
+                                    onDelete(row.name);
+                                  } else {
+                                    setArmed(row.name);
+                                  }
+                                }}
+                              >
+                                <TrashIcon
+                                  className={cn(
+                                    'size-3.5',
+                                    armed === row.name && 'text-destructive',
+                                  )}
+                                />
+                              </RowAction>
+                            </>
+                          )}
+                          {armed === row.name ? (
+                            <span className="text-xs text-destructive">
+                              Delete {row.items.length} item{row.items.length === 1 ? '' : 's'}?
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              {row.items.length}
+                            </span>
+                          )}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <PlusIcon className="size-3.5 shrink-0 opacity-50" />
+                        <span className="truncate">Create "{query.trim()}"</span>
+                      </>
+                    )}
+                  </Row>
+                ),
+              )}
+            </div>
+          </SortableContext>
+        </DndContext>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Row({
+  id,
+  sortable,
+  selected,
+  onMouseEnter,
+  onClick,
+  children,
+}: {
+  id: string;
+  sortable: boolean;
+  selected: boolean;
+  onMouseEnter: () => void;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({
+    id,
+    disabled: !sortable,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...listeners}
+      role="option"
+      // The palette's input owns the keyboard, so rows are pointer
+      // targets that never take focus away from it.
+      tabIndex={-1}
+      aria-selected={selected}
+      onMouseEnter={onMouseEnter}
+      onClick={onClick}
+      className={cn(
+        'flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm',
+        selected && 'bg-accent text-accent-foreground',
+        isDragging && 'relative z-10 bg-accent shadow-md',
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
