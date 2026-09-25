@@ -667,6 +667,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
           pages={snap.pages}
           active={snap.active}
           onPick={name => void store.setActive(name)}
+          focusAfterPick={composerRef}
           onRename={(from, to) => void store.renamePage(from, to)}
           onDelete={name => void store.deletePage(name)}
           onMove={(name, before) => void store.movePageBefore(name, before)}
