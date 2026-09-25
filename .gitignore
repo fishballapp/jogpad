@@ -36,9 +36,9 @@ docs/
 # Updater signing key. Losing it means no installed app can ever update again.
 .updater/
 
-CLAUDE.md
+AGENTS.md
 
-# Impeccable product and design records, local like CLAUDE.md
+# Impeccable product and design records, local like AGENTS.md
 PRODUCT.md
 DESIGN.md
 
