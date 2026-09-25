@@ -58,10 +58,47 @@ pub fn set_floating(app: &tauri::AppHandle, floating: bool) {
     });
 }
 
+/// The app that was frontmost when the pad last came up, by pid; 0 for none.
+static PREVIOUS_APP: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+
+/// Note who had the keyboard before the pad takes it. Call before showing:
+/// once the pad is up, the frontmost app may be JogPad itself.
+pub fn remember_frontmost() {
+    use objc2_app_kit::NSWorkspace;
+    let Some(front) = NSWorkspace::sharedWorkspace().frontmostApplication() else {
+        return;
+    };
+    let pid = front.processIdentifier();
+    if pid as u32 != std::process::id() {
+        PREVIOUS_APP.store(pid, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Showing with focus goes through Tauri's `set_focus`, which activates
+/// JogPad. Hiding leaves it active with nothing on screen, and the app you
+/// came from never gets its text field back. Hand activation back, which
+/// restores that app's key window and caret. Skipped if JogPad is no longer
+/// active: you clicked somewhere else while the pad was up, and that wins.
+pub fn return_focus() {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSApplicationActivationOptions, NSRunningApplication};
+    let pid = PREVIOUS_APP.swap(0, std::sync::atomic::Ordering::Relaxed);
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    if pid == 0 || !NSApplication::sharedApplication(mtm).isActive() {
+        return;
+    }
+    if let Some(previous) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
+        previous.activateWithOptions(NSApplicationActivationOptions::empty());
+    }
+}
+
 /// Show the panel without making it the key window. Tauri's `show` goes
 /// through `makeKeyAndOrderFront:`, which would pull the keyboard out of
 /// whatever you were reading when a capture fired.
 pub fn show_without_focus(app: &tauri::AppHandle) {
+    remember_frontmost();
     let app = app.clone();
     let _ = app.clone().run_on_main_thread(move || {
         let Some(window) = app.get_webview_window("main") else {
