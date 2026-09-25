@@ -82,10 +82,14 @@ pub(crate) fn set_visible(app: &AppHandle, visible: bool) {
         return;
     };
     if visible {
+        #[cfg(target_os = "macos")]
+        panel::remember_frontmost();
         let _ = window.show();
         let _ = window.set_focus();
     } else {
         let _ = window.hide();
+        #[cfg(target_os = "macos")]
+        panel::return_focus();
     }
 }
 
@@ -210,7 +214,13 @@ fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
         // window and leave the tray pointing at nothing, so hide instead.
         tauri::WindowEvent::CloseRequested { api, .. } => {
             api.prevent_close();
-            let _ = window.hide();
+            // The pad goes through set_visible so focus returns to the app
+            // it was opened over.
+            if window.label() == "main" {
+                set_visible(window.app_handle(), false);
+            } else {
+                let _ = window.hide();
+            }
         }
         // Coming back to the panel means any system dialog is done with.
         tauri::WindowEvent::Focused(true) => {
