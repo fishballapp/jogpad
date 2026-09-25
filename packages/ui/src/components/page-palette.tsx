@@ -10,7 +10,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { PencilSimpleIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import type { Page } from '../model.ts';
 import { cn } from '../utils.ts';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog.tsx';
@@ -22,6 +22,9 @@ type Props = {
   pages: Page[];
   active: string;
   onPick: (name: string) => void;
+  /// Where focus lands after a pick, instead of back on whatever opened the
+  /// palette. Escape and outside clicks keep the default restore.
+  focusAfterPick: RefObject<HTMLElement | null>;
   onRename: (from: string, to: string) => void;
   onDelete: (name: string) => void;
   onMove: (name: string, before: string | null) => void;
@@ -33,11 +36,13 @@ export function PagePalette({
   pages,
   active,
   onPick,
+  focusAfterPick,
   onRename,
   onDelete,
   onMove,
 }: Props) {
   const [query, setQuery] = useState('');
+  const picked = useRef(false);
   const [cursor, setCursor] = useState(0);
   // The page being renamed, and the one whose delete is armed. Deleting takes
   // the page's items with it, so it asks twice, unless there are none to take.
@@ -93,6 +98,7 @@ export function PagePalette({
     // switch that silently did nothing.
     if (!row && !query.trim()) return;
     onPick(row ? row.name : query.trim());
+    picked.current = true;
     onOpenChange(false);
   };
 
@@ -100,6 +106,11 @@ export function PagePalette({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
+        finalFocus={() => {
+          if (!picked.current) return true;
+          picked.current = false;
+          return focusAfterPick.current;
+        }}
         className="top-20 max-w-[calc(100vw-2rem)] translate-y-0 gap-0 p-0"
       >
         <DialogTitle className="sr-only">Switch page</DialogTitle>
