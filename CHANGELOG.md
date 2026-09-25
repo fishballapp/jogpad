@@ -4,6 +4,15 @@ The release workflow reads these sections. A tag whose version has no section
 here fails before it builds anything, which is the point: notes written after
 the fact never get written.
 
+## 0.1.8
+
+Closing the pad gives the keyboard back. Open the pad from a text field in
+another app, close it again, and the caret is back in that field, so you
+can keep typing without clicking.
+
+Pages in the ⌘K palette can be dragged to reorder them. Sorting pauses
+while you are searching or renaming.
+
 ## 0.1.7
 
 Fixes the scrollbars macOS 26 draws around the composer. The input stays
