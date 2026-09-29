@@ -2,7 +2,10 @@
   "name": "jogpad",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.21.0",
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=26"
+  },
   "scripts": {
     "prepare": "lefthook install",
     "dev": "pnpm --filter @jogpad/desktop dev",
@@ -10,14 +13,11 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "typecheck": "tsc -b",
-    "check:astro": "pnpm --filter @jogpad/site astro:check",
     "repojj:check": "repojj check",
     "repojj:check:fix": "repojj check --fix",
     "repojj:postfix": "biome check --write .",
-    "test": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml",
-    "test:ui": "node --test packages/ui/src/*.test.ts"
+    "test": "pnpm -r test"
   },
-
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "lefthook": "catalog:",

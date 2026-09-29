@@ -6,11 +6,15 @@ packages:
 # added outside the catalog instead of silently pinning a second version.
 catalogMode: strict
 
+# Refuse to resolve any version younger than a week, as fishballapps does. Explicit on purpose:
+# under pnpm's implicit default a too-young version is allowlisted and installed anyway.
+minimumReleaseAge: 10080
+
 catalog:
-  "@astrojs/react": ^4.3.0
+  "@astrojs/react": ^6.0.5
   "@astrojs/sitemap": ^3.7.4
-  "@biomejs/biome": ^2.4.15
-  "@base-ui/react": ^1.7.0
+  "@biomejs/biome": ^2.5.13
+  "@base-ui/react": ^1.8.0
   "@dnd-kit/core": ^6.3.1
   "@dnd-kit/modifiers": ^9.0.0
   "@dnd-kit/sortable": ^10.0.0
@@ -23,26 +27,27 @@ catalog:
   "@tauri-apps/cli": ^2.11.4
   "@tauri-apps/plugin-clipboard-manager": ^2.3.2
   "@tauri-apps/plugin-opener": ^2.5.0
-  "@astrojs/check": ^0.9.4
-  "@types/node": ^26.4.0
-  "@types/react": ^19.1.8
-  "@types/react-dom": ^19.1.6
+  "@astrojs/check": ^0.9.10
+  "@types/node": ^24.13.4
+  "@types/react": ^19.3.0
+  "@types/react-dom": ^19.3.0
   "@types/semver": ^7.5.8
-  "@vitejs/plugin-react": ^4.6.0
-  astro: ^5.4.2
+  "@vitejs/plugin-react": ^6.1.1
+  astro: ^7.3.2
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
-  react: ^19.1.0
-  react-dom: ^19.1.0
-  lefthook: ^2.1.10
-  repojj: ^2026.1.35
+  react: ^19.3.0
+  react-dom: ^19.3.0
+  lefthook: ^2.1.14
+  repojj: ^2026.7.29
   semver: ^7.7.1
   shadcn: ^4.19.0
-  tailwind-merge: ^3.6.0
+  tailwind-merge: ^3.7.0
   tailwindcss: ^4.3.3
   tw-animate-css: ^1.4.0
-  typescript: ~5.8.3
-  vite: ^7.0.4
+  typescript: ~6.0.3
+  vite: ^8.3.0
+  vitest: ^5.0.1
 
 allowBuilds:
   "@biomejs/biome": true

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { runGesture } from './gesture.ts';
 import type { Host } from './host.ts';
 import type { Store } from './store.ts';
