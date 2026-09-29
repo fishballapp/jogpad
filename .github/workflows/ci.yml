@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          node-version-file: package.json
           cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
@@ -45,10 +45,10 @@ jobs:
 
       - run: pnpm typecheck
 
-      - run: pnpm test:ui
+      - run: pnpm test
 
       - name: astro check
-        run: pnpm check:astro
+        run: pnpm -r check
 
       - name: Build the front end
         run: pnpm --filter @jogpad/desktop vite:build
@@ -59,10 +59,10 @@ jobs:
         run: pnpm --filter @jogpad/site build
 
       - name: cargo fmt
-        run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
+        run: pnpm --filter @jogpad/desktop rust:fmt
 
       - name: cargo clippy
-        run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: pnpm --filter @jogpad/desktop rust:clippy
 
       - name: cargo test
-        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+        run: pnpm --filter @jogpad/desktop rust:test

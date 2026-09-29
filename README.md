@@ -47,8 +47,8 @@ All notes logic lives once, in `packages/ui`. A host only implements side
 effects (`packages/ui/src/host.ts`); the desktop and the site each provide one.
 
 ```sh
-pnpm test:ui   # the markdown round trip and every mutation
-pnpm test      # the double-tap detector and the file paths (Rust)
+pnpm test                                  # the markdown round trip and every mutation
+pnpm --filter @jogpad/desktop rust:test    # the double-tap detector and the file paths (Rust)
 ```
 
 ## Releasing
