@@ -6,7 +6,7 @@ packages:
 # added outside the catalog instead of silently pinning a second version.
 catalogMode: strict
 
-# Refuse to resolve any version younger than a week, as fishballapps does. Explicit on purpose:
+# Refuse to resolve any version younger than a week. Explicit on purpose:
 # under pnpm's implicit default a too-young version is allowlisted and installed anyway.
 minimumReleaseAge: 10080
 
