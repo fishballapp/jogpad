@@ -168,57 +168,37 @@ jobs:
             echo 'RELEASE_NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Prepare Apple and updater credentials
+      # The credentials live in a 1Password Environment (see .env.schema);
+      # varlock resolves them with a read-only service-account token and fails
+      # here if any is missing. They reach later steps through GITHUB_ENV.
+      # GitHub only masks values that come from `secrets`, so each line of each
+      # value is masked here before anything can print it.
+      - name: Load Apple and updater credentials
         env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          OP_TOKEN: ${{ secrets.OP_SA_TOKEN }}
         run: |
-          # Validate that required updater and signing secrets are present.
-          # APPLE_ID and APPLE_PASSWORD are deliberately absent: this repo
-          # notarises with the App Store Connect API key, checked separately
-          # below, and requiring an Apple ID here would fail every tag.
-          for req in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
-                     APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
-                     APPLE_TEAM_ID; do
-            if [ -z "${!req}" ]; then
-              echo "Error: Required secret $req is missing or empty" >&2
-              exit 1
-            fi
-          done
-
-          if [ -z "$APPLE_API_KEY" ] && [ -z "$APPLE_API_KEY_P8" ]; then
-            echo "Error: Apple notarization API key (APPLE_API_KEY or APPLE_API_KEY_P8) is missing or empty" >&2
-            exit 1
-          fi
-
-          if [ -n "$APPLE_API_KEY" ] && [ -z "$APPLE_API_ISSUER" ]; then
-            echo "Error: APPLE_API_ISSUER is required when APPLE_API_KEY is set" >&2
-            exit 1
-          fi
-
-          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
-                      APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER \
-                      TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
-            if [ -n "${!name}" ]; then
-              printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
-            fi
-          done
-
-          # The App Store Connect key is a file rather than a variable.
-          if [ -n "$APPLE_API_KEY_P8" ]; then
-            mkdir -p "$RUNNER_TEMP/private_keys"
-            printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/private_keys/AuthKey.p8"
-            echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
-          fi
+          set -euo pipefail
+          pnpm exec varlock load --format json | node -e '
+            const fs = require("fs");
+            const env = JSON.parse(fs.readFileSync(0, "utf8"));
+            const out = [];
+            for (const [name, value] of Object.entries(env)) {
+              if (name === "OP_TOKEN" || value == null) continue;
+              for (const line of String(value).split("\n")) if (line) console.log(`::add-mask::${line}`);
+              if (name === "APPLE_API_KEY_P8_BASE64") {
+                // notarytool and Tauri take the App Store Connect key as a file.
+                const dir = `${process.env.RUNNER_TEMP}/private_keys`;
+                const pem = Buffer.from(value, "base64").toString("utf8");
+                for (const line of pem.split("\n")) if (line && !line.startsWith("-----")) console.log(`::add-mask::${line}`);
+                fs.mkdirSync(dir, { recursive: true });
+                fs.writeFileSync(`${dir}/AuthKey.p8`, pem, { mode: 0o600 });
+                out.push(`APPLE_API_KEY_PATH=${dir}/AuthKey.p8`);
+              } else {
+                out.push(`${name}=${value}`);
+              }
+            }
+            fs.appendFileSync(process.env.GITHUB_ENV, out.join("\n") + "\n");
+          '
 
           # Throwaway password for the temporary keychain on this runner.
           echo "KEYCHAIN_PASSWORD=${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
