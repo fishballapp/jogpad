@@ -182,14 +182,20 @@ jobs:
             const fs = require("fs");
             const env = JSON.parse(fs.readFileSync(0, "utf8"));
             const out = [];
+            // The runner decodes %25, %0D and %0A in command data before it
+            // registers a mask, so escape them or a different string is hidden.
+            const mask = text => {
+              for (const line of text.split("\n"))
+                if (line) console.log(`::add-mask::${line.replace(/%/g, "%25").replace(/\r/g, "%0D")}`);
+            };
             for (const [name, value] of Object.entries(env)) {
               if (name === "OP_TOKEN" || value == null) continue;
-              for (const line of String(value).split("\n")) if (line) console.log(`::add-mask::${line}`);
+              mask(String(value));
               if (name === "APPLE_API_KEY_P8_BASE64") {
                 // notarytool and Tauri take the App Store Connect key as a file.
                 const dir = `${process.env.RUNNER_TEMP}/private_keys`;
                 const pem = Buffer.from(value, "base64").toString("utf8");
-                for (const line of pem.split("\n")) if (line && !line.startsWith("-----")) console.log(`::add-mask::${line}`);
+                mask(pem.replace(/^-----.*$/gm, ""));
                 fs.mkdirSync(dir, { recursive: true });
                 fs.writeFileSync(`${dir}/AuthKey.p8`, pem, { mode: 0o600 });
                 out.push(`APPLE_API_KEY_PATH=${dir}/AuthKey.p8`);
