@@ -10,7 +10,7 @@
     "prepare": "lefthook install",
     "dev": "pnpm --filter @jogpad/desktop dev",
     "build": "pnpm --filter @jogpad/desktop build",
-    "with-secrets": "varlock run",
+    "with-secrets": "varlock run --filter '!#release'",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "typecheck": "tsc -b",
