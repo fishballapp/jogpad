@@ -227,6 +227,9 @@ catalogs:
     '@types/semver':
       specifier: ^7.5.8
       version: 7.8.0
+    '@varlock/1password-plugin':
+      specifier: ^2.0.4
+      version: 2.0.4
     '@vitejs/plugin-react':
       specifier: ^6.1.1
       version: 6.1.1
@@ -269,6 +272,9 @@ catalogs:
     typescript:
       specifier: ~6.0.3
       version: 6.0.3
+    varlock:
+      specifier: ^1.19.0
+      version: 1.20.0
     vite:
       specifier: ^8.3.0
       version: 8.3.0
@@ -283,6 +289,9 @@ importers:
       '@biomejs/biome':
         specifier: 'catalog:'
         version: 2.5.14
+      '@varlock/1password-plugin':
+        specifier: 'catalog:'
+        version: 2.0.4(varlock@1.20.0)
       lefthook:
         specifier: 'catalog:'
         version: 2.1.14
@@ -292,6 +301,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      varlock:
+        specifier: 'catalog:'
+        version: 1.20.0
 
   apps/desktop:
     dependencies:
@@ -1728,6 +1740,30 @@ packages:
 
   '@ungap/structured-clone@1.4.0':
     resolution: {integrity: sha512-1mEZtMKPM09vDmQt5y7YvmN2+DFTP7Tg0EWXdic8/C6VRnpb33e4ghisCIE3WZjsE2N8mf+QV1Zqh7ZFYLWInQ==}
+
+  '@varlock/1password-plugin@2.0.4':
+    resolution: {integrity: sha512-/+oM5v4NnN6KBxeJAAVCZt9UvHgLq1LxvLEgTM/CnuCjPBXQtvFCaB1qoYU/FgabebsIsHonjLV9HAorKQYLgA==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      varlock: ^1.17.1
+
+  '@varlock/native-helper-darwin@1.20.0':
+    resolution: {integrity: sha512-+AidNOGpJ63+CifPsg0wCPLaCwOunoHCazWIPekTnujzk4HTVB1iowLsWBOaAfLq6TDeSKSis2gk7M9oSlcKNA==}
+    os: [darwin]
+
+  '@varlock/native-helper-linux-arm64@1.20.0':
+    resolution: {integrity: sha512-W7dxyWkEuzFf+qOKNHqs5j0QOy0vW/zXrusS9i0Zt4l4oP6u0hwWqS8xV2ww6KiG2SrV+Dvrn/23fh4kTE/cCA==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@varlock/native-helper-linux-x64@1.20.0':
+    resolution: {integrity: sha512-6N6w87D4ByujoVRz0hxFH/VXNOmr9rXnp+WDdzxHa2FZirmy31wW3LoiPjIXrmriNZ9p2C5JseECEDBKsnwQcg==}
+    cpu: [x64]
+    os: [linux]
+
+  '@varlock/native-helper-win32-x64@1.20.0':
+    resolution: {integrity: sha512-mDH00lx2h+dWmbARTnfmRu321SuZigKslUdX7dAn0/7+psShiFCx6QEWLjjyZgDPSCGVNbIM3JArC40vCTXJjw==}
+    os: [win32, linux]
 
   '@vitejs/plugin-react@5.2.0':
     resolution: {integrity: sha512-YmKkfhOAi3wsB1PhJq5Scj3GXMn3WvtQ/JC0xoopuHoXSdmtdStOpFrYaT1kie2YgFBcIe64ROzMYRjCrYOdYw==}
@@ -3698,6 +3734,11 @@ packages:
     resolution: {integrity: sha512-hVDIBwsRruT73PbK7uP5ebUt+ezEtCmzZz3F59BSr2F6OVFnJ/6h8liuvdLrQ88Xmnk6/+xGGuq+pG9WwTuy3A==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
+  varlock@1.20.0:
+    resolution: {integrity: sha512-MA5idJKpaQ36d90OxY4gWwWzdVKle6YUq3OI58o/j5ImCz3m8DFmonGbvixyFRhmm7sQeGcNyo8hBHc3kVLNqw==}
+    engines: {bun: '>=1.3.3', node: '>=22.3.0'}
+    hasBin: true
+
   vary@1.1.2:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
     engines: {node: '>= 0.8'}
@@ -5159,6 +5200,22 @@ snapshots:
   '@types/validate-npm-package-name@4.0.2': {}
 
   '@ungap/structured-clone@1.4.0': {}
+
+  '@varlock/1password-plugin@2.0.4(varlock@1.20.0)':
+    dependencies:
+      varlock: 1.20.0
+
+  '@varlock/native-helper-darwin@1.20.0':
+    optional: true
+
+  '@varlock/native-helper-linux-arm64@1.20.0':
+    optional: true
+
+  '@varlock/native-helper-linux-x64@1.20.0':
+    optional: true
+
+  '@varlock/native-helper-win32-x64@1.20.0':
+    optional: true
 
   '@vitejs/plugin-react@5.2.0(vite@8.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))':
     dependencies:
@@ -7089,6 +7146,13 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   validate-npm-package-name@7.0.2: {}
+
+  varlock@1.20.0:
+    optionalDependencies:
+      '@varlock/native-helper-darwin': 1.20.0
+      '@varlock/native-helper-linux-arm64': 1.20.0
+      '@varlock/native-helper-linux-x64': 1.20.0
+      '@varlock/native-helper-win32-x64': 1.20.0
 
   vary@1.1.2: {}
 
