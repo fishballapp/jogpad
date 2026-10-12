@@ -1,10 +1,12 @@
 import type { Host } from './host.ts';
 import { createMemoryAttachments } from './memory-attachments.ts';
 
-/// A host that lives in a Map: the site's demo and the desktop's browser dev
-/// host. Writes fire the watchers like the desktop's fs does. The window,
-/// permissions and updates are inert; a host that has a window to show
-/// spreads over the parts it can do.
+/**
+ * A host that lives in a Map: the site's demo and the desktop's browser dev
+ * host. Writes fire the watchers like the desktop's fs does. The window,
+ * permissions and updates are inert; a host that has a window to show
+ * spreads over the parts it can do.
+ */
 export function createMemoryHost(notes: string): Host {
   const files = new Map<string, string>([['notes.md', notes]]);
   const watchers = new Map<string, Set<() => void>>();
@@ -46,7 +48,7 @@ export function createMemoryHost(notes: string): Host {
       setTheme: async () => {},
     },
     permissions: {
-      status: async () => ({ trusted: true, inputMonitoring: true }),
+      status: async () => ({ isTrusted: true, isInputMonitoringGranted: true }),
       onChange: async () => () => {},
       request: async () => {},
     },

@@ -8,8 +8,10 @@ import {
 
 export const prerender = true;
 
-/// One manifest per update channel. The stable one is `latest.json`, the
-/// name Tauri's updater was first pointed at.
+/**
+ * One manifest per update channel. The stable one keeps the name
+ * `latest.json`, which installed copies already request.
+ */
 const CHANNELS: Record<string, Channel> = { latest: 'stable', beta: 'beta', dev: 'dev' };
 
 export function getStaticPaths() {

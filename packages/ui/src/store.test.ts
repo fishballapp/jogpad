@@ -57,7 +57,7 @@ function slowHost() {
       setTheme: async () => {},
     },
     permissions: {
-      status: async () => ({ trusted: true, inputMonitoring: true }),
+      status: async () => ({ isTrusted: true, isInputMonitoringGranted: true }),
       onChange: async () => () => {},
       request: async () => {},
     },

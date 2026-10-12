@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react';
 
-/// A message that shows for a moment. `flash` is what to draw right now,
-/// null when nothing is; `toast` puts a new one up.
+/**
+ * A message that shows for a moment. `flash` is what to draw right now,
+ * null when nothing is; `toast` puts a new one up.
+ */
 export function useToast() {
   const [flash, setFlash] = useState<string | null>(null);
   const toast = useCallback((message: string) => {
@@ -11,8 +13,10 @@ export function useToast() {
   return { flash, toast };
 }
 
-/// The pill at the top of the panel. Sits inside `Panel`, which is the
-/// positioned ancestor it centres against.
+/**
+ * The pill at the top of the panel. Sits inside `Panel`, which is the
+ * positioned ancestor it centres against.
+ */
 export function Flash({ message }: { message: string | null }) {
   if (!message) return null;
   return (

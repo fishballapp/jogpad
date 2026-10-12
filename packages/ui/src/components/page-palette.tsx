@@ -16,22 +16,8 @@ import { cn } from '../utils.ts';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog.tsx';
 import { Kbd } from './ui/kbd.tsx';
 
-type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  pages: Page[];
-  active: string;
-  onPick: (name: string) => void;
-  /// Where focus lands after a pick, instead of back on whatever opened the
-  /// palette. Escape and outside clicks keep the default restore.
-  focusAfterPick: RefObject<HTMLElement | null>;
-  onRename: (from: string, to: string) => void;
-  onDelete: (name: string) => void;
-  onMove: (name: string, before: string | null) => void;
-};
-
 export function PagePalette({
-  open,
+  isOpen,
   onOpenChange,
   pages,
   active,
@@ -40,9 +26,23 @@ export function PagePalette({
   onRename,
   onDelete,
   onMove,
-}: Props) {
+}: {
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  pages: Page[];
+  active: string;
+  onPick: (name: string) => void;
+  /**
+   * Where focus lands after a pick, instead of back on whatever opened the
+   * palette. Escape and outside clicks keep the default restore.
+   */
+  focusAfterPick: RefObject<HTMLElement | null>;
+  onRename: (from: string, to: string) => void;
+  onDelete: (name: string) => void;
+  onMove: (name: string, before: string | null) => void;
+}) {
   const [query, setQuery] = useState('');
-  const picked = useRef(false);
+  const hasPickedRef = useRef(false);
   const [cursor, setCursor] = useState(0);
   // The page being renamed, and the one whose delete is armed. Deleting takes
   // the page's items with it, so it asks twice, unless there are none to take.
@@ -51,13 +51,13 @@ export function PagePalette({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) {
+    if (isOpen) {
       setQuery('');
       setCursor(0);
       setRenaming(null);
       setArmed(null);
     }
-  }, [open]);
+  }, [isOpen]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -65,12 +65,12 @@ export function PagePalette({
   }, [pages, query]);
 
   // Offer to create the page only when nothing already has that exact name.
-  const creating = query.trim().length > 0 && !pages.some(s => s.name === query.trim());
-  const rows = creating ? [...matches, null] : matches;
+  const isCreating = query.trim().length > 0 && !pages.some(s => s.name === query.trim());
+  const rows = isCreating ? [...matches, null] : matches;
 
   // Same gesture as reordering items. A filtered list hides the pages a drop
   // would land between, so sorting only runs on the full list.
-  const sortable = !query.trim() && renaming === null;
+  const isSortable = !query.trim() && renaming === null;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const handleDragEnd = ({ active: dragged, over }: DragEndEvent) => {
     // The sensor focuses the dragged row; the keyboard belongs to the input.
@@ -98,17 +98,17 @@ export function PagePalette({
     // switch that silently did nothing.
     if (!row && !query.trim()) return;
     onPick(row ? row.name : query.trim());
-    picked.current = true;
+    hasPickedRef.current = true;
     onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
         finalFocus={() => {
-          if (!picked.current) return true;
-          picked.current = false;
+          if (!hasPickedRef.current) return true;
+          hasPickedRef.current = false;
           return focusAfterPick.current;
         }}
         className="top-20 max-w-[calc(100vw-2rem)] translate-y-0 gap-0 p-0"
@@ -169,8 +169,8 @@ export function PagePalette({
                   <Row
                     key={row ? row.name : '__new'}
                     id={row ? row.name : '__new'}
-                    sortable={sortable && row !== null}
-                    selected={i === cursor}
+                    isSortable={isSortable && row !== null}
+                    isSelected={i === cursor}
                     onMouseEnter={() => moveCursor(i)}
                     onClick={() => commit(i)}
                   >
@@ -252,22 +252,22 @@ export function PagePalette({
 
 function Row({
   id,
-  sortable,
-  selected,
+  isSortable,
+  isSelected,
   onMouseEnter,
   onClick,
   children,
 }: {
   id: string;
-  sortable: boolean;
-  selected: boolean;
+  isSortable: boolean;
+  isSelected: boolean;
   onMouseEnter: () => void;
   onClick: () => void;
   children: React.ReactNode;
 }) {
   const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({
     id,
-    disabled: !sortable,
+    disabled: !isSortable,
   });
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: the palette's input handles every key for the list
@@ -279,12 +279,12 @@ function Row({
       // The palette's input owns the keyboard, so rows are pointer
       // targets that never take focus away from it.
       tabIndex={-1}
-      aria-selected={selected}
+      aria-selected={isSelected}
       onMouseEnter={onMouseEnter}
       onClick={onClick}
       className={cn(
         'flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm',
-        selected && 'bg-accent text-accent-foreground',
+        isSelected && 'bg-accent text-accent-foreground',
         isDragging && 'relative z-10 bg-accent shadow-md',
       )}
     >
@@ -336,7 +336,7 @@ function RenameRow({
   const to = value.trim();
   // The store refuses a rename onto a name that already exists, and silently. Say so
   // here instead of letting Enter look broken.
-  const clash = to !== name && taken.includes(to);
+  const isTaken = to !== name && taken.includes(to);
 
   return (
     <div className="flex items-center gap-2 rounded-md bg-accent px-2 py-1.5 text-sm">
@@ -355,13 +355,13 @@ function RenameRow({
             onCancel();
           } else if (e.key === 'Enter') {
             e.preventDefault();
-            if (!to || clash || to === name) return onCancel();
+            if (!to || isTaken || to === name) return onCancel();
             onCommit(to);
           }
         }}
         className="w-full bg-transparent outline-none"
       />
-      {clash && <span className="shrink-0 text-xs text-destructive">Name taken</span>}
+      {isTaken && <span className="shrink-0 text-xs text-destructive">Name taken</span>}
     </div>
   );
 }

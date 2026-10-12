@@ -2,7 +2,6 @@ import type { FileName, Host, Unlisten } from './host.ts';
 import {
   type Attachment,
   DEFAULT_PAGE,
-  type Doc,
   docRefs,
   type Item,
   Model,
@@ -24,7 +23,7 @@ export type Snapshot = {
   theme: Theme;
   check_on_copy: boolean;
   group_done: boolean;
-  /// The notes file could not be read, so nothing is being written to it.
+  // The notes file could not be read, so nothing is being written to it.
   read_only: boolean;
   error: string | null;
 };
@@ -36,36 +35,36 @@ export type Events = {
 };
 
 export async function createStore(host: Host): Promise<Store> {
-  let prefsRaw: string | null = null;
-  try {
-    prefsRaw = await host.fs.read('prefs.json');
-  } catch {
-    // Falls back to default prefs below.
-  }
+  const prefsRaw = await (async () => {
+    try {
+      return await host.fs.read('prefs.json');
+    } catch {
+      // Falls back to default prefs below.
+      return null;
+    }
+  })();
   const { prefs, extra } = parsePrefs(prefsRaw);
 
-  let notesRaw: string | null = null;
-  let readOnly = false;
-  let error: string | null = null;
-  try {
-    notesRaw = await host.fs.read('notes.md');
-  } catch (e) {
-    readOnly = true;
-    const desc = await host.fs.describe('notes.md');
-    error = `Could not read ${desc}: ${e}`;
-  }
+  const { notesRaw, isReadOnly, error } = await (async () => {
+    try {
+      return { notesRaw: await host.fs.read('notes.md'), isReadOnly: false, error: null };
+    } catch (e) {
+      const desc = await host.fs.describe('notes.md');
+      return { notesRaw: null, isReadOnly: true, error: `Could not read ${desc}: ${e}` };
+    }
+  })();
 
-  const doc: Doc = parseDoc(notesRaw ?? '');
+  const doc = parseDoc(notesRaw ?? '');
   if (!doc.pages.some(p => p.name === prefs.active)) {
     prefs.active = doc.pages[0]?.name ?? DEFAULT_PAGE;
   }
 
-  const store = new Store(host, new Model(doc, prefs), extra, readOnly, error);
+  const store = new Store(host, new Model(doc, prefs), extra, isReadOnly, error);
 
   // A missing file is an empty document, written once so "reveal" has a
   // target. An existing file is never rewritten on launch: the parser drops
   // markdown it does not model.
-  if (notesRaw === null && !readOnly) await store.saveNotes();
+  if (notesRaw === null && !isReadOnly) await store.saveNotes();
 
   // Another window (settings on the desktop) has its own store and writes
   // the same files. Re-read what it changed, but not our own writes coming
@@ -108,31 +107,35 @@ export class Store {
   private host: Host;
   model: Model;
   extra: Record<string, unknown>;
-  private readOnly: boolean;
+  private isReadOnly: boolean;
   private error: string | null;
-  /// Writes are serialised: the UI fires mutations without awaiting them,
-  /// and two overlapping writes could otherwise land out of order and leave
-  /// an older document on disk.
+  // Writes are serialised: the UI fires mutations without awaiting them,
+  // and two overlapping writes could otherwise land out of order and leave
+  // an older document on disk.
   private queue: Promise<void> = Promise.resolve();
   private writing: Partial<Record<FileName, string>> = {};
   private written: Partial<Record<FileName, string>> = {};
-  private listeners = new Map<keyof Events, Set<(payload: unknown) => void>>();
-  /// The attachment refs in the document as last written. A file exists on
-  /// disk exactly when something here references it; every notes write
-  /// settles the difference, so no mutation can forget to.
+  private listeners: { [K in keyof Events]: Set<(payload: Events[K]) => void> } = {
+    notes: new Set(),
+    captured: new Set(),
+    'focus-input': new Set(),
+  };
+  // The attachment refs in the document as last written. A file exists on
+  // disk exactly when something here references it; every notes write
+  // settles the difference, so no mutation can forget to.
   saved: Set<string>;
 
   constructor(
     host: Host,
     model: Model,
     extra: Record<string, unknown>,
-    readOnly: boolean,
+    isReadOnly: boolean,
     error: string | null,
   ) {
     this.host = host;
     this.model = model;
     this.extra = extra;
-    this.readOnly = readOnly;
+    this.isReadOnly = isReadOnly;
     this.error = error;
     this.saved = docRefs(model.doc);
   }
@@ -146,36 +149,28 @@ export class Store {
       theme: this.model.prefs.theme,
       check_on_copy: this.model.prefs.check_on_copy,
       group_done: this.model.prefs.group_done,
-      read_only: this.readOnly,
+      read_only: this.isReadOnly,
       error: this.error,
     };
   }
 
   on<K extends keyof Events>(event: K, handler: (payload: Events[K]) => void): Unlisten {
-    let set = this.listeners.get(event);
-    if (!set) {
-      set = new Set();
-      this.listeners.set(event, set);
-    }
-    const listener = handler as (payload: unknown) => void;
-    set.add(listener);
+    const set = this.listeners[event];
+    set.add(handler);
     return () => {
-      set?.delete(listener);
+      set.delete(handler);
     };
   }
 
   emit<K extends keyof Events>(event: K, payload: Events[K]): void {
-    const set = this.listeners.get(event);
-    if (set) {
-      for (const fn of Array.from(set)) {
-        fn(payload);
-      }
-    }
+    for (const fn of [...this.listeners[event]]) fn(payload);
   }
 
-  /// Whether a change event is this store's own write coming back. Call it
-  /// once per event, since a foreign text also forgets the last landed write:
-  /// a second probe for the same event would answer differently.
+  /**
+   * Whether a change event is this store's own write coming back. Call it
+   * once per event, since a foreign text also forgets the last landed write:
+   * a second probe for the same event would answer differently.
+   */
   consumeEcho(name: FileName, text: string | null): boolean {
     if (text !== null && (text === this.writing[name] || text === this.written[name])) return true;
     // A different writer may later restore one of our old values. Only the
@@ -184,9 +179,11 @@ export class Store {
     return false;
   }
 
-  /// Resolves once this write has landed, after every write queued before
-  /// it: true if it reached the disk, false if it did not and the error is
-  /// now on the snapshot.
+  /**
+   * Resolves once this write has landed, after every write queued before
+   * it: true if it reached the disk, false if it did not and the error is
+   * now on the snapshot.
+   */
   private write(name: FileName, text: string): Promise<boolean> {
     const turn = this.queue.then(async () => {
       // Register when the write starts, not when queued: a long burst must
@@ -209,23 +206,25 @@ export class Store {
     return turn;
   }
 
-  /// The UI sees the change at once; the disk catches up in order.
+  /** The UI sees the change at once; the disk catches up in order. */
   async saveNotes(): Promise<void> {
     this.emit('notes', this.snapshot());
     await this.writeNotes();
   }
 
-  /// The one way notes reach the disk. After the write lands, any file the
-  /// document no longer mentions goes; a failure there is left alone, since
-  /// the notes are safe and an unreferenced file is only clutter.
+  /**
+   * The one way notes reach the disk. After the write lands, any file the
+   * document no longer mentions goes; a failure there is left alone, since
+   * the notes are safe and an unreferenced file is only clutter.
+   */
   private async writeNotes(): Promise<void> {
-    if (this.readOnly) return;
+    if (this.isReadOnly) return;
     // Match the serialized document, not mutations made while its write waits.
     const now = docRefs(this.model.doc);
     // Only a write that landed may take files away: the notes on disk still
     // mention them until then, and a full disk is not a reason to lose them.
     if (!(await this.write('notes.md', serialiseDoc(this.model.doc)))) return;
-    const gone = [...this.saved].filter(ref => !now.has(ref));
+    const gone = this.saved.difference(now);
     this.saved = now;
     for (const ref of gone) {
       try {
@@ -251,8 +250,10 @@ export class Store {
     await this.writeNotes();
   }
 
-  /// Files are written first, so the refs the item carries are real by the
-  /// time notes.md mentions them.
+  /**
+   * Files are written first, so the refs the item carries are real by the
+   * time notes.md mentions them.
+   */
   async addItem(text: string, page = this.model.prefs.active, files: File[] = []): Promise<void> {
     const attachments = await this.storeFiles(files);
     if (this.model.addItem(text, page, attachments) !== null) await this.saveNotes();
@@ -267,7 +268,7 @@ export class Store {
     if (files.length === 0) return [];
     // A file written now would never be referenced by a notes file that
     // cannot be written, and nothing would ever clean it up.
-    if (this.readOnly) throw new Error('Nothing is being saved, so nothing can be attached.');
+    if (this.isReadOnly) throw new Error('Nothing is being saved, so nothing can be attached.');
     const out: Attachment[] = [];
     for (const file of files) {
       const bytes = new Uint8Array(await file.arrayBuffer());
@@ -292,8 +293,8 @@ export class Store {
     if (this.model.toggleItem(id)) await this.saveNotes();
   }
 
-  async setDone(ids: number[], done: boolean): Promise<void> {
-    if (this.model.setDone(ids, done)) await this.saveNotes();
+  async setDone(ids: number[], isDone: boolean): Promise<void> {
+    if (this.model.setDone(ids, isDone)) await this.saveNotes();
   }
 
   async deleteItems(ids: number[]): Promise<void> {
@@ -369,13 +370,13 @@ export class Store {
     await this.savePrefs();
   }
 
-  async setCheckOnCopy(value: boolean): Promise<void> {
-    this.model.setCheckOnCopy(value);
+  async setCheckOnCopy(shouldCheckOnCopy: boolean): Promise<void> {
+    this.model.setCheckOnCopy(shouldCheckOnCopy);
     await this.savePrefs();
   }
 
-  async setGroupDone(value: boolean): Promise<void> {
-    this.model.setGroupDone(value);
+  async setGroupDone(shouldGroupDone: boolean): Promise<void> {
+    this.model.setGroupDone(shouldGroupDone);
     await this.savePrefs();
   }
 }

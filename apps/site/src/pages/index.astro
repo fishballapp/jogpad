@@ -1,45 +1,27 @@
 ---
-/*
-impeccable direction contract · seed a7c31e90 · pick card, code-led
-THESIS: The page is the key. One Shift keycap at monument scale that
-the visitor really double-taps, with the real pad popping out of it.
-Refuses the dark centred-hero-plus-screenshot-in-a-card page.
-OWN-WORLD: The Magic Keyboard. Aluminium deck, white keycaps with a
-visible wall, black modifier legends set in the system face, a black
-cap for the one key you are meant to press, macOS blue for selection
-and focus. Bricolage Grotesque for everything that is not a legend.
-STORY: Read the one line, tap Shift twice, watch the key sink and the
-pad jump, believe the gesture, press Download.
-FIRST VIEWPORT: Wordmark and nav on top. Left: headline, lede, the
-giant Shift key beneath them. Right: the live pad at real size, bottom
-aligned with the key. Under the key: the black Download key and a
-white GitHub key.
-FORM: Shift Key Monument, my top-ranked grounded candidate (the roll
-assigned candidate 3, the cheat-sheet poster; the user chose the pick).
-FINISH: unreviewed and undocumented is unfinished; this build ends
-with the finish review, the verdict, and DESIGN.md
-*/
+// The page is the key: one Shift keycap at monument scale that the visitor
+// really double-taps, with the real pad popping out of it. The look is the
+// Magic Keyboard's (aluminium deck, white keycaps, a black cap for the one
+// key to press, macOS blue for selection) in Bricolage Grotesque.
+// First viewport: headline, lede and the giant key on the left, the live pad
+// at real size on the right, the Download and GitHub keys under the key.
 import "@fontsource-variable/bricolage-grotesque/opsz.css";
 import { fetchPublishedReleases, highestRelease, dmgUrl } from "../lib/releases";
 import { demoMarkdown } from "../web-host";
-import Demo from "../components/Demo";
+import { Demo } from "../components/Demo";
 
-let downloadUrl: string | null = null;
-let latestVersion: string | null = null;
-
-try {
-  const releases = await fetchPublishedReleases();
-  const latestRelease = highestRelease(releases, 'stable');
-  downloadUrl = dmgUrl(latestRelease);
-  if (latestRelease) {
-    latestVersion = latestRelease.tag_name;
+const { downloadUrl, latestVersion } = await (async () => {
+  try {
+    const latestRelease = highestRelease(await fetchPublishedReleases(), 'stable');
+    return { downloadUrl: dmgUrl(latestRelease), latestVersion: latestRelease?.tag_name ?? null };
+  } catch (e) {
+    // The download key degrades to the releases page. The manifest routes
+    // call the same helper and do not catch, so a real API failure still fails
+    // the build there rather than shipping a site with no updates.
+    console.warn("Could not resolve latest release for the download button:", e);
+    return { downloadUrl: null, latestVersion: null };
   }
-} catch (e) {
-  // The download key degrades to the releases page. The manifest routes
-  // call the same helper and do not catch, so a real API failure still fails
-  // the build there rather than shipping a site with no updates.
-  console.warn("Could not resolve latest release for the download button:", e);
-}
+})();
 
 // GitHub resolves /releases/latest to the newest non-prerelease, so the
 // fallback never lands someone on a beta or dev build.
@@ -1064,16 +1046,15 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
       // The giant key mirrors the real one, and stands in for it on a
       // keyboard that has no Shift (a phone). Pressing it dispatches the same
       // keydown the host listens for, so the gesture has one code path.
-      const key = document.getElementById('shift-key') as HTMLButtonElement;
+      const key = document.getElementById('shift-key');
+      if (!(key instanceof HTMLButtonElement)) throw new Error('#shift-key is not a button');
       const REPEAT_WINDOW = 400;
       let lastDown = 0;
 
-      const panel = () => document.querySelector<HTMLElement>('.demo-panel');
       // The pad jumps out of the key once, on the first double-tap. After
       // that the gesture just works, the way it does on the desktop.
-      let popped = false;
+      let isPopped = false;
 
-      const sink = () => key.classList.add('is-down');
       const lift = () => key.classList.remove('is-down');
 
       window.addEventListener('keydown', e => {
@@ -1082,14 +1063,14 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
           return;
         }
         if (e.repeat) return;
-        sink();
+        key.classList.add('is-down');
         const now = performance.now();
         if (now - lastDown < REPEAT_WINDOW) {
           lastDown = 0;
-          const p = panel();
-          if (p && !popped) {
-            popped = true;
-            p.classList.add('pop');
+          const panel = document.querySelector<HTMLElement>('.demo-panel');
+          if (panel && !isPopped) {
+            isPopped = true;
+            panel.classList.add('pop');
           }
         } else {
           lastDown = now;

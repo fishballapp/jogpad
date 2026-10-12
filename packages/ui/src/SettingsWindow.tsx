@@ -15,14 +15,14 @@ const CATEGORIES = [
 
 type Category = (typeof CATEGORIES)[number]['id'];
 
-export default function SettingsWindow() {
+export function SettingsWindow() {
   const host = useHost();
   const store = useStore();
   const snap = useSnapshot();
   const [category, setCategory] = useState<Category>('general');
 
-  const [checking, setChecking] = useState(false);
-  const [installing, setInstalling] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [notesPath, setNotesPath] = useState('');
@@ -34,15 +34,15 @@ export default function SettingsWindow() {
   useEffect(() => {
     setUpdate(null);
     setStatus(null);
-    setChecking(false);
+    setIsChecking(false);
     return () => {
       checkGenRef.current++;
     };
   }, [host, snap.update_channel]);
 
   useEffect(() => {
-    void host.fs.describe('notes.md').then(setNotesPath);
-    void host.updates.version().then(setVersion);
+    void (async () => setNotesPath(await host.fs.describe('notes.md')))();
+    void (async () => setVersion(await host.updates.version()))();
   }, [host]);
 
   // Closing only hides (Rust intercepts the close button the same way), so
@@ -69,7 +69,7 @@ export default function SettingsWindow() {
 
   const check = async () => {
     const generation = ++checkGenRef.current;
-    setChecking(true);
+    setIsChecking(true);
     setUpdate(null);
     setStatus(null);
     try {
@@ -81,18 +81,18 @@ export default function SettingsWindow() {
       if (generation !== checkGenRef.current) return;
       setStatus(`Update check failed: ${e}`);
     } finally {
-      if (generation === checkGenRef.current) setChecking(false);
+      if (generation === checkGenRef.current) setIsChecking(false);
     }
   };
 
   const install = async () => {
-    setInstalling(true);
+    setIsInstalling(true);
     try {
       await host.updates.install(snap.update_channel);
     } catch (e) {
       // Rust took the pending update before installing, so the offer is spent
       // whether or not it worked.
-      setInstalling(false);
+      setIsInstalling(false);
       setUpdate(null);
       setStatus(`Installation failed: ${e}`);
     }
@@ -238,8 +238,8 @@ export default function SettingsWindow() {
               </p>
             </div>
 
-            <Button size="sm" variant="outline" disabled={checking} onClick={() => void check()}>
-              {checking ? 'Checking…' : 'Check for Updates'}
+            <Button size="sm" variant="outline" disabled={isChecking} onClick={() => void check()}>
+              {isChecking ? 'Checking…' : 'Check for Updates'}
             </Button>
 
             {update && (
@@ -250,8 +250,8 @@ export default function SettingsWindow() {
                     {update.notes}
                   </p>
                 )}
-                <Button size="sm" disabled={installing} onClick={() => void install()}>
-                  {installing ? 'Installing…' : 'Install and Restart'}
+                <Button size="sm" disabled={isInstalling} onClick={() => void install()}>
+                  {isInstalling ? 'Installing…' : 'Install and Restart'}
                 </Button>
               </div>
             )}

@@ -6,10 +6,12 @@ import { type Attachment, extensionOf, isImage, isVideo } from './model.ts';
 import { useTheme } from './theme.ts';
 import { useToast } from './toast.tsx';
 
-/// One attachment over the whole screen. Its own window on the desktop, the
-/// size of the display, transparent behind the dim. What to show comes from
-/// the URL, written by the command that opened the window.
-export default function PreviewWindow() {
+/**
+ * One attachment over the whole screen. Its own window on the desktop, the
+ * size of the display, transparent behind the dim. What to show comes from
+ * the URL, written by the command that opened the window.
+ */
+export function PreviewWindow() {
   const host = useHost();
   const snap = useSnapshot();
   useTheme(snap.theme);
@@ -17,11 +19,11 @@ export default function PreviewWindow() {
   // The window is only ever hidden, never closed, and the next open
   // navigates it afresh. So once it goes, render nothing: that unmounts the
   // video, which would otherwise keep playing behind an invisible window.
-  const [gone, setGone] = useState(false);
+  const [isGone, setIsGone] = useState(false);
   const params = new URLSearchParams(location.search);
   const a: Attachment = { ref: params.get('ref') ?? '', name: params.get('name') ?? '' };
   const close = useCallback(() => {
-    setGone(true);
+    setIsGone(true);
     void host.window.close();
   }, [host]);
 
@@ -34,7 +36,7 @@ export default function PreviewWindow() {
     };
     // Hidden by someone else, such as the pad hiding on ⌘W: same teardown.
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') setGone(true);
+      if (document.visibilityState === 'hidden') setIsGone(true);
     };
     window.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onVisibility);
@@ -54,7 +56,7 @@ export default function PreviewWindow() {
   };
 
   const url = host.attachments.url(a.ref);
-  if (gone) return null;
+  if (isGone) return null;
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-black/70 p-10 font-sans text-foreground backdrop-blur-sm">
       {/* The pointer's way out, under everything else: each piece drawn over
@@ -106,7 +108,7 @@ export default function PreviewWindow() {
   );
 }
 
-/// The attachment itself where the browser can draw it, its extension where it can't.
+/** The attachment itself where the browser can draw it, its extension where it can't. */
 function AttachmentView({ name, url }: { name: string; url: string }) {
   if (isImage(name)) {
     return (
