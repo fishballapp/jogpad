@@ -1,28 +1,15 @@
 pre-commit:
+  parallel: true
   jobs:
-    # Alone and first: it rewrites the staged files every check below reads.
+    - name: repojj
+      run: pnpm repojj:check
     - name: biome
-      run: pnpm exec biome check --write {staged_files}
-      glob: "*.{js,jsx,mjs,cjs,ts,tsx,cts,mts,json,jsonc,css}"
+      run: pnpm exec biome check --write --no-errors-on-unmatched {staged_files}
+      glob: "*.{js,jsx,ts,tsx,cts,mts,json,jsonc,css}"
       stage_fixed: true
-
-    - name: checks
-      group:
-        parallel: true
-        jobs:
-          - name: repojj
-            run: pnpm repojj:check
-
-          - name: typecheck
-            run: pnpm typecheck
-
-          # Unconditional: astro check is the only thing that reads .astro
-          # files, and they break on changes to the .ts they import.
-          - name: astro check
-            run: pnpm -r check
-
-          # Formats the whole crate, so this only reports. Run `cargo fmt`
-          # yourself.
-          - name: cargo fmt
-            run: pnpm --filter @jogpad/desktop rust:fmt
-            glob: "*.rs"
+    - name: typecheck
+      run: pnpm typecheck
+    # Formats the whole crate, so this only reports. Run `cargo fmt` yourself.
+    - name: cargo-fmt
+      run: pnpm -F @jogpad/desktop rust:fmt
+      glob: "*.rs"

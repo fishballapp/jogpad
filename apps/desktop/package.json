@@ -1,13 +1,16 @@
 {
   "name": "@jogpad/desktop",
-  "private": true,
   "version": "0.1.8",
+  "private": true,
+  "license": "MIT",
   "type": "module",
+  "description": "JogPad for macOS: the pad in a Tauri window, with the Rust side that reads other apps' selections.",
   "scripts": {
     "dev": "tauri dev",
-    "build": "APPLE_SIGNING_IDENTITY=\"${APPLE_SIGNING_IDENTITY:--}\" tauri build",
-    "vite": "vite",
-    "vite:build": "tsc -b && vite build",
+    "web": "vite",
+    "build": "vite build",
+    "bundle": "APPLE_SIGNING_IDENTITY=\"${APPLE_SIGNING_IDENTITY:--}\" tauri build",
+    "with-secrets": "varlock run --filter '!#release'",
     "tauri": "tauri",
     "rust:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
     "rust:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
@@ -18,19 +21,20 @@
     "@tauri-apps/api": "catalog:",
     "@tauri-apps/plugin-clipboard-manager": "catalog:",
     "@tauri-apps/plugin-opener": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:"
+    "react": "catalog:web",
+    "react-dom": "catalog:web"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
     "@tauri-apps/cli": "catalog:",
     "@types/node": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
+    "@types/react": "catalog:web",
+    "@types/react-dom": "catalog:web",
+    "@varlock/1password-plugin": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
+    "varlock": "catalog:",
     "vite": "catalog:"
-  },
-  "license": "MIT"
+  }
 }

@@ -778,6 +778,7 @@ function ItemRow({
     <ContextMenu>
       <ContextMenuTrigger
         render={
+          // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: the window's key handler drives the list (arrows select, Backspace deletes) while the composer keeps focus
           <div
             ref={setNodeRef}
             style={{ transform: CSS.Transform.toString(transform), transition }}

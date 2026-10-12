@@ -1,59 +1,91 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "vcs": {
-    "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": true
-  },
-  "files": {
-    "includes": ["**", "!**/node_modules", "!**/.astro", "!**/dist", "!**/target", "!**/*.astro"]
-  },
-  "assist": {
-    "enabled": true,
-    "actions": {
-      "source": {
-        "organizeImports": "on"
-      }
-    }
-  },
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": { "includes": ["**", "!**/node_modules", "!**/dist", "!**/*.astro"] },
+  "plugins": ["./biome-plugins/multiline-if-braces.grit"],
+  "assist": { "enabled": true, "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
     "rules": {
       "preset": "recommended",
       "correctness": {
-        "noUnusedImports": {
+        "noUnusedImports": { "level": "error", "fix": "safe" },
+        "useExhaustiveDependencies": {
           "level": "error",
-          "fix": "safe"
+          "options": {
+            "hooks": [
+              { "name": "useStableCallback", "stableResult": true },
+              { "name": "useLatestRef", "stableResult": true }
+            ]
+          }
         }
       },
       "suspicious": {
         "noArrayIndexKey": "off",
         "noExplicitAny": "error",
-        "noConsole": "error"
+        "noConsole": "error",
+        "noDuplicateCustomProperties": "off"
       },
       "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "effect": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/testing": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/ai": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/cli": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/cluster": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/devtools": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/encoding": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/eventlog": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/http": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/http-api": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/net": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/observability": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/persistence": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/process": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/reactivity": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/rpc": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/schema": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/socket": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/sql": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/workflow": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md.",
+              "effect/workers": "Deep-import one Effect module (e.g. effect/Effect, effect/http/HttpClient): barrels defeat tree-shaking under esbuild (Wrangler) and Metro. See docs/conventions/effect.md."
+            }
+          }
+        },
         "noParameterAssign": "off",
         "noNonNullAssertion": "error",
+        "noNestedTernary": "error",
         "noUnusedTemplateLiteral": "off",
         "useDefaultParameterLast": "off",
         "useConst": "off",
+        "useEnumInitializers": "off",
         "useTemplate": "off",
         "useSelfClosingElements": "off"
       },
+      "security": {
+        "noDangerouslySetInnerHtml": "off",
+        "noDangerouslySetInnerHtmlWithChildren": "off"
+      },
+      "performance": { "noDelete": "off", "noAccumulatingSpread": "off" },
       "complexity": {
         "noForEach": "off",
+        "noBannedTypes": "off",
         "useLiteralKeys": "off",
-        "useOptionalChain": "off"
+        "useSimplifiedLogicExpression": "off",
+        "useOptionalChain": "off",
+        "noArguments": "off"
       },
       "a11y": {
         "noSvgWithoutTitle": "off",
-        "useButtonType": "off",
-        "noStaticElementInteractions": "off",
-        "useKeyWithClickEvents": "off"
+        "useMediaCaption": "off",
+        "noHeaderScope": "off",
+        "useAltText": "off",
+        "useButtonType": "off"
       },
-      "nursery": {
-        "noFloatingPromises": "error"
-      }
+      "nursery": { "noFloatingPromises": "error" }
     }
   },
   "formatter": {
@@ -61,7 +93,8 @@
     "formatWithErrors": false,
     "indentStyle": "space",
     "indentWidth": 2,
-    "lineWidth": 100
+    "lineWidth": 100,
+    "includes": ["**"]
   },
   "javascript": {
     "formatter": {
@@ -71,9 +104,11 @@
       "quoteStyle": "single"
     }
   },
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
+  "css": { "parser": { "tailwindDirectives": true } },
+  "overrides": [
+    {
+      "includes": ["**/*.test.ts"],
+      "linter": { "rules": { "style": { "noNonNullAssertion": "off" } } }
     }
-  }
+  ]
 }

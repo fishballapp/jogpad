@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { expect, test } from 'vitest';
 import type { FileName, Host } from './host.ts';
 import { parseDoc } from './model.ts';
 import { createStore } from './store.ts';
@@ -73,26 +72,26 @@ test('a write that never landed takes no files away', async () => {
   const { host, removed, failing } = slowHost();
   const store = await createStore(host);
   await store.addItem('one', undefined, [fakeFile('a.png')]);
-  const id = store.model.doc.pages[0].items[0]?.id;
-  assert.ok(id !== undefined);
+  const id = store.model.doc.pages[0]!.items[0]?.id;
+  expect(id).toBeDefined();
 
   failing.notes = true;
-  await store.deleteItems([id]);
-  assert.deepEqual(removed, [], 'notes.md on disk still mentions a.png');
-  assert.match(store.snapshot().error ?? '', /disk full/);
+  await store.deleteItems([id!]);
+  expect(removed, 'notes.md on disk still mentions a.png').toEqual([]);
+  expect(store.snapshot().error ?? '').toMatch(/disk full/);
 
   // Once a write lands again, the file goes.
   failing.notes = false;
   await store.addItem('two');
-  assert.deepEqual(removed, ['attachments/a.png']);
+  expect(removed).toEqual(['attachments/a.png']);
 });
 
 test('brackets in a file name cannot break the link', async () => {
   const { host } = slowHost();
   const store = await createStore(host);
   await store.addItem('x', undefined, [fakeFile('report]final[v2].png')]);
-  const text = store.model.doc.pages[0].items[0]?.text ?? '';
-  assert.equal(text, '![reportfinalv2.png](attachments/reportfinalv2.png)\nx');
+  const text = store.model.doc.pages[0]!.items[0]?.text ?? '';
+  expect(text).toBe('![reportfinalv2.png](attachments/reportfinalv2.png)\nx');
 });
 
 /// Enough of a File for the store: a name and bytes.
@@ -104,17 +103,18 @@ test('a file goes when its last reference does, and stays while any remains', as
   const store = await createStore(host);
   await store.addItem('one', undefined, [fakeFile('a.png')]);
   await store.addItem('two', undefined, [fakeFile('a.png'), fakeFile('b.pdf')]);
-  const [first, second] = store.model.doc.pages[0].items.map(i => i.id);
-  assert.ok(first !== undefined && second !== undefined);
+  const [first, second] = store.model.doc.pages[0]!.items.map(i => i.id);
+  expect(first).toBeDefined();
+  expect(second).toBeDefined();
 
-  await store.deleteItems([first]);
-  assert.deepEqual(removed, [], 'a.png is still on the second item');
+  await store.deleteItems([first!]);
+  expect(removed, 'a.png is still on the second item').toEqual([]);
 
-  await store.detach(second, 'attachments/a.png');
-  assert.deepEqual(removed, ['attachments/a.png']);
+  await store.detach(second!, 'attachments/a.png');
+  expect(removed).toEqual(['attachments/a.png']);
 
   await store.deletePage(store.model.prefs.active);
-  assert.deepEqual(removed, ['attachments/a.png', 'attachments/b.pdf']);
+  expect(removed).toEqual(['attachments/a.png', 'attachments/b.pdf']);
 });
 
 test('what an outside edit removed is not ours to trash', async () => {
@@ -128,7 +128,7 @@ test('what an outside edit removed is not ours to trash', async () => {
   await new Promise(r => setTimeout(r, 50));
 
   await store.addItem('two');
-  assert.deepEqual(removed, []);
+  expect(removed).toEqual([]);
 });
 
 test('burst of unawaited edits lands in order and the last one wins on disk', async () => {
@@ -141,15 +141,9 @@ test('burst of unawaited edits lands in order and the last one wins on disk', as
   void store.addItem('three');
   await new Promise(r => setTimeout(r, 150));
 
-  assert.deepEqual(
-    writes.map(w => w.split('\n').filter(l => l.startsWith('- ')).length),
-    [1, 2, 3],
-  );
-  assert.equal(disk.get('notes.md'), '## Inbox\n\n- [ ] one\n- [ ] two\n- [ ] three\n\n');
-  assert.deepEqual(
-    store.snapshot().pages[0]?.items.map(i => i.text),
-    ['one', 'two', 'three'],
-  );
+  expect(writes.map(w => w.split('\n').filter(l => l.startsWith('- ')).length)).toEqual([1, 2, 3]);
+  expect(disk.get('notes.md')).toBe('## Inbox\n\n- [ ] one\n- [ ] two\n- [ ] three\n\n');
+  expect(store.snapshot().pages[0]?.items.map(i => i.text)).toEqual(['one', 'two', 'three']);
 });
 
 test('own writes echoed back as changes never roll the model back', async () => {
@@ -163,12 +157,9 @@ test('own writes echoed back as changes never roll the model back', async () => 
   await new Promise(r => setTimeout(r, 150));
 
   const items = store.snapshot().pages[0]?.items ?? [];
-  assert.deepEqual(
-    items.map(i => i.text),
-    ['a', 'b'],
-  );
+  expect(items.map(i => i.text)).toEqual(['a', 'b']);
   // A re-parse would have handed out fresh ids; the originals must survive.
-  assert.ok(items.every(i => ids.includes(i.id)));
+  expect(items.every(i => ids.includes(i.id))).toBe(true);
 });
 
 test('a change made by another writer is picked up', async () => {
@@ -177,30 +168,27 @@ test('a change made by another writer is picked up', async () => {
   // Another window writes through the same host; the store did not.
   await host.fs.write('notes.md', '## Inbox\n\n- [x] from elsewhere\n\n');
   await new Promise(r => setTimeout(r, 10));
-  assert.equal(store.snapshot().pages[0]?.items[0]?.text, 'from elsewhere');
+  expect(store.snapshot().pages[0]?.items[0]?.text).toBe('from elsewhere');
 });
 
 test('creating an empty page persists it across a restart', async () => {
   const { host, disk, writes } = slowHost();
   const store = await createStore(host);
   await store.setActive('Work');
-  assert.deepEqual(
-    parseDoc(disk.get('notes.md') ?? '').pages.map(p => p.name),
-    ['Inbox', 'Work'],
-  );
+  expect(parseDoc(disk.get('notes.md') ?? '').pages.map(p => p.name)).toEqual(['Inbox', 'Work']);
   const reopened = await createStore(host);
-  assert.equal(reopened.snapshot().active, 'Work');
+  expect(reopened.snapshot().active).toBe('Work');
 
   writes.length = 0;
   await store.setActive('Inbox');
-  assert.equal(writes.length, 1, 'switching existing pages only writes prefs');
+  expect(writes.length, 'switching existing pages only writes prefs').toBe(1);
 });
 
 test('an overlapping failed deletion keeps attachments referenced by the successful write', async () => {
   const { host, disk, removed } = slowHost();
   const store = await createStore(host);
   await store.addItem('one', undefined, [fakeFile('a.png')]);
-  const id = store.snapshot().pages[0].items[0].id;
+  const id = store.snapshot().pages[0]!.items[0]!.id;
   const write = host.fs.write;
   host.fs.write = async (name, text) => {
     if (name === 'notes.md' && !text.includes('attachments/a.png')) throw new Error('disk full');
@@ -208,8 +196,8 @@ test('an overlapping failed deletion keeps attachments referenced by the success
   };
 
   await Promise.all([store.toggleItem(id), store.deleteItems([id])]);
-  assert.match(disk.get('notes.md') ?? '', /attachments\/a.png/);
-  assert.deepEqual(removed, [], 'cleanup must use the document that actually reached disk');
+  expect(disk.get('notes.md') ?? '').toMatch(/attachments\/a.png/);
+  expect(removed, 'cleanup must use the document that actually reached disk').toEqual([]);
 });
 
 test('another writer can restore an earlier value written by this store', async () => {
@@ -219,19 +207,16 @@ test('another writer can restore an earlier value written by this store', async 
   const earlier = disk.get('prefs.json') ?? '';
   await store.setCheckOnCopy(true);
   await host.fs.write('prefs.json', earlier);
-  assert.equal(store.snapshot().check_on_copy, false);
+  expect(store.snapshot().check_on_copy).toBe(false);
 });
 
 test('a burst longer than the old write history preserves every item id', async () => {
   const { host } = slowHost();
   const store = await createStore(host);
   const writes = Array.from({ length: 40 }, (_, i) => store.capture(`item ${i}`));
-  const ids = store.snapshot().pages[0].items.map(i => i.id);
+  const ids = store.snapshot().pages[0]!.items.map(i => i.id);
   await Promise.all(writes);
-  assert.deepEqual(
-    store.snapshot().pages[0].items.map(i => i.id),
-    ids,
-  );
+  expect(store.snapshot().pages[0]!.items.map(i => i.id)).toEqual(ids);
 });
 
 test('snapshots keep their page and item values after later mutations', async () => {
@@ -239,13 +224,13 @@ test('snapshots keep their page and item values after later mutations', async ()
   const store = await createStore(host);
   await store.addItem('original');
   const before = store.snapshot();
-  await store.updateItem(before.pages[0].items[0].id, 'edited');
+  await store.updateItem(before.pages[0]!.items[0]!.id, 'edited');
   await store.renamePage('Inbox', 'Renamed');
   await store.setActive('New');
-  assert.equal(before.pages.length, 1);
-  assert.equal(before.pages[0].name, 'Inbox');
-  assert.equal(before.pages[0].items[0].text, 'original');
-  assert.notEqual(store.snapshot().pages, before.pages);
+  expect(before.pages.length).toBe(1);
+  expect(before.pages[0]!.name).toBe('Inbox');
+  expect(before.pages[0]!.items[0]!.text).toBe('original');
+  expect(store.snapshot().pages).not.toBe(before.pages);
 });
 
 test('a submission keeps its destination while files are being read', async () => {
@@ -261,6 +246,6 @@ test('a submission keeps its destination while files are being read', async () =
   await store.setActive('Work');
   finishRead();
   await adding;
-  assert.equal(store.snapshot().pages.find(p => p.name === 'Inbox')?.items.length, 1);
-  assert.equal(store.snapshot().pages.find(p => p.name === 'Work')?.items.length, 0);
+  expect(store.snapshot().pages.find(p => p.name === 'Inbox')?.items.length).toBe(1);
+  expect(store.snapshot().pages.find(p => p.name === 'Work')?.items.length).toBe(0);
 });

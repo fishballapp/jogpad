@@ -1,0 +1,24 @@
+language js
+
+// An if that spans lines (with its else chain) takes braces on every branch; a one-line
+// `if (…) return x;` stays as it is.
+JsIfStatement() as $if where {
+  $if <: r"(?s).*\n.*",
+  $message = "This if spans lines, so every branch takes braces: `if (…) { … }`.",
+  $if <: any {
+    JsIfStatement(consequent=$then) where {
+      $then <: not JsBlockStatement(),
+      register_diagnostic(span=$then, message=$message)
+    },
+    JsIfStatement(else_clause=JsElseClause(alternate=$else)) where {
+      $else <: not JsBlockStatement(),
+      $else <: not JsIfStatement(),
+      register_diagnostic(span=$else, message=$message)
+    },
+    // An else-if whose own statement fits on one line, in a chain that doesn't.
+    JsIfStatement(else_clause=JsElseClause(alternate=JsIfStatement(consequent=$elseIf))) where {
+      $elseIf <: not JsBlockStatement(),
+      register_diagnostic(span=$elseIf, message=$message)
+    }
+  }
+}

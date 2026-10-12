@@ -20,18 +20,18 @@ markdown file under `~/Library/Application Support/com.ycmjason.jogpad/`.
 
 ## Running it from source
 
-Needs Node, pnpm, and a Rust toolchain new enough for Tauri 2 (1.85+).
+Needs Node 26 or later, pnpm, and a Rust toolchain new enough for Tauri 2 (1.85+).
 
 ```sh
 pnpm install
-pnpm dev
+pnpm -F @jogpad/desktop dev
 ```
 
 macOS asks for Accessibility access the first time you double-tap Shift. Without
 it the app still works as a scratchpad, it just cannot read other apps'
 selections.
 
-`pnpm vite` inside `apps/desktop` runs the same UI in a browser tab on an
+`pnpm -F @jogpad/desktop web` runs the same UI in a browser tab on an
 in-memory host, for front-end work that does not need a Rust build.
 
 ## Layout
@@ -47,8 +47,8 @@ All notes logic lives once, in `packages/ui`. A host only implements side
 effects (`packages/ui/src/host.ts`); the desktop and the site each provide one.
 
 ```sh
-pnpm test                                  # the markdown round trip and every mutation
-pnpm --filter @jogpad/desktop rust:test    # the double-tap detector and the file paths (Rust)
+pnpm test                            # the markdown round trip and every mutation
+pnpm -F @jogpad/desktop rust:test    # the double-tap detector and the file paths (Rust)
 ```
 
 ## Releasing

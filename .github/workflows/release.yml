@@ -63,7 +63,7 @@ jobs:
         run: pnpm -r check
 
       - name: cargo test
-        run: pnpm --filter @jogpad/desktop rust:test
+        run: pnpm -F @jogpad/desktop rust:test
 
       # Dev builds get their version from package.json plus the commit count,
       # written into tauri.conf.json, which is where both Tauri and
@@ -168,7 +168,7 @@ jobs:
             echo 'RELEASE_NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
 
-      # The credentials live in a 1Password Environment (see .env.schema);
+      # The credentials live in a 1Password Environment (apps/desktop/.env.schema);
       # varlock resolves them with a read-only service-account token and fails
       # here if any is missing. They reach later steps through GITHUB_ENV.
       # GitHub only masks values that come from `secrets`, so each line of each
@@ -178,7 +178,7 @@ jobs:
           OP_TOKEN: ${{ secrets.OP_SA_TOKEN }}
         run: |
           set -euo pipefail
-          pnpm exec varlock load --format json | node -e '
+          pnpm -F @jogpad/desktop exec varlock load --format json | node -e '
             const fs = require("fs");
             const env = JSON.parse(fs.readFileSync(0, "utf8"));
             const out = [];

@@ -30,8 +30,8 @@ export default function SettingsWindow() {
   const checkGenRef = useRef(0);
   useTheme(snap.theme);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the body reads neither, but a channel change from either window must invalidate an in-flight check
   useEffect(() => {
-    // A channel change from either window invalidates an in-flight check.
     setUpdate(null);
     setStatus(null);
     setChecking(false);
@@ -159,7 +159,7 @@ export default function SettingsWindow() {
                     variant={snap.theme === theme ? 'default' : 'outline'}
                     onClick={() => void store.setTheme(theme)}
                   >
-                    {theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System'}
+                    {{ dark: 'Dark', light: 'Light', system: 'System' }[theme]}
                   </Button>
                 ))}
               </div>

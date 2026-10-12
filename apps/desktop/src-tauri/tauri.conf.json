@@ -4,9 +4,9 @@
   "version": "0.1.8",
   "identifier": "com.ycmjason.jogpad",
   "build": {
-    "beforeDevCommand": "pnpm vite",
+    "beforeDevCommand": "pnpm web",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm vite:build",
+    "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
