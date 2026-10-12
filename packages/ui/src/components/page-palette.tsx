@@ -270,6 +270,7 @@ function Row({
     disabled: !sortable,
   });
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the palette's input handles every key for the list
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}

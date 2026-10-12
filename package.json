@@ -1,6 +1,7 @@
 {
-  "name": "jogpad",
+  "name": "jogpad-workspace",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@12.4.1",
   "engines": {
@@ -8,24 +9,20 @@
   },
   "scripts": {
     "prepare": "lefthook install",
-    "dev": "pnpm --filter @jogpad/desktop dev",
-    "build": "pnpm --filter @jogpad/desktop build",
-    "with-secrets": "varlock run --filter '!#release'",
+    "build": "pnpm -r build",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "typecheck": "tsc -b",
+    "test": "pnpm -r test",
     "repojj:check": "repojj check",
     "repojj:check:fix": "repojj check --fix",
-    "repojj:postfix": "biome check --write .",
-    "test": "pnpm -r test"
+    "repojj:postfix": "biome check --write ."
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
-    "@varlock/1password-plugin": "catalog:",
     "lefthook": "catalog:",
     "repojj": "catalog:",
     "typescript": "catalog:",
-    "varlock": "catalog:"
-  },
-  "license": "MIT"
+    "vitest": "catalog:"
+  }
 }

@@ -55,17 +55,17 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+const view = (() => {
+  if (which === 'settings') return <SettingsWindow />;
+  if (which === 'preview') return <PreviewWindow />;
+  return <App menu={<PanelMenu />} notice={<PermissionBanner />} />;
+})();
+
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <HostProvider host={host} store={store}>
-        {which === 'settings' ? (
-          <SettingsWindow />
-        ) : which === 'preview' ? (
-          <PreviewWindow />
-        ) : (
-          <App menu={<PanelMenu />} notice={<PermissionBanner />} />
-        )}
+        {view}
       </HostProvider>
     </ErrorBoundary>
   </React.StrictMode>,

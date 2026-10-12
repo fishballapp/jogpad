@@ -50,19 +50,17 @@ jobs:
       - name: astro check
         run: pnpm -r check
 
-      - name: Build the front end
-        run: pnpm --filter @jogpad/desktop vite:build
-
-      - name: Build the site
+      # The site fetches the releases list to write the update manifests.
+      - name: Build the front end and the site
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: pnpm --filter @jogpad/site build
+        run: pnpm build
 
       - name: cargo fmt
-        run: pnpm --filter @jogpad/desktop rust:fmt
+        run: pnpm -F @jogpad/desktop rust:fmt
 
       - name: cargo clippy
-        run: pnpm --filter @jogpad/desktop rust:clippy
+        run: pnpm -F @jogpad/desktop rust:clippy
 
       - name: cargo test
-        run: pnpm --filter @jogpad/desktop rust:test
+        run: pnpm -F @jogpad/desktop rust:test

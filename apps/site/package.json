@@ -1,12 +1,16 @@
 {
   "name": "@jogpad/site",
+  "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
+  "description": "jogpad.fishball.app: the landing page, the pad running in the browser, and the update manifests for each channel.",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check",
+    "astro": "astro"
   },
   "dependencies": {
     "@astrojs/react": "catalog:",
@@ -14,17 +18,17 @@
     "@fontsource-variable/bricolage-grotesque": "catalog:",
     "@jogpad/ui": "workspace:*",
     "astro": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
+    "react": "catalog:web",
+    "react-dom": "catalog:web",
     "semver": "catalog:",
     "tailwindcss": "catalog:"
   },
   "devDependencies": {
     "@astrojs/check": "catalog:",
     "@tailwindcss/vite": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
+    "@types/react": "catalog:web",
+    "@types/react-dom": "catalog:web",
     "@types/semver": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:ts6"
   }
 }

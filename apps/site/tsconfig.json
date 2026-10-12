@@ -3,11 +3,10 @@
   "compilerOptions": {
     "composite": true,
     "tsBuildInfoFile": "node_modules/.tmp/tsconfig.tsbuildinfo",
-    "jsx": "react-jsx",
     "jsxImportSource": "react",
+    // import.meta.env without the generated .astro/, which CI checks without.
     "types": ["astro/client"]
   },
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist", "node_modules"],
-  "references": [{ "path": "../../packages/ui" }]
+  "exclude": ["dist", "node_modules"]
 }

@@ -1,7 +1,10 @@
 {
   "name": "@jogpad/ui",
+  "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
+  "description": "The pad itself: the React UI, the notes model and the gesture rule, shared by every host.",
   "exports": {
     ".": "./src/index.ts",
     "./styles.css": "./src/styles.css"
@@ -19,18 +22,17 @@
     "@phosphor-icons/react": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
+    "react": "catalog:web",
+    "react-dom": "catalog:web",
     "shadcn": "catalog:",
     "tailwind-merge": "catalog:",
     "tailwindcss": "catalog:",
     "tw-animate-css": "catalog:"
   },
   "devDependencies": {
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
+    "@types/react": "catalog:web",
+    "@types/react-dom": "catalog:web",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  },
-  "license": "MIT"
+  }
 }

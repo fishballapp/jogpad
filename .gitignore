@@ -1,49 +1,20 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
 node_modules
+*.tsbuildinfo
 dist
-target
-dist-ssr
-*.local
-
-# Editor directories and files
+*.log
+.DS_Store
+.idea
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
 
-# Tauri
-apps/desktop/src-tauri/target
-apps/desktop/src-tauri/gen/schemas
-
-.aibridge/
-
-# Local research and setup notes, not part of the published repo
-docs/
-
-# Updater signing key. Losing it means no installed app can ever update again.
+# The updater's signing key, if one is ever generated here. It lives in 1Password.
 .updater/
 
+# Local notes and tool state, never part of the repo.
 AGENTS.md
-
-# Impeccable product and design records, local like AGENTS.md
 PRODUCT.md
 DESIGN.md
-
-# Impeccable critique snapshots, local design notes
+docs/
 .impeccable/
-
-# Private local launch video: source, music and renders
+.aibridge/
 /launch-video/

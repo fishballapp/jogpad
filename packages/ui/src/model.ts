@@ -454,8 +454,11 @@ export class Model {
     const [page] = this.doc.pages.splice(from, 1);
     if (!page) return false;
     const to = before === null ? -1 : this.doc.pages.findIndex(p => p.name === before);
-    if (to < 0) this.doc.pages.push(page);
-    else this.doc.pages.splice(to, 0, page);
+    if (to < 0) {
+      this.doc.pages.push(page);
+    } else {
+      this.doc.pages.splice(to, 0, page);
+    }
     return true;
   }
 

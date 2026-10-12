@@ -54,43 +54,21 @@ export default function PreviewWindow() {
   };
 
   const url = host.attachments.url(a.ref);
-  const stop = (e: React.MouseEvent) => e.stopPropagation();
   if (gone) return null;
   return (
-    <div
-      className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-black/70 p-10 font-sans text-foreground backdrop-blur-sm"
-      onClick={close}
-    >
-      {isImage(a.name) ? (
-        <img
-          src={url}
-          alt={a.name}
-          onClick={stop}
-          className="max-h-[80vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
-        />
-      ) : isVideo(a.name) ? (
-        // biome-ignore lint/a11y/useMediaCaption: the user's own clip, with no captions to give it
-        <video
-          src={url}
-          controls
-          autoPlay
-          loop
-          onClick={stop}
-          className="max-h-[80vh] max-w-[90vw] rounded-lg shadow-2xl"
-        />
-      ) : (
-        <div
-          onClick={stop}
-          className="flex flex-col items-center gap-2 rounded-lg bg-popover px-16 py-12 text-muted-foreground shadow-2xl"
-        >
-          <FileIcon className="size-16" weight="thin" />
-          <span className="text-xs tracking-wide uppercase">{extensionOf(a.name) || 'file'}</span>
-        </div>
-      )}
-      <div
-        onClick={stop}
-        className="flex max-w-[90vw] items-center gap-1 rounded-full bg-popover py-1 pr-1 pl-4 text-sm text-popover-foreground shadow-xl ring-1 ring-foreground/10"
-      >
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-black/70 p-10 font-sans text-foreground backdrop-blur-sm">
+      {/* The pointer's way out, under everything else: each piece drawn over
+          it is `relative`, so a click on the preview stays there. Escape and
+          ⌘W are the keyboard's way out. */}
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Close preview"
+        onClick={close}
+        className="absolute inset-0"
+      />
+      <AttachmentView name={a.name} url={url} />
+      <div className="relative flex max-w-[90vw] items-center gap-1 rounded-full bg-popover py-1 pr-1 pl-4 text-sm text-popover-foreground shadow-xl ring-1 ring-foreground/10">
         <span className="mr-2 max-w-64 truncate">{flash ?? a.name}</span>
         <Button
           variant="ghost"
@@ -124,6 +102,36 @@ export default function PreviewWindow() {
           <XIcon />
         </Button>
       </div>
+    </div>
+  );
+}
+
+/// The attachment itself where the browser can draw it, its extension where it can't.
+function AttachmentView({ name, url }: { name: string; url: string }) {
+  if (isImage(name)) {
+    return (
+      <img
+        src={url}
+        alt={name}
+        className="relative max-h-[80vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+      />
+    );
+  }
+  if (isVideo(name)) {
+    return (
+      <video
+        src={url}
+        controls
+        autoPlay
+        loop
+        className="relative max-h-[80vh] max-w-[90vw] rounded-lg shadow-2xl"
+      />
+    );
+  }
+  return (
+    <div className="relative flex flex-col items-center gap-2 rounded-lg bg-popover px-16 py-12 text-muted-foreground shadow-2xl">
+      <FileIcon className="size-16" weight="thin" />
+      <span className="text-xs tracking-wide uppercase">{extensionOf(name) || 'file'}</span>
     </div>
   );
 }
