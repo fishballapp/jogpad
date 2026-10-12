@@ -2,13 +2,17 @@ import { FileIcon, PlayIcon, XIcon } from '@phosphor-icons/react';
 import { isImage, isVideo } from '../model.ts';
 import { cn } from '../utils.ts';
 
-/// Something the strip can draw: a saved attachment or a file still in the
-/// composer. `url` is whatever an <img> can load.
+/**
+ * Something the strip can draw: a saved attachment or a file still in the
+ * composer. `url` is whatever an <img> can load.
+ */
 export type Thumb = { key: string; name: string; url: string };
 
-/// The strip that leads an item, or waits above the composer: thumbnails for
-/// pictures and clips, a named chip for anything else. Click opens the
-/// preview; the corner cross takes it away.
+/**
+ * The strip that leads an item, or waits above the composer: thumbnails for
+ * pictures and clips, a named chip for anything else. Click opens the
+ * preview; the corner cross takes it away.
+ */
 export function AttachmentStrip({
   items,
   onOpen,
@@ -64,7 +68,7 @@ export function AttachmentStrip({
   );
 }
 
-/// A picture as itself, a clip as its first frame, anything else as its name.
+/** A picture as itself, a clip as its first frame, anything else as its name. */
 function AttachmentThumb({ thumb: { name, url } }: { thumb: Thumb }) {
   if (isImage(name)) {
     return <img src={url} alt={name} draggable={false} className="h-full max-w-28 object-cover" />;
@@ -97,7 +101,7 @@ function AttachmentThumb({ thumb: { name, url } }: { thumb: Thumb }) {
   );
 }
 
-/// The files in a paste or a drop, or none.
+/** The files in a paste or a drop, or none. */
 export function filesFrom(dt: DataTransfer | null): File[] {
   return Array.from(dt?.files ?? []);
 }

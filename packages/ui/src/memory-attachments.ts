@@ -1,29 +1,33 @@
 import type { AttachmentRef, Host } from './host.ts';
 import { extensionOf } from './model.ts';
 
-/// Attachments that live in a Map: the site's demo and the desktop's browser
-/// dev host. Refs are hashed the same way as on disk so notes written here
-/// would mean the same thing there.
+/**
+ * Attachments that live in a Map: the site's demo and the desktop's browser
+ * dev host. Refs are hashed the same way as on disk so notes written here
+ * would mean the same thing there.
+ */
 export function createMemoryAttachments(): Host['attachments'] {
   const blobs = new Map<AttachmentRef, Blob>();
   const urls = new Map<AttachmentRef, string>();
   return {
     put: async (bytes, name) => {
-      const digest = await crypto.subtle.digest('SHA-256', bytes as BufferSource);
+      // Copied, because a view over a shared buffer is not something the
+      // digest or a Blob accepts.
+      const owned = new Uint8Array(bytes);
+      const digest = await crypto.subtle.digest('SHA-256', owned);
       const hex = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
       // Twelve digits, the same as the desktop writes.
       const ref = `attachments/${hex.slice(0, 12)}.${extensionOf(name) || 'bin'}`;
-      if (!blobs.has(ref)) blobs.set(ref, new Blob([bytes as BlobPart]));
+      if (!blobs.has(ref)) blobs.set(ref, new Blob([owned]));
       return ref;
     },
     url: ref => {
-      let url = urls.get(ref);
-      if (!url) {
-        const blob = blobs.get(ref);
-        if (!blob) return '';
-        url = URL.createObjectURL(blob);
-        urls.set(ref, url);
-      }
+      const cached = urls.get(ref);
+      if (cached) return cached;
+      const blob = blobs.get(ref);
+      if (!blob) return '';
+      const url = URL.createObjectURL(blob);
+      urls.set(ref, url);
       return url;
     },
     path: async ref => ref,

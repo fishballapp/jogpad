@@ -22,14 +22,17 @@ export const demoMarkdown = `## Try it
 - [ ] https://github.com/ahkohd/tauri-nspanel
 `;
 
-/// Edge and corner resize for the detached panel, the way a macOS window
-/// resizes: no handle, the cursor changes near the border. `edge` is one or
-/// two of n/e/s/w. Called from a pointerdown on the edge strip.
+/**
+ * Edge and corner resize for the detached panel, the way a macOS window
+ * resizes: no handle, the cursor changes near the border. `edge` is one or
+ * two of n/e/s/w. Called from a pointerdown on the edge strip.
+ */
 export function startResizing(panel: HTMLElement, edge: string, e: PointerEvent) {
   const minW = 280;
   const minH = 240;
   const r = panel.getBoundingClientRect();
-  const strip = e.currentTarget as HTMLElement;
+  const strip = e.currentTarget;
+  if (!(strip instanceof HTMLElement)) throw new Error('Resize started outside an element');
   strip.setPointerCapture(e.pointerId);
   const move = (m: PointerEvent) => {
     if (edge.includes('e')) panel.style.width = `${Math.max(minW, m.clientX - r.left)}px`;
@@ -59,12 +62,17 @@ export function startResizing(panel: HTMLElement, edge: string, e: PointerEvent)
 export function createWebHost(opts: {
   panel: () => HTMLElement | null;
   onShow: () => void;
-  /// First drag. The page swaps in a placeholder where the panel was.
+  /** First drag. The page swaps in a placeholder where the panel was. */
   onDetach: () => void;
 }): Host {
   // startDragging gets no event, so remember where the last press was. The
   // listener is installed with the gesture listener below, which owns cleanup.
-  const pointer = { x: 0, y: 0, id: 0, target: null as Element | null };
+  const pointer: { x: number; y: number; id: number; target: Element | null } = {
+    x: 0,
+    y: 0,
+    id: 0,
+    target: null,
+  };
   const onPointerDown = (e: PointerEvent) => {
     pointer.x = e.clientX;
     pointer.y = e.clientY;
@@ -122,7 +130,7 @@ export function createWebHost(opts: {
       close: blur,
       quit: blur,
       startDragging,
-      onFocusChanged: async (handler: (focused: boolean) => void) => {
+      onFocusChanged: async (handler: (isFocused: boolean) => void) => {
         const check = () => handler(Boolean(opts.panel()?.contains(document.activeElement)));
         document.addEventListener('focusin', check);
         document.addEventListener('focusout', check);
@@ -140,12 +148,12 @@ export function createWebHost(opts: {
 
       const fire = () => {
         const panel = opts.panel();
-        const focused = Boolean(panel?.contains(document.activeElement));
+        const isFocused = Boolean(panel?.contains(document.activeElement));
         const sel = getSelection();
         const raw = sel?.toString().trim() ?? '';
-        const outside = Boolean(raw && !panel?.contains(sel?.anchorNode ?? null));
-        if (outside) sel?.removeAllRanges();
-        handler({ focused, selection: outside ? raw : null });
+        const isOutside = Boolean(raw && !panel?.contains(sel?.anchorNode ?? null));
+        if (isOutside) sel?.removeAllRanges();
+        handler({ focused: isFocused, selection: isOutside ? raw : null });
       };
 
       // Press edges, like the native detector. An installed JogPad fires on the

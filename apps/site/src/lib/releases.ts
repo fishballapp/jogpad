@@ -17,21 +17,20 @@ const REPO = 'fishballapp/jogpad';
 const MANIFEST_ASSET = 'latest.json';
 
 function headers(): Record<string, string> {
-  const h: Record<string, string> = {
+  return {
     Accept: 'application/vnd.github+json',
     'User-Agent': 'jogpad-site-builder',
+    // Only for the API. Sending it to the asset CDN would hand a token to a
+    // redirect target that has no business seeing it.
+    ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
   };
-  // Only for the API. Sending it to the asset CDN would hand a token to a
-  // redirect target that has no business seeing it.
-  if (process.env.GITHUB_TOKEN) {
-    h.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-  }
-  return h;
 }
 
-/// Every release a user could actually download from. Drafts are dropped here
-/// and nowhere else: their assets are not publicly reachable, so a draft that
-/// reached a manifest would advertise an update nobody can install.
+/**
+ * Every release a user could actually download from. Drafts are dropped here
+ * and nowhere else: their assets are not publicly reachable, so a draft that
+ * reached a manifest would advertise an update nobody can install.
+ */
 export function fetchPublishedReleases(): Promise<GitHubRelease[]> {
   // One request per process. Four pages need the list during a build, and the
   // dev server re-renders on every load; anonymous GitHub allows 60 an hour.
@@ -59,20 +58,24 @@ async function fetchReleasesUncached(): Promise<GitHubRelease[]> {
   return releases.filter(r => !r.draft);
 }
 
-/// Stable serves only final versions. Beta adds prereleases, except dev builds.
-/// Dev serves everything, and what it serves is nearly always a dev build.
+/**
+ * Stable serves only final versions. Beta adds prereleases, except dev builds.
+ * Dev serves everything, and what it serves is nearly always a dev build.
+ */
 export type Channel = 'stable' | 'beta' | 'dev';
 
-/// Dev builds carry a `dev` prerelease identifier, e.g. 0.1.5-beta.6.dev.42.
+/** Dev builds carry a `dev` prerelease identifier, e.g. 0.1.5-beta.6.dev.42. */
 function onChannel(version: semver.SemVer, channel: Channel): boolean {
   if (channel === 'stable') return version.prerelease.length === 0;
   if (channel === 'beta') return !version.prerelease.includes('dev');
   return true;
 }
 
-/// Highest by SemVer, which is the same order the updater compares in. A
-/// release whose tag is not a version is ignored rather than fatal, so a
-/// `docs-v2` style tag cannot take the site down.
+/**
+ * Highest by SemVer, which is the same order the updater compares in. A
+ * release whose tag is not a version is ignored rather than fatal, so a
+ * `docs-v2` style tag cannot take the site down.
+ */
 export function highestRelease(releases: GitHubRelease[], channel: Channel): GitHubRelease | null {
   const ranked = releases
     .flatMap(release => {
@@ -83,14 +86,16 @@ export function highestRelease(releases: GitHubRelease[], channel: Channel): Git
     // decides what stable means. Trusting the flag alone would let an -rc tag
     // reach every stable client.
     .filter(({ version }) => onChannel(version, channel))
-    .sort((a, b) => semver.rcompare(a.version, b.version));
+    .toSorted((a, b) => semver.rcompare(a.version, b.version));
   return ranked[0]?.release ?? null;
 }
 
-/// The release whose manifest should be served, or null when there is nothing
-/// to serve yet. Throws instead of quietly falling back to an older release: a
-/// site that keeps advertising last week's version as the newest is the failure
-/// nobody notices until an update never arrives.
+/**
+ * The release whose manifest should be served, or null when there is nothing
+ * to serve yet. Throws instead of quietly falling back to an older release: a
+ * site that keeps advertising last week's version as the newest is the failure
+ * nobody notices until an update never arrives.
+ */
 export function manifestRelease(releases: GitHubRelease[], channel: Channel): GitHubRelease | null {
   const highest = highestRelease(releases, channel);
   if (!highest) return null;
@@ -103,8 +108,10 @@ export function manifestRelease(releases: GitHubRelease[], channel: Channel): Gi
   );
 }
 
-/// The manifest `tauri-action` attached at build time, returned verbatim so the
-/// inline minisign signatures stay intact. Never synthesised here.
+/**
+ * The manifest `tauri-action` attached at build time, returned verbatim so the
+ * inline minisign signatures stay intact. Never synthesised here.
+ */
 export async function manifestFor(release: GitHubRelease): Promise<string> {
   const asset = release.assets.find(a => a.name === MANIFEST_ASSET);
   // Loudly, rather than falling back to an older release: silently advertising
@@ -123,12 +130,13 @@ export async function manifestFor(release: GitHubRelease): Promise<string> {
   }
 
   const body = await res.text();
-  let manifest: { version?: unknown; platforms?: Record<string, { url?: unknown }> };
-  try {
-    manifest = JSON.parse(body);
-  } catch (e) {
-    throw new Error(`${MANIFEST_ASSET} for ${release.tag_name} is not JSON: ${e}`);
-  }
+  const manifest: { version?: unknown; platforms?: Record<string, { url?: unknown }> } = (() => {
+    try {
+      return JSON.parse(body);
+    } catch (e) {
+      throw new Error(`${MANIFEST_ASSET} for ${release.tag_name} is not JSON: ${e}`);
+    }
+  })();
 
   if (typeof manifest.version !== 'string' || manifest.version.trim() === '') {
     throw new Error(`${MANIFEST_ASSET} for ${release.tag_name} has no version`);
@@ -157,12 +165,14 @@ export async function manifestFor(release: GitHubRelease): Promise<string> {
   return body;
 }
 
-/// The download must name one immutable asset. `tauri-action` writes an API
-/// asset URL when it builds against a draft, since a draft has no public
-/// download URL yet, and the updater sends `Accept: application/octet-stream`
-/// which makes those return the archive rather than JSON. Both forms are fine.
-/// What is not fine is `releases/latest/download`, which resolves to whatever
-/// happens to be newest and would hand a beta client the wrong build.
+/**
+ * The download must name one immutable asset. `tauri-action` writes an API
+ * asset URL when it builds against a draft, since a draft has no public
+ * download URL yet, and the updater sends `Accept: application/octet-stream`
+ * which makes those return the archive rather than JSON. Both forms are fine.
+ * What is not fine is `releases/latest/download`, which resolves to whatever
+ * happens to be newest and would hand a beta client the wrong build.
+ */
 function pinsToThisRelease(url: string, tag: string): boolean {
   if (url.includes('/releases/latest/download')) return false;
   return (

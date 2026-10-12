@@ -13,7 +13,7 @@ import {
 } from './model.ts';
 
 function stripIds(doc: Doc): Array<[string, Array<[string, boolean]>]> {
-  return doc.pages.map(s => [s.name, s.items.map(i => [i.text, i.done])]);
+  return doc.pages.map(s => [s.name, s.items.map(i => [i.text, i.isDone])]);
 }
 
 test('round-trips a document through markdown', () => {
@@ -23,7 +23,7 @@ test('round-trips a document through markdown', () => {
   expect(doc.pages.length).toBe(2);
   expect(doc.pages[0]!.items.length).toBe(3);
   expect(doc.pages[0]!.items[2]!.text).toBe('multi\nsecond line\n\nafter a blank');
-  expect(doc.pages[0]!.items[1]!.done).toBe(true);
+  expect(doc.pages[0]!.items[1]!.isDone).toBe(true);
   expect(serialiseDoc(doc)).toBe(md);
   expect(stripIds(doc)).toEqual(stripIds(parseDoc(serialiseDoc(doc))));
 });
@@ -179,7 +179,7 @@ test('merge keeps position and done', () => {
   expect(inbox.items.length).toBe(2);
   expect(inbox.items[0]!.id).toBe(ids[0]!);
   expect(inbox.items[0]!.text).toBe('first\n\nsecond');
-  expect(inbox.items[0]!.done).toBe(true);
+  expect(inbox.items[0]!.isDone).toBe(true);
   expect(inbox.items[1]!.id).toBe(ids[2]!);
 });
 
@@ -213,17 +213,17 @@ test('list text formatting plus check off', () => {
   // check_off with check_on_copy true
   model.setCheckOnCopy(true);
   expect(model.checkOff(ids)).toBe(true);
-  expect(model.doc.pages[0]!.items[0]!.done).toBe(true);
-  expect(model.doc.pages[0]!.items[1]!.done).toBe(true);
+  expect(model.doc.pages[0]!.items[0]!.isDone).toBe(true);
+  expect(model.doc.pages[0]!.items[1]!.isDone).toBe(true);
 
   // Second check_off is false because all are already checked
   expect(model.checkOff(ids)).toBe(false);
 
   // When check_on_copy is false, returns false
   model.setCheckOnCopy(false);
-  model.doc.pages[0]!.items[0]!.done = false;
+  model.doc.pages[0]!.items[0]!.isDone = false;
   expect(model.checkOff(ids)).toBe(false);
-  expect(model.doc.pages[0]!.items[0]!.done).toBe(false);
+  expect(model.doc.pages[0]!.items[0]!.isDone).toBe(false);
 });
 
 test('delete page fallbacks', () => {

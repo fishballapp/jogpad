@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
-import type { Host, Permissions } from './host.ts';
+import type { Host, Permissions, Unlisten } from './host.ts';
 import type { Snapshot, Store } from './store.ts';
 
 const HostContext = createContext<{ host: Host; store: Store } | null>(null);
@@ -35,8 +35,7 @@ export function useSnapshot(): Snapshot {
 
   useEffect(() => {
     setSnapshot(store.snapshot());
-    const unlisten = store.on('notes', setSnapshot);
-    return unlisten;
+    return store.on('notes', setSnapshot);
   }, [store]);
 
   return snapshot;
@@ -45,45 +44,50 @@ export function useSnapshot(): Snapshot {
 export function usePermissions(): Permissions {
   const host = useHost();
   const [permissions, setPermissions] = useState<Permissions>({
-    trusted: false,
-    inputMonitoring: false,
+    isTrusted: false,
+    isInputMonitoringGranted: false,
   });
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    let cancelled = false;
+    let unlisten: Unlisten | undefined;
+    let isCancelled = false;
 
-    void host.permissions.status().then(p => {
-      if (!cancelled) setPermissions(p);
-    });
+    void (async () => {
+      const status = await host.permissions.status();
+      if (!isCancelled) setPermissions(status);
+    })();
 
-    void host.permissions
-      .onChange(p => {
-        if (!cancelled) setPermissions(p);
-      })
-      .then(u => {
-        if (cancelled) {
-          u();
-        } else {
-          unlisten = u;
-        }
+    void (async () => {
+      const stop = await host.permissions.onChange(p => {
+        if (!isCancelled) setPermissions(p);
       });
+      if (isCancelled) {
+        stop();
+        return;
+      }
+      unlisten = stop;
+    })();
 
     return () => {
-      cancelled = true;
-      if (unlisten) unlisten();
+      isCancelled = true;
+      unlisten?.();
     };
   }, [host]);
 
   return permissions;
 }
 
-/// The one permission to ask for next, or null when both are held.
-/// Accessibility is the prerequisite, and Input Monitoring follows from it
-/// without a prompt, so naming both at once would send people hunting for a
-/// permission they never have to grant by hand.
-export function missingPermission(p: Permissions): string | null {
-  if (!p.trusted) return 'Accessibility';
-  if (!p.inputMonitoring) return 'Input Monitoring';
+/**
+ * The one permission to ask for next, or null when both are held.
+ * Accessibility is the prerequisite, and Input Monitoring follows from it
+ * without a prompt, so naming both at once would send people hunting for a
+ * permission they never have to grant by hand.
+ */
+export function missingPermission({
+  isTrusted,
+  isInputMonitoringGranted,
+}: Permissions): string | null {
+  if (!isTrusted) return 'Accessibility';
+  if (!isInputMonitoringGranted) return 'Input Monitoring';
   return null;
 }

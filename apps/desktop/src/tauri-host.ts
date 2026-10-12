@@ -15,9 +15,14 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 
-export const inTauri = '__TAURI_INTERNALS__' in window;
+export const isInTauri = '__TAURI_INTERNALS__' in window;
 
 type RawPermissions = { trusted: boolean; input_monitoring: boolean };
+
+const toPermissions = ({ trusted, input_monitoring }: RawPermissions): Permissions => ({
+  isTrusted: trusted,
+  isInputMonitoringGranted: input_monitoring,
+});
 
 export const tauriHost: Host = {
   fs: {
@@ -55,20 +60,15 @@ export const tauriHost: Host = {
     close: () => getCurrentWindow().hide(),
     quit: () => invoke<void>('quit'),
     startDragging: () => void getCurrentWindow().startDragging(),
-    onFocusChanged: (h: (focused: boolean) => void) =>
+    onFocusChanged: (h: (isFocused: boolean) => void) =>
       getCurrentWindow().onFocusChanged(({ payload }) => h(payload)),
     setZoom: (zoom: number) => invoke<void>('set_zoom', { zoom }),
     setTheme: (theme: Theme) => invoke<void>('set_theme', { theme }),
   },
   permissions: {
-    status: async (): Promise<Permissions> => {
-      const res = await invoke<RawPermissions>('permissions');
-      return { trusted: res.trusted, inputMonitoring: res.input_monitoring };
-    },
+    status: async () => toPermissions(await invoke<RawPermissions>('permissions')),
     onChange: (h: (p: Permissions) => void) =>
-      listen<RawPermissions>('permissions', e =>
-        h({ trusted: e.payload.trusted, inputMonitoring: e.payload.input_monitoring }),
-      ),
+      listen<RawPermissions>('permissions', e => h(toPermissions(e.payload))),
     request: () => invoke<void>('request_permissions'),
   },
   updates: {

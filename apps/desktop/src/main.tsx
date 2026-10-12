@@ -12,9 +12,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { browserHost } from './browser-host.ts';
 import './index.css';
-import { inTauri, tauriHost } from './tauri-host.ts';
+import { isInTauri, tauriHost } from './tauri-host.ts';
 
-const host = inTauri ? tauriHost : browserHost;
+const host = isInTauri ? tauriHost : browserHost;
 const store = await createStore(host);
 const which = new URLSearchParams(location.search).get('window');
 
@@ -22,15 +22,15 @@ const which = new URLSearchParams(location.search).get('window');
 // same bundle, so only the panel may act on it or a capture lands twice.
 if (!which) void host.onGesture(g => void runGesture(g, store, host));
 
-/// A render error used to unmount everything and leave a blank panel, which
-/// looks exactly like a crash: the process is still alive, no report is
-/// written, and there is no console to open in a shipped app. Show the error
-/// instead, so the next one can be reported rather than guessed at.
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { error: Error | null }
-> {
-  state = { error: null as Error | null };
+type ErrorBoundaryState = { error: Error | null };
+
+/**
+ * Shows a render error instead of a blank panel: a blank panel looks exactly
+ * like a crash, yet the process is alive, no report is written, and a shipped
+ * app has no console to open.
+ */
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { error: null };
 
   static getDerivedStateFromError(error: Error) {
     return { error };
@@ -61,7 +61,10 @@ const view = (() => {
   return <App menu={<PanelMenu />} notice={<PermissionBanner />} />;
 })();
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+const root = document.getElementById('root');
+if (!root) throw new Error('index.html has no #root element');
+
+ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <ErrorBoundary>
       <HostProvider host={host} store={store}>

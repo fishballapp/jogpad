@@ -35,37 +35,35 @@ export function PanelMenu() {
   const snap = useSnapshot();
 
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [installing, setInstalling] = useState(false);
-  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const { flash, toast } = useToast();
 
   const checkGenRef = useRef(0);
 
   const checkForUpdate = useCallback(
-    async (userInitiated = false) => {
+    async (isUserInitiated = false) => {
       const generation = ++checkGenRef.current;
-      setChecking(true);
+      setIsChecking(true);
       // Rust clears the pending offer when a check starts, including one
       // that fails, so a check you asked for starts from nothing. The hourly
       // one does not: it must not close the dialog you are reading, or an
       // install in progress.
-      if (userInitiated) {
+      if (isUserInitiated) {
         setUpdate(null);
-        setUpdateDialogOpen(false);
+        setIsUpdateDialogOpen(false);
       }
       try {
         const info = await host.updates.check(snap.update_channel);
         if (generation !== checkGenRef.current) return;
         setUpdate(info);
-        if (userInitiated && !info) {
-          toast('JogPad is up to date');
-        }
+        if (isUserInitiated && !info) toast('JogPad is up to date');
       } catch (e) {
         if (generation !== checkGenRef.current) return;
-        if (userInitiated) toast(`Update check failed: ${e}`);
+        if (isUserInitiated) toast(`Update check failed: ${e}`);
       } finally {
-        if (generation === checkGenRef.current) setChecking(false);
+        if (generation === checkGenRef.current) setIsChecking(false);
       }
     },
     [host, snap.update_channel, toast],
@@ -91,7 +89,11 @@ export function PanelMenu() {
           <Tooltip>
             <TooltipTrigger
               render={
-                <Button variant="ghost" size="icon-sm" onClick={() => setUpdateDialogOpen(true)} />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setIsUpdateDialogOpen(true)}
+                />
               }
               aria-label={`Update to v${update.version}`}
             >
@@ -119,8 +121,8 @@ export function PanelMenu() {
             <GearSixIcon /> Settings…
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled={checking} onClick={() => void checkForUpdate(true)}>
-            <ArrowCircleDownIcon /> {checking ? 'Checking for Updates…' : 'Check for Updates…'}
+          <DropdownMenuItem disabled={isChecking} onClick={() => void checkForUpdate(true)}>
+            <ArrowCircleDownIcon /> {isChecking ? 'Checking for Updates…' : 'Check for Updates…'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => void host.window.hide()}>
@@ -134,7 +136,7 @@ export function PanelMenu() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={updateDialogOpen && update !== null} onOpenChange={setUpdateDialogOpen}>
+      <Dialog open={isUpdateDialogOpen && update !== null} onOpenChange={setIsUpdateDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>JogPad {update?.version} is available</DialogTitle>
@@ -145,26 +147,26 @@ export function PanelMenu() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setUpdateDialogOpen(false)}
-              disabled={installing}
+              onClick={() => setIsUpdateDialogOpen(false)}
+              disabled={isInstalling}
             >
               Later
             </Button>
             <Button
-              disabled={installing}
+              disabled={isInstalling}
               onClick={async () => {
-                setInstalling(true);
+                setIsInstalling(true);
                 try {
                   await host.updates.install(snap.update_channel);
                 } catch (e) {
-                  setInstalling(false);
-                  setUpdateDialogOpen(false);
+                  setIsInstalling(false);
+                  setIsUpdateDialogOpen(false);
                   setUpdate(null);
                   toast(`Installation failed: ${e}`);
                 }
               }}
             >
-              {installing ? 'Installing…' : 'Install and Restart'}
+              {isInstalling ? 'Installing…' : 'Install and Restart'}
             </Button>
           </DialogFooter>
         </DialogContent>

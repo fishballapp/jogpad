@@ -42,6 +42,7 @@ import {
   TooltipTrigger,
 } from './components/ui/tooltip.tsx';
 import { useHost, useSnapshot, useStore } from './context.tsx';
+import type { Unlisten } from './host.ts';
 import { type Attachment, type Item, splitItem } from './model.ts';
 import { useTheme } from './theme.ts';
 import { Flash, useToast } from './toast.tsx';
@@ -49,19 +50,19 @@ import { cn } from './utils.ts';
 
 type Row = { item: Item; page: string };
 
-/// Counts enter/leave pairs so a drag passing over children does not flicker.
+/** Counts enter/leave pairs so a drag passing over children does not flicker. */
 function useDragOver(onDrop: (files: File[]) => void) {
   const depth = useRef(0);
-  const [over, setOver] = useState(false);
+  const [isOver, setIsOver] = useState(false);
   const hasFiles = (e: React.DragEvent) => e.dataTransfer.types.includes('Files');
   return {
-    over,
+    isOver,
     props: {
       onDragEnter: (e: React.DragEvent) => {
         if (!hasFiles(e)) return;
         e.preventDefault();
         depth.current++;
-        setOver(true);
+        setIsOver(true);
       },
       onDragOver: (e: React.DragEvent) => {
         if (!hasFiles(e)) return;
@@ -71,14 +72,14 @@ function useDragOver(onDrop: (files: File[]) => void) {
       onDragLeave: (e: React.DragEvent) => {
         if (!hasFiles(e)) return;
         depth.current = Math.max(0, depth.current - 1);
-        if (depth.current === 0) setOver(false);
+        if (depth.current === 0) setIsOver(false);
       },
       onDrop: (e: React.DragEvent) => {
         if (!hasFiles(e)) return;
         e.preventDefault();
         e.stopPropagation();
         depth.current = 0;
-        setOver(false);
+        setIsOver(false);
         onDrop(filesFrom(e.dataTransfer));
       },
     },
@@ -89,7 +90,7 @@ const isTypingTarget = (el: EventTarget | null) =>
   el instanceof HTMLElement &&
   (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
-export default function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } = {}) {
+export function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } = {}) {
   const host = useHost();
   const store = useStore();
   const snap = useSnapshot();
@@ -97,10 +98,10 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   const [selected, setSelected] = useState<number[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
   const [query, setQuery] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [palette, setPalette] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   // Done items start folded away under their heading. Per session, not saved.
-  const [doneCollapsed, setDoneCollapsed] = useState(true);
+  const [isDoneCollapsed, setIsDoneCollapsed] = useState(true);
   const { flash, toast } = useToast();
   // Files pasted or dropped while composing wait here until Enter, the way
   // an email holds its attachments above the message. In memory only:
@@ -109,10 +110,10 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   const [draft, setDraft] = useState<Array<{ file: File; url: string }>>([]);
   // The panel has no title bar, so nothing else tells you whether typing will
   // land here or in the app behind it.
-  const [focused, setFocused] = useState(true);
+  const [isFocused, setIsFocused] = useState(true);
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
-  const submittingRef = useRef(false);
+  const isSubmittingRef = useRef(false);
   const pickerRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   // Anchor is where a range selection started; cursor is the end that moves.
@@ -120,18 +121,19 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   const cursorRef = useRef<number | null>(null);
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    let cancelled = false;
-    void host.window.onFocusChanged(setFocused).then(u => {
-      if (cancelled) {
-        u();
-      } else {
-        unlisten = u;
+    let unlisten: Unlisten | undefined;
+    let isCancelled = false;
+    void (async () => {
+      const stop = await host.window.onFocusChanged(setIsFocused);
+      if (isCancelled) {
+        stop();
+        return;
       }
-    });
+      unlisten = stop;
+    })();
     return () => {
-      cancelled = true;
-      if (unlisten) unlisten();
+      isCancelled = true;
+      unlisten?.();
     };
   }, [host]);
 
@@ -147,10 +149,13 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   }, []);
 
   const attachTo = useCallback(
-    (id: number, files: File[]) =>
-      void store
-        .attach(id, files)
-        .catch(e => toast(`Could not attach: ${e instanceof Error ? e.message : e}`)),
+    async (id: number, files: File[]) => {
+      try {
+        await store.attach(id, files);
+      } catch (e) {
+        toast(`Could not attach: ${e instanceof Error ? e.message : e}`);
+      }
+    },
     [store, toast],
   );
 
@@ -158,7 +163,13 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   const panelDrop = useDragOver(addToDraft);
 
   const openAttachment = useCallback(
-    (a: Attachment) => void host.attachments.preview(a).catch(e => toast(`Could not open: ${e}`)),
+    async (a: Attachment) => {
+      try {
+        await host.attachments.preview(a);
+      } catch (e) {
+        toast(`Could not open: ${e}`);
+      }
+    },
     [host, toast],
   );
 
@@ -167,7 +178,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     // hide the thing that was just captured, then point at it.
     const unlistenCaptured = store.on('captured', id => {
       setQuery('');
-      setSearching(false);
+      setIsSearching(false);
       setSelected([id]);
     });
     const unlistenFocusInput = store.on('focus-input', () => {
@@ -185,28 +196,31 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     [snap],
   );
   // How many rows the Done heading stands for. Zero means no heading at all.
-  const doneCount = snap.group_done && !q ? activeItems.filter(i => i.done).length : 0;
+  const doneCount = snap.group_done && !q ? activeItems.filter(i => i.isDone).length : 0;
 
   // Searching looks across every page; otherwise you see the active one.
   // A search reads what is on screen: the text and the file names, not the
   // hashes behind them.
   const rows: Row[] = useMemo(() => {
     if (q) {
-      const matches = (i: Item) => {
-        const { attachments, body } = splitItem(i.text);
-        return [body, ...attachments.map(a => a.name)].join(' ').toLowerCase().includes(q);
-      };
-      return snap.pages.flatMap(s => s.items.filter(matches).map(item => ({ item, page: s.name })));
+      return snap.pages.flatMap(s =>
+        s.items
+          .filter(({ text }) => {
+            const { attachments, body } = splitItem(text);
+            return [body, ...attachments.map(a => a.name)].join(' ').toLowerCase().includes(q);
+          })
+          .map(item => ({ item, page: s.name })),
+      );
     }
     if (!snap.group_done) return activeItems.map(item => ({ item, page: snap.active }));
     // Grouping is display-only: the markdown file keeps its real order, so
     // unchecking an item sends it back where it always was. Collapsed done
     // items leave the rows entirely, so keys and selection cannot reach them.
-    const shown = doneCollapsed
-      ? activeItems.filter(i => !i.done)
-      : [...activeItems.filter(i => !i.done), ...activeItems.filter(i => i.done)];
+    const shown = isDoneCollapsed
+      ? activeItems.filter(i => !i.isDone)
+      : [...activeItems.filter(i => !i.isDone), ...activeItems.filter(i => i.isDone)];
     return shown.map(item => ({ item, page: snap.active }));
-  }, [snap, q, activeItems, doneCollapsed]);
+  }, [snap, q, activeItems, isDoneCollapsed]);
 
   // Selection is pruned against what is currently visible, so switching
   // page or typing a search also clears it. Deliberate: acting on rows you
@@ -262,11 +276,11 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   );
 
   const submit = async () => {
-    if (submittingRef.current) return;
+    if (isSubmittingRef.current) return;
     const value = composerRef.current?.value ?? '';
     const text = value.trim();
     if (!text && draft.length === 0) return;
-    submittingRef.current = true;
+    isSubmittingRef.current = true;
     try {
       await store.addItem(
         text,
@@ -277,7 +291,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
       toast(`Could not attach: ${e instanceof Error ? e.message : e}`);
       return;
     } finally {
-      submittingRef.current = false;
+      isSubmittingRef.current = false;
     }
     for (const d of draft) URL.revokeObjectURL(d.url);
     // Files and typing added while the save waited belong to the next note.
@@ -292,17 +306,17 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing || e.defaultPrevented) return;
       // The palette's input owns every key.
-      if (palette) return;
-      const typing = isTypingTarget(e.target);
+      if (isPaletteOpen) return;
+      const isTyping = isTypingTarget(e.target);
       // A dialog or menu covers the list, so a stray Delete would destroy a
       // selection the user cannot even see, and each handles its own Escape.
       // The ⌘ chords above still apply: the menu lists ⌘W and ⌘Q itself.
-      const overlaid =
+      const isOverlaid =
         e.target instanceof Element && e.target.closest('[role="dialog"], [role="menu"]') !== null;
 
       if (e.metaKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setPalette(true);
+        setIsPaletteOpen(true);
         return;
       }
       if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'c') {
@@ -312,7 +326,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
       }
       if (e.metaKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        setSearching(true);
+        setIsSearching(true);
         window.setTimeout(() => searchRef.current?.focus(), 0);
         return;
       }
@@ -328,22 +342,22 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
       }
       if (e.metaKey && (e.key === '-' || e.key === '=' || e.key === '0')) {
         e.preventDefault();
-        const zoom = snap.zoom;
-        void store.setZoom(e.key === '0' ? 1 : zoom + (e.key === '-' ? -0.1 : 0.1));
+        const step = e.key === '-' ? -0.1 : 0.1;
+        void store.setZoom(e.key === '0' ? 1 : snap.zoom + step);
         return;
       }
-      if (overlaid) return;
+      if (isOverlaid) return;
       if (e.key === 'Escape') {
         if (editing !== null) return;
-        if (query || searching) {
+        if (query || isSearching) {
           setQuery('');
-          setSearching(false);
+          setIsSearching(false);
         } else {
           setSelected([]);
         }
         return;
       }
-      if (typing) return;
+      if (isTyping) return;
 
       if (e.metaKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
@@ -382,7 +396,18 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [copySelection, editing, host, palette, query, rows, searching, selected, snap.zoom, store]);
+  }, [
+    copySelection,
+    editing,
+    host,
+    isPaletteOpen,
+    isSearching,
+    query,
+    rows,
+    selected,
+    snap.zoom,
+    store,
+  ]);
 
   // Clicks must still select and double-clicks still edit, so a drag only
   // starts once the pointer has actually travelled.
@@ -408,25 +433,30 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
     // "insert before" aimed at the other partition would rewrite the file
     // and then re-partition back to exactly the picture it started from.
     // Rows that are themselves moving cannot be landed on either.
-    const landable = (r: Row) =>
-      (!snap.group_done || r.item.done === dragged.item.done) && !moving.includes(r.item.id);
-    const before = rows.slice(displaced).find(landable)?.item.id ?? null;
+    const before =
+      rows
+        .slice(displaced)
+        .find(
+          r =>
+            (!snap.group_done || r.item.isDone === dragged.item.isDone) &&
+            !moving.includes(r.item.id),
+        )?.item.id ?? null;
     // No adjacency guard here: the backend knows the file order, detects a
     // drop that changes nothing and skips the rewrite itself.
     void store.moveItemsBefore(moving, before, snap.active);
   };
 
-  const allSelectedDone =
-    selected.length > 0 && rows.every(r => !selected.includes(r.item.id) || r.item.done);
+  const areAllSelectedDone =
+    selected.length > 0 && rows.every(r => !selected.includes(r.item.id) || r.item.isDone);
 
   const doneHeader = doneCount > 0 && (
     <button
-      onClick={() => setDoneCollapsed(c => !c)}
-      aria-expanded={!doneCollapsed}
+      onClick={() => setIsDoneCollapsed(c => !c)}
+      aria-expanded={!isDoneCollapsed}
       className="mx-2 mt-2 mb-1 flex w-[calc(100%-1rem)] items-center gap-1 border-t pt-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
     >
       <CaretRightIcon
-        className={cn('size-3 transition-transform', !doneCollapsed && 'rotate-90')}
+        className={cn('size-3 transition-transform', !isDoneCollapsed && 'rotate-90')}
       />
       Done
       <span className="font-normal">{doneCount}</span>
@@ -436,25 +466,25 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
   return (
     <TooltipProvider>
       <Panel
-        focused={focused}
+        isFocused={isFocused}
         {...panelDrop.props}
-        className={cn(panelDrop.over && 'border-ring ring-2 ring-ring/40 ring-inset')}
+        className={cn(panelDrop.isOver && 'border-ring ring-2 ring-ring/40 ring-inset')}
       >
         <header
           // The drag-region attribute only fires on the element under the
-          // pointer, so the gaps between buttons were the only grabbable
-          // pixels. Dragging from anywhere that is not a control is better.
+          // pointer, which leaves just the gaps between buttons grabbable.
+          // Dragging from anywhere that is not a control is better.
           onPointerDown={e => {
-            if ((e.target as HTMLElement).closest('button')) return;
+            if (e.target instanceof Element && e.target.closest('button')) return;
             host.window.startDragging();
           }}
           className="flex shrink-0 cursor-grab items-center gap-1 px-3 py-2 active:cursor-grabbing"
         >
           <button
-            onClick={() => setPalette(true)}
+            onClick={() => setIsPaletteOpen(true)}
             className={cn(
               'flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-sm font-medium hover:bg-accent',
-              !focused && 'text-muted-foreground',
+              !isFocused && 'text-muted-foreground',
             )}
             aria-label="Switch page"
           >
@@ -467,8 +497,8 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
               label="Search"
               hint="⌘F"
               onClick={() => {
-                if (searching) setQuery('');
-                setSearching(s => !s);
+                if (isSearching) setQuery('');
+                setIsSearching(s => !s);
                 window.setTimeout(() => searchRef.current?.focus(), 0);
               }}
             >
@@ -478,7 +508,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
           </div>
         </header>
 
-        {searching && (
+        {isSearching && (
           <div className="flex shrink-0 items-center gap-2 border-b px-3 pb-2">
             <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
             <input
@@ -491,7 +521,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
             <button
               onClick={() => {
                 setQuery('');
-                setSearching(false);
+                setIsSearching(false);
               }}
               className="text-muted-foreground hover:text-foreground"
             >
@@ -533,17 +563,17 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
               >
                 {rows.map((row, index) => (
                   <Fragment key={row.item.id}>
-                    {row.item.done && !rows[index - 1]?.item.done && doneHeader}
+                    {row.item.isDone && !rows[index - 1]?.item.isDone && doneHeader}
                     <ItemRow
                       row={row}
-                      showPage={Boolean(query)}
-                      selected={selected.includes(row.item.id)}
-                      editing={editing === row.item.id}
+                      shouldShowPage={query !== ''}
+                      isSelected={selected.includes(row.item.id)}
+                      isEditing={editing === row.item.id}
                       onEdit={() => setEditing(row.item.id)}
                       onWarn={toast}
                       onEndEdit={() => setEditing(null)}
-                      onOpenAttachment={openAttachment}
-                      onFiles={files => attachTo(row.item.id, files)}
+                      onOpenAttachment={a => void openAttachment(a)}
+                      onFiles={files => void attachTo(row.item.id, files)}
                       onClick={e => selectRow(index, e)}
                       selectionCount={selected.length}
                       onCopy={() =>
@@ -564,7 +594,7 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
                 ))}
                 {/* Collapsed done rows are not in `rows`, so the heading
                     has no row to sit above and goes at the end instead. */}
-                {doneCollapsed && doneHeader}
+                {isDoneCollapsed && doneHeader}
               </SortableContext>
             </DndContext>
           )}
@@ -580,10 +610,10 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
               {/* A mixed selection checks everything rather than flipping each
                 item, which would only swap the mix around. */}
               <IconButton
-                label={allSelectedDone ? 'Unmark done' : 'Mark done'}
-                onClick={() => void store.setDone(selected, !allSelectedDone)}
+                label={areAllSelectedDone ? 'Unmark done' : 'Mark done'}
+                onClick={() => void store.setDone(selected, !areAllSelectedDone)}
               >
-                {allSelectedDone ? <SquareIcon /> : <CheckSquareIcon />}
+                {areAllSelectedDone ? <SquareIcon /> : <CheckSquareIcon />}
               </IconButton>
               {selected.length > 1 && (
                 <IconButton
@@ -662,8 +692,8 @@ export default function App({ menu, notice }: { menu?: ReactNode; notice?: React
         </div>
 
         <PagePalette
-          open={palette}
-          onOpenChange={setPalette}
+          isOpen={isPaletteOpen}
+          onOpenChange={setIsPaletteOpen}
           pages={snap.pages}
           active={snap.active}
           onPick={name => void store.setActive(name)}
@@ -706,30 +736,11 @@ function IconButton({
   );
 }
 
-type RowProps = {
-  row: Row;
-  showPage: boolean;
-  selected: boolean;
-  editing: boolean;
-  selectionCount: number;
-  onEdit: () => void;
-  onEndEdit: () => void;
-  onWarn: (message: string) => void;
-  onOpenAttachment: (a: Attachment) => void;
-  /// Files pasted while editing this row, or dropped onto it.
-  onFiles: (files: File[]) => void;
-  onClick: (e: React.MouseEvent) => void;
-  onCopy: () => void;
-  onMerge: () => void;
-  onDelete: () => void;
-  canDrag: boolean;
-};
-
 function ItemRow({
   row,
-  showPage,
-  selected,
-  editing,
+  shouldShowPage,
+  isSelected,
+  isEditing,
   selectionCount,
   onEdit,
   onEndEdit,
@@ -741,7 +752,24 @@ function ItemRow({
   onMerge,
   onDelete,
   canDrag,
-}: RowProps) {
+}: {
+  row: Row;
+  shouldShowPage: boolean;
+  isSelected: boolean;
+  isEditing: boolean;
+  selectionCount: number;
+  onEdit: () => void;
+  onEndEdit: () => void;
+  onWarn: (message: string) => void;
+  onOpenAttachment: (a: Attachment) => void;
+  /** Files pasted while editing this row, or dropped onto it. */
+  onFiles: (files: File[]) => void;
+  onClick: (e: React.MouseEvent) => void;
+  onCopy: () => void;
+  onMerge: () => void;
+  onDelete: () => void;
+  canDrag: boolean;
+}) {
   const host = useHost();
   const store = useStore();
   const { item } = row;
@@ -759,12 +787,12 @@ function ItemRow({
   });
   const editRef = useRef<HTMLParagraphElement>(null);
   // Esc discards, so it asks once before throwing typing away.
-  const discardArmed = useRef(false);
+  const isDiscardArmedRef = useRef(false);
 
   useEffect(() => {
     const el = editRef.current;
-    if (!editing || !el) return;
-    discardArmed.current = false;
+    if (!isEditing || !el) return;
+    isDiscardArmedRef.current = false;
     el.focus();
     const range = document.createRange();
     range.selectNodeContents(el);
@@ -772,7 +800,7 @@ function ItemRow({
     const selection = getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
-  }, [editing]);
+  }, [isEditing]);
 
   return (
     <ContextMenu>
@@ -788,18 +816,20 @@ function ItemRow({
             onDoubleClick={onEdit}
             className={cn(
               'flex cursor-default gap-2 rounded-md px-2 py-1.5',
-              selected ? 'bg-accent shadow-[inset_2px_0_0_0_var(--primary)]' : 'hover:bg-accent/50',
+              isSelected
+                ? 'bg-accent shadow-[inset_2px_0_0_0_var(--primary)]'
+                : 'hover:bg-accent/50',
               // The row itself follows the pointer, so lift it above its
               // neighbours while it travels across them.
               isDragging && 'relative z-10 bg-accent shadow-md',
               // A file held over this row will join it, not the composer.
-              drop.over && 'bg-accent ring-2 ring-ring/60 ring-inset',
+              drop.isOver && 'bg-accent ring-2 ring-ring/60 ring-inset',
             )}
           />
         }
       >
         <Checkbox
-          checked={item.done}
+          checked={item.isDone}
           onCheckedChange={() => void store.toggleItem(item.id)}
           onClick={e => e.stopPropagation()}
           className="mt-0.5"
@@ -812,13 +842,13 @@ function ItemRow({
               if (a) onOpenAttachment(a);
             }}
             onRemove={t => void store.detach(item.id, t.key)}
-            className={cn('py-0.5', body || editing ? 'mb-1.5' : '')}
+            className={cn('py-0.5', body || isEditing ? 'mb-1.5' : '')}
           />
           <p
             ref={editRef}
-            contentEditable={editing}
+            contentEditable={isEditing}
             suppressContentEditableWarning
-            onClick={e => editing && e.stopPropagation()}
+            onClick={e => isEditing && e.stopPropagation()}
             onPaste={e => {
               const files = filesFrom(e.clipboardData);
               if (files.length === 0) return;
@@ -832,15 +862,15 @@ function ItemRow({
             }}
             onKeyDown={e => {
               if (e.nativeEvent.isComposing) return;
-              if (e.key !== 'Escape') discardArmed.current = false;
+              if (e.key !== 'Escape') isDiscardArmedRef.current = false;
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 e.currentTarget.blur();
               } else if (e.key === 'Escape') {
                 e.preventDefault();
                 const el = e.currentTarget;
-                if (el.innerText !== body && !discardArmed.current) {
-                  discardArmed.current = true;
+                if (el.innerText !== body && !isDiscardArmedRef.current) {
+                  isDiscardArmedRef.current = true;
                   onWarn('Esc again to discard changes');
                   return;
                 }
@@ -850,16 +880,16 @@ function ItemRow({
             }}
             className={cn(
               'text-sm break-words whitespace-pre-wrap',
-              item.done && !editing && 'text-muted-foreground line-through',
+              item.isDone && !isEditing && 'text-muted-foreground line-through',
               // An item that is only its attachments has no text line to show,
               // but still needs somewhere to type when edited.
-              !body && !editing && 'hidden',
-              editing && '-mx-1 -my-0.5 min-h-5 rounded-sm px-1 py-0.5 outline-2 outline-ring',
+              !body && !isEditing && 'hidden',
+              isEditing && '-mx-1 -my-0.5 min-h-5 rounded-sm px-1 py-0.5 outline-2 outline-ring',
             )}
           >
             {body}
           </p>
-          {showPage && <span className="text-[11px] text-muted-foreground">{row.page}</span>}
+          {shouldShowPage && <span className="text-[11px] text-muted-foreground">{row.page}</span>}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

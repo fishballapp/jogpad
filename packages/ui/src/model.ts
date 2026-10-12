@@ -1,10 +1,12 @@
-export type Item = { id: number; text: string; done: boolean };
+export type Item = { id: number; text: string; isDone: boolean };
 export type Page = { name: string; items: Item[] };
 export type Doc = { pages: Page[] };
 export const DEFAULT_PAGE = 'Inbox';
 
-/// A file kept beside notes.md. `ref` is the path as written in the file,
-/// `attachments/<hash>.<ext>`; `name` is what the user called it.
+/**
+ * A file kept beside notes.md. `ref` is the path as written in the file,
+ * `attachments/<hash>.<ext>`; `name` is what the user called it.
+ */
 export type Attachment = { name: string; ref: string };
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'heic']);
@@ -40,33 +42,26 @@ export function joinItem(attachments: Attachment[], body: string): string {
   return lines.join('\n');
 }
 
-/// Every attachment ref the document mentions. What is on disk should be
-/// exactly this set; the store keeps it so.
-export function docRefs(doc: Doc): Set<string> {
-  const refs = new Set<string>();
-  for (const page of doc.pages) {
-    for (const item of page.items) {
-      for (const a of splitItem(item.text).attachments) refs.add(a.ref);
-    }
-  }
-  return refs;
+/**
+ * Every attachment ref the document mentions. What is on disk should be
+ * exactly this set; the store keeps it so.
+ */
+export function docRefs({ pages }: Doc): Set<string> {
+  return new Set(
+    pages.flatMap(({ items }) =>
+      items.flatMap(({ text }) => splitItem(text).attachments.map(a => a.ref)),
+    ),
+  );
 }
 
-/// Whether an item has anything in it. Attachments count: a picture with
-/// nothing written under it is still an item.
+/** Attachments count: a picture with nothing written under it is still an item. */
 export const isBlankItem = (text: string) => text.trim() === '';
 
 let nextId = 1;
 
 function splitLines(text: string): string[] {
   if (!text) return [];
-  let s = text;
-  if (s.endsWith('\r\n')) {
-    s = s.slice(0, -2);
-  } else if (s.endsWith('\n')) {
-    s = s.slice(0, -1);
-  }
-  return s.split(/\r?\n/);
+  return text.replace(/\r?\n$/, '').split(/\r?\n/);
 }
 
 export function parseDoc(markdown: string): Doc {
@@ -75,37 +70,29 @@ export function parseDoc(markdown: string): Doc {
 
   for (const line of splitLines(markdown)) {
     if (line.startsWith('## ')) {
-      pages.push({
-        name: line.slice(3).trim(),
-        items: [],
-      });
+      pages.push({ name: line.slice(3).trim(), items: [] });
       pendingBlanks = 0;
       continue;
     }
 
-    let bullet: { done: boolean; text: string } | null = null;
-    if (line.startsWith('- [ ] ')) {
-      bullet = { done: false, text: line.slice(6) };
-    } else if (line.startsWith('- [x] ') || line.startsWith('- [X] ')) {
-      bullet = { done: true, text: line.slice(6) };
-    } else if (line.startsWith('- ')) {
-      bullet = { done: false, text: line.slice(2) };
-    }
+    const bullet = (() => {
+      if (line.startsWith('- [ ] ')) return { isDone: false, text: line.slice(6) };
+      if (line.startsWith('- [x] ') || line.startsWith('- [X] ')) {
+        return { isDone: true, text: line.slice(6) };
+      }
+      if (line.startsWith('- ')) return { isDone: false, text: line.slice(2) };
+      return null;
+    })();
 
     if (bullet) {
-      let page = pages[pages.length - 1];
-      if (!page) {
-        page = {
-          name: DEFAULT_PAGE,
-          items: [],
-        };
-        pages.push(page);
-      }
-      page.items.push({
-        id: nextId++,
-        text: bullet.text,
-        done: bullet.done,
-      });
+      const page =
+        pages.at(-1) ??
+        (() => {
+          const inbox = { name: DEFAULT_PAGE, items: [] };
+          pages.push(inbox);
+          return inbox;
+        })();
+      page.items.push({ id: nextId++, ...bullet });
       pendingBlanks = 0;
       continue;
     }
@@ -115,55 +102,31 @@ export function parseDoc(markdown: string): Doc {
       continue;
     }
 
-    if (line.startsWith('  ')) {
-      const rest = line.slice(2);
-      const lastPage = pages[pages.length - 1];
-      const lastItem = lastPage?.items[lastPage.items.length - 1];
-      if (lastItem) {
-        for (let i = 0; i < pendingBlanks; i++) {
-          lastItem.text += '\n';
-        }
-        lastItem.text += '\n';
-        lastItem.text += rest;
-        pendingBlanks = 0;
-        continue;
-      }
+    const lastItem = line.startsWith('  ') ? pages.at(-1)?.items.at(-1) : undefined;
+    if (lastItem) {
+      lastItem.text += `${'\n'.repeat(pendingBlanks + 1)}${line.slice(2)}`;
     }
-
     pendingBlanks = 0;
   }
 
   if (pages.length === 0) {
-    pages.push({
-      name: DEFAULT_PAGE,
-      items: [],
-    });
+    pages.push({ name: DEFAULT_PAGE, items: [] });
   }
 
   return { pages };
 }
 
-export function serialiseDoc(doc: Doc): string {
-  let out = '';
-  for (const page of doc.pages) {
-    out += `## ${page.name}\n\n`;
-    for (const item of page.items) {
-      out += item.done ? '- [x] ' : '- [ ] ';
-      const lines = item.text.split('\n');
-      if (lines.length > 0) {
-        out += lines[0];
-      }
-      for (let i = 1; i < lines.length; i++) {
-        out += '\n';
-        if (lines[i] !== '') {
-          out += `  ${lines[i]}`;
-        }
-      }
-      out += '\n';
-    }
-    out += '\n';
-  }
-  return out;
+export function serialiseDoc({ pages }: Doc): string {
+  return pages
+    .map(({ name, items }) => {
+      const bullets = items.map(({ isDone, text }) => {
+        const [first = '', ...rest] = text.split('\n');
+        const continuation = rest.map(line => (line === '' ? '\n' : `\n  ${line}`)).join('');
+        return `- [${isDone ? 'x' : ' '}] ${first}${continuation}\n`;
+      });
+      return `## ${name}\n\n${bullets.join('')}\n`;
+    })
+    .join('');
 }
 
 export function normalisePageName(name: string): string | null {
@@ -194,21 +157,23 @@ export const defaultPrefs: Prefs = {
   theme: 'dark',
 };
 
-export function parsePrefs(json: string | null): { prefs: Prefs; extra: Record<string, unknown> } {
-  if (json === null) {
-    return { prefs: { ...defaultPrefs }, extra: {} };
-  }
-  let obj: unknown;
-  try {
-    obj = JSON.parse(json);
-  } catch {
-    return { prefs: { ...defaultPrefs }, extra: {} };
-  }
-  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
+export function parsePrefs(json: string | null): {
+  prefs: Prefs;
+  extra: Record<string, unknown>;
+} {
+  const parsed: unknown = (() => {
+    if (json === null) return null;
+    try {
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  })();
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     return { prefs: { ...defaultPrefs }, extra: {} };
   }
 
-  const raw = obj as Record<string, unknown>;
+  const raw: Record<string, unknown> = Object.fromEntries(Object.entries(parsed));
   const extra = Object.fromEntries(Object.entries(raw).filter(([k]) => !(k in defaultPrefs)));
   const prefs: Prefs = {
     active: typeof raw.active === 'string' ? raw.active : defaultPrefs.active,
@@ -237,50 +202,29 @@ export class Model {
   }
 
   private pageMut(name: string): Page {
-    let page = this.doc.pages.find(p => p.name === name);
-    if (!page) {
-      page = { name, items: [] };
-      this.doc.pages.push(page);
-    }
+    const existing = this.doc.pages.find(p => p.name === name);
+    if (existing) return existing;
+    const page = { name, items: [] };
+    this.doc.pages.push(page);
     return page;
   }
 
   private itemMut(id: number): Item | undefined {
-    for (const page of this.doc.pages) {
-      const item = page.items.find(i => i.id === id);
-      if (item) return item;
-    }
-    return undefined;
+    return this.doc.pages.flatMap(p => p.items).find(i => i.id === id);
   }
 
   private takeItems(ids: number[]): Item[] {
     const idSet = new Set(ids);
-    const taken: Item[] = [];
+    const taken = this.itemsInOrder(ids);
     for (const page of this.doc.pages) {
-      const kept: Item[] = [];
-      for (const item of page.items) {
-        if (idSet.has(item.id)) {
-          taken.push(item);
-        } else {
-          kept.push(item);
-        }
-      }
-      page.items = kept;
+      page.items = page.items.filter(i => !idSet.has(i.id));
     }
     return taken;
   }
 
   private itemsInOrder(ids: number[]): Item[] {
     const idSet = new Set(ids);
-    const matched: Item[] = [];
-    for (const page of this.doc.pages) {
-      for (const item of page.items) {
-        if (idSet.has(item.id)) {
-          matched.push(item);
-        }
-      }
-    }
-    return matched;
+    return this.doc.pages.flatMap(p => p.items).filter(i => idSet.has(i.id));
   }
 
   addItem(text: string, page?: string, attachments: Attachment[] = []): number | null {
@@ -295,13 +239,15 @@ export class Model {
     this.pageMut(pageName).items.push({
       id,
       text: trimmed,
-      done: false,
+      isDone: false,
     });
     return id;
   }
 
-  /// The editor only ever shows the body, so the item's attachments carry
-  /// over. An item left with no body and nothing attached is deleted.
+  /**
+   * The editor only ever shows the body, so the item's attachments carry
+   * over. An item left with no body and nothing attached is deleted.
+   */
   updateItem(id: number, body: string): boolean {
     const item = this.itemMut(id);
     if (!item) return false;
@@ -342,23 +288,21 @@ export class Model {
 
   toggleItem(id: number): boolean {
     const item = this.itemMut(id);
-    if (item) {
-      item.done = !item.done;
-      return true;
-    }
-    return false;
+    if (!item) return false;
+    item.isDone = !item.isDone;
+    return true;
   }
 
-  setDone(ids: number[], done: boolean): boolean {
-    let changed = false;
+  setDone(ids: number[], isDone: boolean): boolean {
+    let hasChanged = false;
     for (const id of ids) {
       const item = this.itemMut(id);
-      if (item && item.done !== done) {
-        item.done = done;
-        changed = true;
+      if (item && item.isDone !== isDone) {
+        item.isDone = isDone;
+        hasChanged = true;
       }
     }
-    return changed;
+    return hasChanged;
   }
 
   deleteItems(ids: number[]): boolean {
@@ -375,13 +319,8 @@ export class Model {
 
   mergeItems(ids: number[]): boolean {
     const ordered = this.itemsInOrder(ids);
-    if (ordered.length < 2) {
-      return false;
-    }
-    const first = ordered[0];
-    if (!first) {
-      return false;
-    }
+    const [first, ...others] = ordered;
+    if (!first || others.length === 0) return false;
     // Attachments of every item lead the merged one, in order, without
     // repeats; the bodies follow.
     const parts = ordered.map(i => splitItem(i.text));
@@ -400,13 +339,8 @@ export class Model {
         .filter(Boolean)
         .join('\n\n'),
     );
-    const keepId = first.id;
-    const toRemove = ordered.slice(1).map(i => i.id);
-    this.takeItems(toRemove);
-    const item = this.itemMut(keepId);
-    if (item) {
-      item.text = text;
-    }
+    this.takeItems(others.map(i => i.id));
+    first.text = text;
     return true;
   }
 
@@ -421,13 +355,9 @@ export class Model {
   renamePage(from: string, to: string): boolean {
     const normTo = normalisePageName(to);
     if (!normTo) return false;
-    if (this.doc.pages.some(s => s.name === normTo)) {
-      return false;
-    }
+    if (this.doc.pages.some(s => s.name === normTo)) return false;
     const page = this.doc.pages.find(s => s.name === from);
-    if (!page) {
-      return false;
-    }
+    if (!page) return false;
     page.name = normTo;
     if (this.prefs.active === from) {
       this.prefs.active = normTo;
@@ -472,45 +402,25 @@ export class Model {
     const taken = this.takeItems(ids);
     if (taken.length === 0) return false;
 
-    let targetPage: Page;
-    if (before !== null) {
-      const homeIndex = this.doc.pages.findIndex(p => p.items.some(i => i.id === before));
-      const found = homeIndex >= 0 ? this.doc.pages[homeIndex] : undefined;
-      targetPage = found ?? this.pageMut(normPage);
-    } else {
-      targetPage = this.pageMut(normPage);
-    }
+    const homePage =
+      before === null ? undefined : this.doc.pages.find(p => p.items.some(i => i.id === before));
+    const targetPage = homePage ?? this.pageMut(normPage);
 
-    let index = targetPage.items.length;
-    if (before !== null) {
-      const bIndex = targetPage.items.findIndex(i => i.id === before);
-      if (bIndex >= 0) {
-        index = bIndex;
-      }
-    }
+    const beforeIndex = before === null ? -1 : targetPage.items.findIndex(i => i.id === before);
+    targetPage.items.splice(beforeIndex < 0 ? targetPage.items.length : beforeIndex, 0, ...taken);
 
-    targetPage.items.splice(index, 0, ...taken);
-
-    const after = layout(this.doc.pages);
-    if (original.length !== after.length) return true;
-    for (let i = 0; i < original.length; i++) {
-      const oItems = original[i];
-      const aItems = after[i];
-      if (!oItems || !aItems || oItems.length !== aItems.length) return true;
-      for (let j = 0; j < oItems.length; j++) {
-        if (oItems[j] !== aItems[j]) return true;
-      }
-    }
-    return false;
+    return JSON.stringify(original) !== JSON.stringify(layout(this.doc.pages));
   }
 
   attachmentRefs(ids: number[]): string[] {
     return this.itemsInOrder(ids).flatMap(i => splitItem(i.text).attachments.map(a => a.ref));
   }
 
-  /// The copy is plain text. Attachments come first as paths the reader can
-  /// open, `pathOf` turning a ref into one that means something outside
-  /// this app.
+  /**
+   * The copy is plain text. Attachments come first as paths the reader can
+   * open, `pathOf` turning a ref into one that means something outside
+   * this app.
+   */
   listText(ids: number[], pathOf: (ref: string) => string = ref => ref): string {
     const items = this.itemsInOrder(ids);
     const render = (item: Item) => {
@@ -544,18 +454,16 @@ export class Model {
     this.prefs.theme = theme;
   }
 
-  setCheckOnCopy(value: boolean): void {
-    this.prefs.check_on_copy = value;
+  setCheckOnCopy(shouldCheckOnCopy: boolean): void {
+    this.prefs.check_on_copy = shouldCheckOnCopy;
   }
 
-  setGroupDone(value: boolean): void {
-    this.prefs.group_done = value;
+  setGroupDone(shouldGroupDone: boolean): void {
+    this.prefs.group_done = shouldGroupDone;
   }
 
   setUpdateChannel(channel: UpdateChannel): boolean {
-    if (this.prefs.update_channel === channel) {
-      return false;
-    }
+    if (this.prefs.update_channel === channel) return false;
     this.prefs.update_channel = channel;
     return true;
   }

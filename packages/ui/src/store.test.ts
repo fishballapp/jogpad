@@ -3,8 +3,10 @@ import type { FileName, Host } from './host.ts';
 import { parseDoc } from './model.ts';
 import { createStore } from './store.ts';
 
-/// A host whose writes complete out of order (each one slower than the next)
-/// and that echoes every write back as a change event, like the desktop.
+/**
+ * A host whose writes complete out of order (each one slower than the next)
+ * and that echoes every write back as a change event, like the desktop.
+ */
 function slowHost() {
   const disk = new Map<FileName, string>();
   const watchers = new Map<FileName, Set<() => void>>();
@@ -57,7 +59,7 @@ function slowHost() {
       setTheme: async () => {},
     },
     permissions: {
-      status: async () => ({ trusted: true, inputMonitoring: true }),
+      status: async () => ({ isTrusted: true, isInputMonitoringGranted: true }),
       onChange: async () => () => {},
       request: async () => {},
     },
@@ -94,7 +96,7 @@ test('brackets in a file name cannot break the link', async () => {
   expect(text).toBe('![reportfinalv2.png](attachments/reportfinalv2.png)\nx');
 });
 
-/// Enough of a File for the store: a name and bytes.
+/** Enough of a File for the store: a name and bytes. */
 const fakeFile = (name: string) =>
   ({ name, type: '', arrayBuffer: async () => new ArrayBuffer(0) }) as unknown as File;
 
