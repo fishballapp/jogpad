@@ -14,6 +14,10 @@ dist
 AGENTS.md
 PRODUCT.md
 DESIGN.md
+DECISIONS.md
+ROADMAP.md
+ARCHITECTURE.md
+HANDOFF.md
 docs/
 .impeccable/
 .aibridge/
