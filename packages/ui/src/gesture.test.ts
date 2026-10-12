@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { expect, test } from 'vitest';
 import { runGesture } from './gesture.ts';
 import type { Host } from './host.ts';
 import type { Store } from './store.ts';
@@ -33,13 +32,13 @@ function createSpies() {
 test('focused: only hide', async () => {
   const { calls, store, host } = createSpies();
   await runGesture({ focused: true, selection: 'hello' }, store, host);
-  assert.deepEqual(calls, [{ name: 'hide' }]);
+  expect(calls).toEqual([{ name: 'hide' }]);
 });
 
 test('selection: capture then show({focus: false}) in that order', async () => {
   const { calls, store, host } = createSpies();
   await runGesture({ focused: false, selection: 'selected text' }, store, host);
-  assert.deepEqual(calls, [
+  expect(calls).toEqual([
     { name: 'capture', arg: 'selected text' },
     { name: 'show', arg: { focus: false } },
   ]);
@@ -48,7 +47,7 @@ test('selection: capture then show({focus: false}) in that order', async () => {
 test('neither: show({focus: true}), then the composer is asked for focus', async () => {
   const { calls, store, host } = createSpies();
   await runGesture({ focused: false, selection: null }, store, host);
-  assert.deepEqual(calls, [
+  expect(calls).toEqual([
     { name: 'show', arg: { focus: true } },
     { name: 'emit', arg: 'focus-input' },
   ]);

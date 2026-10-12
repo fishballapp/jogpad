@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { expect, test } from 'vitest';
 import { createMemoryAttachments } from './memory-attachments.ts';
 
 test('copying a PNG supplies a matching MIME type to ClipboardItem', async () => {
@@ -23,12 +22,18 @@ test('copying a PNG supplies a matching MIME type to ClipboardItem', async () =>
     const bytes = new Uint8Array([137, 80, 78, 71]);
     const ref = await attachments.put(bytes, 'shot.png');
     await attachments.copyImage(ref);
-    assert.equal(copied?.type, 'image/png');
-    assert.deepEqual(new Uint8Array(await copied.arrayBuffer()), bytes);
+    expect(copied?.type).toBe('image/png');
+    expect(new Uint8Array(await copied!.arrayBuffer())).toEqual(bytes);
   } finally {
-    if (clipboardDescriptor) Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
-    else Reflect.deleteProperty(navigator, 'clipboard');
-    if (itemDescriptor) Object.defineProperty(globalThis, 'ClipboardItem', itemDescriptor);
-    else Reflect.deleteProperty(globalThis, 'ClipboardItem');
+    if (clipboardDescriptor) {
+      Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+    } else {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    }
+    if (itemDescriptor) {
+      Object.defineProperty(globalThis, 'ClipboardItem', itemDescriptor);
+    } else {
+      Reflect.deleteProperty(globalThis, 'ClipboardItem');
+    }
   }
 });
