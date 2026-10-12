@@ -1,12 +1,11 @@
-name: release
+name: CD
 
-# Tag a version to cut a release: git tag v0.1.0 && git push --tags
-# The DMG lands on a draft release, so nothing goes public until you say so.
-#
-# Every push to main also builds a dev release, published straight away and
-# served to the Dev update channel. Its version is package.json's with
-# `.dev.<commit count>` appended, which sorts above the beta it came from and
-# below the next one. Only the newest three are kept.
+# Every gate (ci.yml) runs first, then:
+# - A v* tag builds that version's release. The DMG lands on a draft release, so nothing goes
+#   public until someone publishes it.
+# - Every push to main builds a dev release, published straight away and served to the Dev update
+#   channel. Its version is package.json's with `.dev.<commit count>` appended, which sorts above
+#   the beta it came from and below the next one. Only the newest three are kept.
 on:
   push:
     tags: ["v*"]
@@ -20,10 +19,18 @@ concurrency:
   cancel-in-progress: ${{ github.ref_type == 'branch' }}
 
 jobs:
-  build:
+  gates:
+    name: Gates
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Build, sign, release
+    needs: gates
     # DMGs need hdiutil, codesign and the AppleScript that styles the mount
     # window. None of that exists off macOS. Free for public repos.
     runs-on: macos-latest
+    # Holds JOGPAD_OP_TOKEN, which only main and v* tags can reach.
+    environment: production
     permissions:
       contents: write
       # To redeploy the site after a dev release. GITHUB_TOKEN publishing a
@@ -31,7 +38,7 @@ jobs:
       actions: write
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           # The dev version counts commits.
           fetch-depth: 0
@@ -40,7 +47,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version-file: package.json
+          node-version: 26
           cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
@@ -54,16 +61,6 @@ jobs:
           workspaces: apps/desktop/src-tauri
 
       - run: pnpm install --frozen-lockfile
-
-      - run: pnpm typecheck
-
-      - run: pnpm test
-
-      - name: astro check
-        run: pnpm -r check
-
-      - name: cargo test
-        run: pnpm -F @jogpad/desktop rust:test
 
       # Dev builds get their version from package.json plus the commit count,
       # written into tauri.conf.json, which is where both Tauri and
@@ -175,12 +172,20 @@ jobs:
       # value is masked here before anything can print it.
       - name: Load Apple and updater credentials
         env:
-          OP_TOKEN: ${{ secrets.OP_SA_TOKEN }}
+          OP_TOKEN: ${{ secrets.JOGPAD_OP_TOKEN }}
         run: |
           set -euo pipefail
+          # shellcheck disable=SC2016 # the ${} below are JavaScript's
           pnpm -F @jogpad/desktop exec varlock load --format json | node -e '
             const fs = require("fs");
             const env = JSON.parse(fs.readFileSync(0, "utf8"));
+            // Tauri reads the Apple credentials under its own names.
+            const TAURI_NAMES = {
+              MAC_NATIVE_APP_APPLE_CERTIFICATE: "APPLE_CERTIFICATE",
+              MAC_NATIVE_APP_APPLE_CERTIFICATE_PASSWORD: "APPLE_CERTIFICATE_PASSWORD",
+              ASC_KEY_ID: "APPLE_API_KEY",
+              ASC_ISSUER_ID: "APPLE_API_ISSUER",
+            };
             const out = [];
             // The runner decodes %25, %0D and %0A in command data before it
             // registers a mask, so escape them or a different string is hidden.
@@ -191,7 +196,7 @@ jobs:
             for (const [name, value] of Object.entries(env)) {
               if (name === "OP_TOKEN" || value == null) continue;
               mask(String(value));
-              if (name === "APPLE_API_KEY_P8_BASE64") {
+              if (name === "ASC_API_KEY_P8_BASE64") {
                 // notarytool and Tauri take the App Store Connect key as a file.
                 const dir = `${process.env.RUNNER_TEMP}/private_keys`;
                 const pem = Buffer.from(value, "base64").toString("utf8");
@@ -200,7 +205,7 @@ jobs:
                 fs.writeFileSync(`${dir}/AuthKey.p8`, pem, { mode: 0o600 });
                 out.push(`APPLE_API_KEY_PATH=${dir}/AuthKey.p8`);
               } else {
-                out.push(`${name}=${value}`);
+                out.push(`${TAURI_NAMES[name] ?? name}=${value}`);
               }
             }
             fs.appendFileSync(process.env.GITHUB_ENV, out.join("\n") + "\n");

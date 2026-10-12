@@ -1,66 +1,64 @@
-name: ci
+name: CI
 
+# Every gate, on every branch but main; cd.yml calls this again before it builds anything from
+# main or a tag. Runners cost nothing on a public repo, so no suite is skipped by path.
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches-ignore: [main]
+  workflow_call:
 
-# A newer push makes the running check irrelevant.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push to a branch supersedes the one under test.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   check:
-    # The crate pulls in AppKit, CoreGraphics and IOKit, and Tauri needs a
-    # webview to link against, so this cannot run on Linux even though the
-    # tests themselves are platform independent.
-    runs-on: macos-latest
-
+    name: Check · typecheck · test · build
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-
+      - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
-
       - uses: actions/setup-node@v6
         with:
-          node-version-file: package.json
+          node-version: 26
           cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm repojj:check
+      - run: pnpm typecheck
+      - run: pnpm test
+      # astro check: the only gate that reads .astro files.
+      - run: pnpm -r check
+      # The site fetches the releases list to write the update manifests.
+      - run: pnpm build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
+  # The crate links AppKit, CoreGraphics and IOKit, and Tauri needs a webview to link against, so
+  # these run on macOS even though the tests themselves are platform independent.
+  rust:
+    name: Rust · fmt · clippy · test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri
-
       - run: pnpm install --frozen-lockfile
-
-      - name: repojj
-        run: pnpm repojj:check
-
-      - name: biome
-        run: pnpm check
-
-      - run: pnpm typecheck
-
-      - run: pnpm test
-
-      - name: astro check
-        run: pnpm -r check
-
-      # The site fetches the releases list to write the update manifests.
-      - name: Build the front end and the site
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: pnpm build
-
-      - name: cargo fmt
-        run: pnpm -F @jogpad/desktop rust:fmt
-
-      - name: cargo clippy
-        run: pnpm -F @jogpad/desktop rust:clippy
-
-      - name: cargo test
-        run: pnpm -F @jogpad/desktop rust:test
+      # Tauri embeds the built front end at compile time.
+      - run: pnpm -F @jogpad/desktop build
+      - run: pnpm -F @jogpad/desktop rust:fmt
+      - run: pnpm -F @jogpad/desktop rust:clippy
+      - run: pnpm -F @jogpad/desktop rust:test

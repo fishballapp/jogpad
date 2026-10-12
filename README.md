@@ -60,7 +60,7 @@ Add a `## <version>` section to `CHANGELOG.md`, bump the version in
 git tag v0.1.6 && git push --tags
 ```
 
-[The workflow](.github/workflows/release.yml) refuses a tag with no changelog
+[The workflow](.github/workflows/cd.yml) refuses a tag with no changelog
 section, builds a signed and notarised universal DMG on a macOS runner, and
 attaches it to a draft release. Nothing goes public until you publish the
 draft.
