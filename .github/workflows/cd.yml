@@ -1,8 +1,8 @@
 name: CD
 
 # Every gate (ci.yml) runs first, then:
-# - A v* tag builds that version's release. The DMG lands on a draft release, so nothing goes
-#   public until someone publishes it.
+# - A v* tag on a commit of main builds that version's release. The DMG lands on a draft release,
+#   so nothing goes public until someone publishes it.
 # - Every push to main builds a dev release, published straight away and served to the Dev update
 #   channel. Its version is package.json's with `.dev.<commit count>` appended, which sorts above
 #   the beta it came from and below the next one. Only the newest three are kept.
@@ -40,8 +40,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          # The dev version counts commits.
+          # The dev version counts commits, and the guard below needs main.
           fetch-depth: 0
+
+      - name: Guard (a tag on main only)
+        if: github.ref_type == 'tag'
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME is not on main; only a commit of main is released."
+            exit 1
+          fi
 
       - uses: pnpm/action-setup@v6
 
