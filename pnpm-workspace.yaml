@@ -1,37 +1,34 @@
 packages:
-  - apps/*
-  - packages/*
-
+  - apps/desktop
+  - apps/site
+  - packages/ui
 autoInstallPeers: true
 strictPeerDependencies: false
-
-# Refuse to resolve any version younger than a week. Explicit on purpose:
-# under pnpm's implicit default a too-young version is allowlisted and installed anyway.
 minimumReleaseAge: 10080
-
-# Versions live here and nowhere else. `strict` makes pnpm reject a dependency
-# added outside a catalog instead of silently pinning a second version.
+minimumReleaseAgeExclude:
+  - effect@4.0.0
+  - "@effect/vitest@4.0.0"
+  - "@effect/platform-node@4.0.0"
+  - "@effect/platform-node-shared@4.0.0"
+  - "@effect/sql-d1@4.0.0"
+  - "@effect/atom-react@4.0.0"
+  - undici@8.11.2
+  - ws@8.22.0
+  - "@cloudflare/workers-types@5.20260926.1"
 catalogMode: strict
 cleanupUnusedCatalogs: true
-
-# One @types/node across the tree, whatever a dependency asks for.
 overrides:
   "@types/node": "catalog:"
-
+  "@babel/core": "catalog:"
 allowBuilds:
   "@biomejs/biome": true
   esbuild: true
-  # lefthook's binary ships via optionalDependencies; its postinstall only runs
-  # `lefthook install`, which the root prepare script already does.
-  lefthook: false
-  # Astro depends on sharp, which loads its prebuilt binary without the install
-  # script. The site never processes images.
   sharp: false
-
 catalog:
   "@astrojs/check": ^0.9.10
   "@astrojs/react": ^6.0.5
   "@astrojs/sitemap": ^3.7.4
+  "@babel/core": ^7.29.7
   "@base-ui/react": ^1.8.0
   "@biomejs/biome": ^2.5.13
   "@dnd-kit/core": ^6.3.1
@@ -53,7 +50,6 @@ catalog:
   astro: ^7.3.2
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
-  lefthook: ^2.1.14
   repojj: ^2026.7.29
   semver: ^7.7.1
   shadcn: ^4.19.0
@@ -64,11 +60,7 @@ catalog:
   varlock: ^1.19.0
   vite: ^8.3.0
   vitest: ^5.0.1
-
 catalogs:
-  # `astro check` loads the compiler in-process, and TypeScript 7 ships no JS
-  # compiler API until 7.1. Only the site takes 6, under the `typescript` name
-  # its @astrojs/check peer resolves to.
   ts6:
     typescript: npm:@typescript/typescript6@~6.0.2
   web:

@@ -53,21 +53,22 @@ pnpm -F @jogpad/desktop rust:test    # the double-tap detector and the file path
 
 ## Releasing
 
-Add a `## <version>` section to `CHANGELOG.md`, bump the version in
-`apps/desktop`, then tag it:
-
-```sh
-git tag v0.1.6 && git push --tags
-```
-
-[The workflow](.github/workflows/cd.yml) refuses a tag with no changelog
-section, builds a signed and notarised universal DMG on a macOS runner, and
-attaches it to a draft release. Nothing goes public until you publish the
-draft.
+A release is built by [the workflow](.github/workflows/cd.yml), run by a version
+tag (`v<version>`) on a commit of `main`. It refuses a tag with no `## <version>`
+section in `CHANGELOG.md` or one that differs from `apps/desktop/package.json`,
+builds a signed and notarised universal DMG on a macOS runner, and attaches it
+to a draft release. Nothing goes public until the draft is published.
 
 Every push to `main` also publishes a dev build on its own, served to the Dev
 update channel in Settings. Stable, Beta and Dev are a toggle there, not
 separate installs.
+
+## Contributing
+
+This repository is an exported copy of a private monorepo, so a pull request
+merged here would be lost on the next export. Open an issue and describe the
+change, with a diff if you have one; it will be applied at the source and
+credited.
 
 ## Licence
 

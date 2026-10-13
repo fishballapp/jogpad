@@ -9,16 +9,3 @@ dist
 
 # The updater's signing key, if one is ever generated here. It lives in 1Password.
 .updater/
-
-# Local notes and tool state, never part of the repo.
-AGENTS.md
-PRODUCT.md
-DESIGN.md
-DECISIONS.md
-ROADMAP.md
-ARCHITECTURE.md
-HANDOFF.md
-docs/
-.impeccable/
-.aibridge/
-/launch-video/
