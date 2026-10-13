@@ -146,7 +146,8 @@ jobs:
               echo 'body<<RELEASE_NOTES_EOF'
               echo "Dev build of main at ${GITHUB_SHA:0:7}. Served to the Dev update channel; not for general use."
               echo
-              git log -1 --format='%s%n%n%b'
+              # The commit message, less the `ref-hash:` trailer naming the source commit it was exported from.
+              printf '%s\n' "$(git log -1 --format=%B | sed '/^ref-hash: /d')"
               echo 'RELEASE_NOTES_EOF'
             } >> "$GITHUB_OUTPUT"
             exit 0
