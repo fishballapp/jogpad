@@ -173,9 +173,10 @@ jobs:
             echo 'RELEASE_NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
 
-      # The credentials live in a 1Password Environment (apps/desktop/.env.schema);
-      # varlock resolves them with a read-only service-account token and fails
-      # here if any is missing. They reach later steps through GITHUB_ENV.
+      # The credentials live in two 1Password Environments
+      # (apps/desktop/.env.schema); varlock resolves them with a read-only
+      # service-account token and fails here if either is unreadable or any
+      # value is missing. They reach later steps through GITHUB_ENV.
       # GitHub only masks values that come from `secrets`, so each line of each
       # value is masked here before anything can print it.
       - name: Load Apple and updater credentials
