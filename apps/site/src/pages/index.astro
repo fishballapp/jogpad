@@ -6,9 +6,13 @@
 // First viewport: headline, lede and the giant key on the left, the live pad
 // at real size on the right, the Download and GitHub keys under the key.
 import "@fontsource-variable/bricolage-grotesque/opsz.css";
+import "../styles/site.css";
 import { fetchPublishedReleases, highestRelease, dmgUrl } from "../lib/releases";
 import { demoMarkdown } from "../web-host";
 import { Demo } from "../components/Demo";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import { repoUrl } from "../links";
 
 const { downloadUrl, latestVersion } = await (async () => {
   try {
@@ -26,7 +30,6 @@ const { downloadUrl, latestVersion } = await (async () => {
 // GitHub resolves /releases/latest to the newest non-prerelease, so the
 // fallback never lands someone on a beta or dev build.
 const latestReleaseUrl = "https://github.com/fishballapp/jogpad/releases/latest";
-const repoUrl = "https://github.com/fishballapp/jogpad";
 const site = Astro.site?.toString() ?? "https://jogpad.fishball.app/";
 const title = "JogPad - select text anywhere on your Mac, tap Shift twice";
 const description =
@@ -38,20 +41,23 @@ const ogImageAlt =
   "Shift Shift. A giant Shift keycap beside the JogPad pad, with the line: select text in any app, tap Shift twice, it lands in a pad that stays out of your way.";
 const screenshotAlt =
   "JogPad, a narrow sidebar listing captured snippets with checkboxes and a prompt input at the bottom";
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "JogPad",
-  description,
-  url: site,
-  image: screenshotUrl,
-  applicationCategory: "UtilitiesApplication",
-  operatingSystem: "macOS",
-  license: "https://opensource.org/licenses/MIT",
-  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-  ...(latestVersion ? { softwareVersion: latestVersion.replace(/^v/, "") } : {}),
-  ...(downloadUrl ? { downloadUrl } : {}),
-};
+const jsonLdBlocks = [
+  { "@context": "https://schema.org", "@type": "WebSite", name: "JogPad", url: site },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "JogPad",
+    description,
+    url: site,
+    image: screenshotUrl,
+    applicationCategory: "UtilitiesApplication",
+    operatingSystem: "macOS",
+    license: "https://opensource.org/licenses/MIT",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    ...(latestVersion ? { softwareVersion: latestVersion.replace(/^v/, "") } : {}),
+    ...(downloadUrl ? { downloadUrl } : {}),
+  },
+];
 
 // The first page of the demo file, shown as the file it really is.
 const fileExcerpt = (demoMarkdown.split("\n## ")[0] ?? demoMarkdown).trimEnd();
@@ -80,9 +86,11 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
     <meta name="description" content={description} />
     <link rel="canonical" href={site} />
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#e3e3df" />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="JogPad" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={site} />
@@ -91,216 +99,16 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
     <meta property="og:image:height" content="1260" />
     <meta property="og:image:alt" content={ogImageAlt} />
     <meta name="twitter:card" content="summary_large_image" />
-    <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    {
+      jsonLdBlocks.map(block => (
+        <script
+          is:inline
+          type="application/ld+json"
+          set:html={JSON.stringify(block).replaceAll("<", "\\u003c")}
+        />
+      ))
+    }
     <style is:global>
-      :root {
-        --font-display: "Bricolage Grotesque Variable", "Helvetica Neue", Arial, sans-serif;
-        --font-legend: -apple-system, BlinkMacSystemFont, "SF Pro", "Helvetica Neue", Arial, sans-serif;
-        --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-
-        /* The Magic Keyboard: aluminium deck, white caps, black legends, and
-           the one blue macOS keeps for the thing you are about to do. */
-        --deck: #e3e3df;
-        --deck-deep: #cfcfca;
-        --cap: #fbfbf9;
-        --cap-side: #b3b3ad;
-        --cap-ink: #1d1d1f;
-        --cap-ink-side: #050506;
-        --ink: #1d1d1f;
-        --ink-soft: #55555b;
-        --blue: #0a6cff;
-        --blue-ink: #ffffff;
-        --wall: 4px;
-      }
-
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      ::selection {
-        background-color: var(--blue);
-        color: var(--blue-ink);
-      }
-
-      :focus-visible {
-        outline: 3px solid var(--blue);
-        outline-offset: 4px;
-        border-radius: 0.25rem;
-      }
-
-      html {
-        background-color: var(--deck);
-        scroll-behavior: smooth;
-        scrollbar-color: var(--cap-side) var(--deck);
-      }
-
-      body {
-        font-family: var(--font-display);
-        font-optical-sizing: auto;
-        font-size: 1.0625rem;
-        line-height: 1.55;
-        color: var(--ink);
-        background-color: var(--deck);
-        caret-color: var(--blue);
-        -webkit-font-smoothing: antialiased;
-      }
-
-      a {
-        color: var(--ink);
-        text-decoration: underline;
-        text-decoration-color: color-mix(in srgb, var(--ink) 35%, transparent);
-        text-decoration-thickness: 1.5px;
-        text-underline-offset: 0.18em;
-      }
-
-      a:hover {
-        text-decoration-color: var(--blue);
-        color: var(--blue);
-      }
-
-      .container {
-        max-width: calc(1180px + 2 * clamp(1rem, 5vw, 3.5rem));
-        padding-inline: clamp(1rem, 5vw, 3.5rem);
-        margin-inline: auto;
-      }
-
-      /* ---------- keycaps ---------- */
-
-      /* Every key on the page is the same object: a white cap with a short
-         wall under it, sitting on the deck. Pressing sinks the cap onto the
-         wall. A black cap is the keyboard viewer's pressed-key inversion. */
-      .cap {
-        --cap-wall: var(--wall);
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-family: var(--font-legend);
-        color: var(--cap-ink);
-        background: var(--cap);
-        border: 0;
-        border-radius: 0.45em;
-        box-shadow:
-          inset 0 1px 0 #fff,
-          0 var(--cap-wall) 0 var(--cap-side),
-          0 calc(var(--cap-wall) + 2px) 6px -2px rgba(20, 20, 22, 0.22);
-        transition: transform 70ms cubic-bezier(0.2, 0, 0, 1), box-shadow 70ms cubic-bezier(0.2, 0, 0, 1);
-        user-select: none;
-        -webkit-user-select: none;
-      }
-
-      .cap.is-down,
-      .cap:active {
-        transform: translateY(calc(var(--cap-wall) - 1px));
-        box-shadow:
-          inset 0 1px 0 #fff,
-          0 1px 0 var(--cap-side),
-          0 2px 3px -1px rgba(20, 20, 22, 0.25);
-      }
-
-      .cap-ink {
-        background: var(--cap-ink);
-        color: var(--cap);
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.14),
-          0 var(--cap-wall) 0 var(--cap-ink-side),
-          0 calc(var(--cap-wall) + 2px) 8px -2px rgba(20, 20, 22, 0.45);
-      }
-
-      .cap-ink.is-down,
-      .cap-ink:active {
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.14),
-          0 1px 0 var(--cap-ink-side),
-          0 2px 3px -1px rgba(20, 20, 22, 0.35);
-      }
-
-      /* A key that goes somewhere. Legend layout is the Apple modifier key:
-         glyph top-right, name bottom-left. */
-      a.cap {
-        text-decoration: none;
-        justify-content: flex-start;
-        align-items: flex-end;
-        min-width: 11.5rem;
-        min-height: 5.75rem;
-        padding: 0.7rem 0.9rem;
-        font-size: 1.05rem;
-        font-weight: 500;
-        letter-spacing: -0.01em;
-        line-height: 1.15;
-      }
-
-      a.cap:hover {
-        color: var(--cap-ink);
-        transform: translateY(-1px);
-        box-shadow:
-          inset 0 1px 0 #fff,
-          0 calc(var(--cap-wall) + 1px) 0 var(--cap-side),
-          0 calc(var(--cap-wall) + 4px) 10px -2px rgba(20, 20, 22, 0.28);
-      }
-
-      a.cap.cap-ink:hover {
-        color: var(--cap);
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.14),
-          0 calc(var(--cap-wall) + 1px) 0 var(--cap-ink-side),
-          0 calc(var(--cap-wall) + 4px) 12px -2px rgba(20, 20, 22, 0.5);
-      }
-
-      a.cap:active {
-        transform: translateY(calc(var(--cap-wall) - 1px));
-      }
-
-      a.cap .glyph {
-        position: absolute;
-        top: 0.65rem;
-        right: 0.8rem;
-        width: 1.1rem;
-        height: 1.1rem;
-      }
-
-      a.cap .glyph svg {
-        display: block;
-        width: 100%;
-        height: 100%;
-      }
-
-      a.cap small {
-        display: block;
-        margin-top: 0.15rem;
-        font-size: 0.8rem;
-        font-weight: 400;
-        opacity: 0.72;
-        font-variant-numeric: tabular-nums;
-      }
-
-      /* ---------- top bar ---------- */
-
-      .top {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 0.5rem 1rem;
-        padding-block: 1.5rem 0;
-        font-size: 0.95rem;
-      }
-
-      .wordmark {
-        font-weight: 800;
-        font-size: 1.25rem;
-        letter-spacing: -0.03em;
-        text-decoration: none;
-      }
-
-      .top nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem 1.25rem;
-      }
-
       /* ---------- hero ---------- */
 
       .hero {
@@ -317,23 +125,6 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
         grid-column: 1;
         grid-row: 1;
         align-self: start;
-      }
-
-      h1 {
-        font-size: clamp(2.75rem, 6.6vw, 5.5rem);
-        font-weight: 800;
-        line-height: 0.98;
-        letter-spacing: -0.035em;
-        text-wrap: balance;
-        margin-bottom: 1.25rem;
-      }
-
-      .lede {
-        font-size: clamp(1.1rem, 1.5vw, 1.35rem);
-        line-height: 1.4;
-        max-width: 34ch;
-        text-wrap: pretty;
-        color: var(--ink);
       }
 
       .try {
@@ -388,7 +179,6 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
         letter-spacing: -0.01em;
       }
 
-
       /* ---------- the panel ---------- */
 
       .demo {
@@ -437,9 +227,6 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
       @media (prefers-reduced-motion: reduce) {
         .demo-panel.pop {
           animation: none;
-        }
-        html {
-          scroll-behavior: auto;
         }
       }
 
@@ -761,32 +548,6 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
         overflow-wrap: anywhere;
       }
 
-      /* ---------- footer ---------- */
-
-      footer {
-        padding-block: 2.5rem 3rem;
-        border-top: 1px solid var(--deck-deep);
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        gap: 0.75rem 2rem;
-        font-size: 0.9rem;
-        color: var(--ink-soft);
-      }
-
-      footer a {
-        color: inherit;
-      }
-
-      .visually-hidden {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        clip-path: inset(50%);
-        white-space: nowrap;
-      }
-
       /* ---------- narrow ---------- */
 
       @media (max-width: 900px) {
@@ -821,23 +582,12 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
           grid-template-columns: minmax(0, 1fr);
           gap: 0.35rem;
         }
-        a.cap {
-          min-width: 0;
-          flex: 1 1 10rem;
-        }
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <header class="top">
-        <a class="wordmark" href="/">JogPad</a>
-        <nav aria-label="Site">
-          <a href="#shortcuts">Shortcuts</a>
-          <a href="#install">Install</a>
-          <a href={repoUrl}>GitHub</a>
-        </nav>
-      </header>
+      <SiteHeader />
 
       <main>
         <div class="hero">
@@ -1032,14 +782,7 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
         </section>
       </main>
 
-      <footer>
-        <p>
-          Started as a clone of <a href="https://shadcn.com/copper" target="_blank" rel="noopener noreferrer">Copper</a> by shadcn.
-        </p>
-        <p>
-          MIT licensed. Source on <a href={repoUrl}>GitHub</a>. Made by Fishball Ltd.
-        </p>
-      </footer>
+      <SiteFooter />
     </div>
 
     <script>

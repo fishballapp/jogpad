@@ -1,0 +1,76 @@
+---
+import "@fontsource-variable/bricolage-grotesque/opsz.css";
+import "../styles/site.css";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+
+const title = "Page not found - JogPad";
+const description = "The page you were looking for isn't here.";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#e3e3df" />
+    <style>
+      .not-found {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        padding-block: clamp(3rem, 8vh, 6rem);
+      }
+
+      .lede {
+        max-width: 36ch;
+        color: var(--ink-soft);
+      }
+
+      .cap-btn {
+        margin-top: 2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container not-found">
+      <SiteHeader />
+
+      <main>
+        <h1>Nothing on this key.</h1>
+        <p class="lede">
+          The page you were looking for isn&rsquo;t here. Return to the deck to try the pad or download the app.
+        </p>
+        <a href="/" class="cap cap-ink cap-btn">
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12.5 8h-9M7.5 4l-4 4 4 4" />
+          </svg>
+          <span>Back to JogPad</span>
+        </a>
+      </main>
+
+      <SiteFooter />
+    </div>
+  </body>
+</html>

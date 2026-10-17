@@ -486,7 +486,7 @@ export function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } =
               'flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-sm font-medium hover:bg-accent',
               !isFocused && 'text-muted-foreground',
             )}
-            aria-label="Switch page"
+            aria-label={`${snap.active} \u2318K \u2014 Switch page`}
           >
             <span className="truncate">{snap.active}</span>
             <Kbd>⌘K</Kbd>
@@ -832,6 +832,7 @@ function ItemRow({
           checked={item.isDone}
           onCheckedChange={() => void store.toggleItem(item.id)}
           onClick={e => e.stopPropagation()}
+          aria-label={body || attachments[0]?.name || 'Item'}
           className="mt-0.5"
         />
         <div className="min-w-0 flex-1">
