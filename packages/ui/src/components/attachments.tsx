@@ -1,6 +1,6 @@
 import { FileIcon, PlayIcon, XIcon } from '@phosphor-icons/react';
+import { cn } from 'cn';
 import { isImage, isVideo } from '../model.ts';
-import { cn } from '../utils.ts';
 
 /**
  * Something the strip can draw: a saved attachment or a file still in the

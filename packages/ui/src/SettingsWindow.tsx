@@ -1,4 +1,5 @@
 import { ArrowCircleDownIcon, FolderOpenIcon, SlidersHorizontalIcon } from '@phosphor-icons/react';
+import { cn } from 'cn';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button.tsx';
 import { Checkbox } from './components/ui/checkbox.tsx';
@@ -6,7 +7,6 @@ import { useHost, useSnapshot, useStore } from './context.tsx';
 import type { UpdateInfo } from './host.ts';
 import type { Theme, UpdateChannel } from './model.ts';
 import { useTheme } from './theme.ts';
-import { cn } from './utils.ts';
 
 const CATEGORIES = [
   { id: 'general', label: 'General', icon: SlidersHorizontalIcon },

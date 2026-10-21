@@ -21,11 +21,10 @@
     "@fontsource-variable/geist": "catalog:",
     "@phosphor-icons/react": "catalog:",
     "class-variance-authority": "catalog:",
-    "clsx": "catalog:",
+    "cn": "catalog:",
     "react": "catalog:web",
     "react-dom": "catalog:web",
     "shadcn": "catalog:",
-    "tailwind-merge": "catalog:",
     "tailwindcss": "catalog:",
     "tw-animate-css": "catalog:"
   },

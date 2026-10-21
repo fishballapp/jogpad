@@ -20,6 +20,7 @@ import {
   TrashIcon,
   XIcon,
 } from '@phosphor-icons/react';
+import { cn } from 'cn';
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AttachmentStrip, filesFrom, type Thumb } from './components/attachments.tsx';
 import { PagePalette } from './components/page-palette.tsx';
@@ -46,7 +47,6 @@ import type { Unlisten } from './host.ts';
 import { type Attachment, type Item, splitItem } from './model.ts';
 import { useTheme } from './theme.ts';
 import { Flash, useToast } from './toast.tsx';
-import { cn } from './utils.ts';
 
 type Row = { item: Item; page: string };
 

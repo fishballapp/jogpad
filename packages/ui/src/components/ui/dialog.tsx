@@ -2,9 +2,9 @@
 
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { XIcon } from '@phosphor-icons/react';
+import { cn } from 'cn';
 import type * as React from 'react';
 import { usePortalContainer } from '../../portal.ts';
-import { cn } from '../../utils.ts';
 import { Button } from './button.tsx';
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {

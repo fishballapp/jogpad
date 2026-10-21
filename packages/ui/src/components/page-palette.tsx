@@ -10,9 +10,9 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { PencilSimpleIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
+import { cn } from 'cn';
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import type { Page } from '../model.ts';
-import { cn } from '../utils.ts';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog.tsx';
 import { Kbd } from './ui/kbd.tsx';
 
