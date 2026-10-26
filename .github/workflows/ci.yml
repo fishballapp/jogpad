@@ -19,6 +19,7 @@ jobs:
   check:
     name: Check · typecheck · test · build
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
@@ -43,6 +44,7 @@ jobs:
   rust:
     name: Rust · fmt · clippy · test
     runs-on: macos-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6

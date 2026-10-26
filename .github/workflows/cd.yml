@@ -29,6 +29,7 @@ jobs:
     # DMGs need hdiutil, codesign and the AppleScript that styles the mount
     # window. None of that exists off macOS. Free for public repos.
     runs-on: macos-latest
+    timeout-minutes: 35
     # Holds JOGPAD_OP_TOKEN, which only main and v* tags can reach.
     environment: production
     permissions:
