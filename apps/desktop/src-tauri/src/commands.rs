@@ -7,6 +7,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::sync::Mutex;
 use tauri::ipc::{InvokeBody, Request};
+use tauri::window::{Effect, EffectState, EffectsBuilder};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
@@ -193,6 +194,15 @@ pub fn open_preview(app: AppHandle, attachment_ref: String, name: String) -> Res
             .position(position.x, position.y)
             .inner_size(size.width, size.height)
             .focused(true)
+            // The blur behind the dim is the system's, held on whether or not
+            // the window is active. A CSS backdrop-filter over this
+            // transparent window blurs the screen for a moment, then clears.
+            .effects(
+                EffectsBuilder::new()
+                    .effect(Effect::FullScreenUI)
+                    .state(EffectState::Active)
+                    .build(),
+            )
             .build()
             .map_err(|e| e.to_string())?;
             // Same treatment as settings, one level higher still, so it covers
