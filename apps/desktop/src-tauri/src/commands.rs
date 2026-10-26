@@ -7,7 +7,6 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::sync::Mutex;
 use tauri::ipc::{InvokeBody, Request};
-use tauri::window::{Effect, EffectState, EffectsBuilder};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
@@ -194,27 +193,28 @@ pub fn open_preview(app: AppHandle, attachment_ref: String, name: String) -> Res
             .position(position.x, position.y)
             .inner_size(size.width, size.height)
             .focused(true)
-            // The blur behind the dim is the system's, held on whether or not
-            // the window is active. A CSS backdrop-filter over this
-            // transparent window blurs the screen for a moment, then clears.
-            .effects(
-                EffectsBuilder::new()
-                    .effect(Effect::FullScreenUI)
-                    .state(EffectState::Active)
-                    .build(),
-            )
+            // Shown by the fade below, once it is a panel without a shadow.
+            .visible(false)
             .build()
             .map_err(|e| e.to_string())?;
             // Same treatment as settings, one level higher still, so it covers
             // the pad and shows inside full-screen Spaces without activating
             // the app.
             #[cfg(target_os = "macos")]
-            crate::panel::convert(&window, crate::panel::NS_FLOATING_WINDOW_LEVEL + 2);
+            {
+                crate::panel::convert(&window, crate::panel::NS_FLOATING_WINDOW_LEVEL + 2);
+                crate::panel::prepare_overlay(&window);
+            }
             window
         }
     };
-    let _ = window.show();
-    let _ = window.set_focus();
+    #[cfg(target_os = "macos")]
+    crate::panel::fade_in(&window);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
     Ok(())
 }
 

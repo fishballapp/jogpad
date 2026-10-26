@@ -58,7 +58,7 @@ export function PreviewWindow() {
   const url = host.attachments.url(a.ref);
   if (isGone) return null;
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-black/30 p-10 font-sans text-foreground">
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-black/60 p-10 font-sans text-foreground">
       {/* The pointer's way out, under everything else: each piece drawn over
           it is `relative`, so a click on the preview stays there. Escape and
           ⌘W are the keyboard's way out. */}

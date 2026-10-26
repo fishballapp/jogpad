@@ -18,6 +18,8 @@ const NS_WINDOW_STYLE_MASK_NONACTIVATING_PANEL: usize = 1 << 7;
 pub const NS_FLOATING_WINDOW_LEVEL: isize = 3;
 const NS_COLLECTION_BEHAVIOR_CAN_JOIN_ALL_SPACES: usize = 1 << 0;
 const NS_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY: usize = 1 << 8;
+const NS_WINDOW_ANIMATION_BEHAVIOR_NONE: isize = 2;
+const FADE_IN_SECONDS: f64 = 0.15;
 
 /// Drop the panel to a normal level so a system dialog can appear above it,
 /// and put it back afterwards. Nothing sits above a floating panel otherwise,
@@ -202,5 +204,41 @@ fn join_all_spaces(window: &tauri::WebviewWindow) {
             setCollectionBehavior: NS_COLLECTION_BEHAVIOR_CAN_JOIN_ALL_SPACES
                 | NS_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY
         ];
+    }
+}
+
+/// A whole-screen overlay: no shadow, because macOS 26 draws a light rim as
+/// part of it, which outlines the screen in white; and no appear animation,
+/// because the default zooms the window in. `fade_in` shows it instead.
+pub fn prepare_overlay(window: &tauri::WebviewWindow) {
+    let Ok(ptr) = window.ns_window() else {
+        return;
+    };
+    let ptr = ptr as *mut AnyObject;
+    unsafe {
+        let _: () = msg_send![ptr, setHasShadow: false];
+        let _: () = msg_send![ptr, setAnimationBehavior: NS_WINDOW_ANIMATION_BEHAVIOR_NONE];
+    }
+}
+
+/// Shows the window from transparent, then fades it in. The window is only
+/// ever hidden, so it starts from transparent on every show.
+pub fn fade_in(window: &tauri::WebviewWindow) {
+    let Ok(ptr) = window.ns_window() else {
+        return;
+    };
+    let ptr = ptr as *mut AnyObject;
+    unsafe {
+        let _: () = msg_send![ptr, setAlphaValue: 0.0f64];
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+    unsafe {
+        let _: () = msg_send![class!(NSAnimationContext), beginGrouping];
+        let context: *mut AnyObject = msg_send![class!(NSAnimationContext), currentContext];
+        let _: () = msg_send![context, setDuration: FADE_IN_SECONDS];
+        let animator: *mut AnyObject = msg_send![ptr, animator];
+        let _: () = msg_send![animator, setAlphaValue: 1.0f64];
+        let _: () = msg_send![class!(NSAnimationContext), endGrouping];
     }
 }
