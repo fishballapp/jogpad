@@ -58,12 +58,14 @@ export function createMemoryHost(notes: string): Host {
       install: async () => {
         throw new Error('No updates in memory.');
       },
+      onCheckRequested: async () => () => {},
     },
     settings: {
       open: async () => {
         throw new Error('No settings window in memory.');
       },
     },
+    tray: { setVisible: async () => {} },
     onGesture: async () => () => {},
   };
 }

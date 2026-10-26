@@ -8,7 +8,7 @@ import {
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { missingPermission, useHost, usePermissions, useSnapshot } from '../context.tsx';
-import type { UpdateInfo } from '../host.ts';
+import type { Unlisten, UpdateInfo } from '../host.ts';
 import { Flash, useToast } from '../toast.tsx';
 import { Button } from './ui/button.tsx';
 import {
@@ -58,6 +58,7 @@ export function PanelMenu() {
         const info = await host.updates.check(snap.update_channel);
         if (generation !== checkGenRef.current) return;
         setUpdate(info);
+        if (isUserInitiated && info) setIsUpdateDialogOpen(true);
         if (isUserInitiated && !info) toast('JogPad is up to date');
       } catch (e) {
         if (generation !== checkGenRef.current) return;
@@ -77,6 +78,25 @@ export function PanelMenu() {
       checkGenRef.current++;
     };
   }, [checkForUpdate]);
+
+  // The menu-bar icon's Check for Updates shows the panel and asks for a check
+  // here, since the result (up to date, the dialog, a failure) is shown here.
+  useEffect(() => {
+    let isCancelled = false;
+    let unlisten: Unlisten | undefined;
+    void (async () => {
+      const stop = await host.updates.onCheckRequested(() => void checkForUpdate(true));
+      if (isCancelled) {
+        stop();
+        return;
+      }
+      unlisten = stop;
+    })();
+    return () => {
+      isCancelled = true;
+      unlisten?.();
+    };
+  }, [host, checkForUpdate]);
 
   const missing = missingPermission(permissions);
 

@@ -87,7 +87,13 @@ export type Host = {
     version(): Promise<string>;
     check(channel: UpdateChannel): Promise<UpdateInfo | null>;
     install(channel: UpdateChannel): Promise<void>;
+    /** The menu-bar icon asked for a check. The panel runs it, so the result shows there. */
+    onCheckRequested(handler: () => void): Promise<Unlisten>;
   };
   settings: { open(): Promise<void> };
+  /** JogPad's menu-bar icon. Desktop only; the web has none. */
+  tray: {
+    setVisible(visible: boolean): Promise<void>;
+  };
   onGesture(handler: (g: GestureInput) => void): Promise<Unlisten>;
 };

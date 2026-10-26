@@ -110,6 +110,7 @@ pub fn show_without_focus(app: &tauri::AppHandle) {
         unsafe {
             let _: () = msg_send![ptr as *mut AnyObject, orderFrontRegardless];
         }
+        crate::sync_tray_toggle(&app);
     });
 }
 

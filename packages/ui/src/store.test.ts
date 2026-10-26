@@ -9,6 +9,7 @@ import { createStore } from './store.ts';
  */
 function slowHost() {
   const disk = new Map<FileName, string>();
+  const trayCalls: boolean[] = [];
   const watchers = new Map<FileName, Set<() => void>>();
   let delay = 30;
   const writes: string[] = [];
@@ -63,11 +64,21 @@ function slowHost() {
       onChange: async () => () => {},
       request: async () => {},
     },
-    updates: { version: async () => 'test', check: async () => null, install: async () => {} },
+    updates: {
+      version: async () => 'test',
+      check: async () => null,
+      install: async () => {},
+      onCheckRequested: async () => () => {},
+    },
     settings: { open: async () => {} },
+    tray: {
+      setVisible: async visible => {
+        trayCalls.push(visible);
+      },
+    },
     onGesture: async () => () => {},
   };
-  return { host, disk, writes, removed, failing };
+  return { host, disk, writes, removed, failing, trayCalls };
 }
 
 test('a write that never landed takes no files away', async () => {
@@ -171,6 +182,19 @@ test('a change made by another writer is picked up', async () => {
   await host.fs.write('notes.md', '## Inbox\n\n- [x] from elsewhere\n\n');
   await new Promise(r => setTimeout(r, 10));
   expect(store.snapshot().pages[0]?.items[0]?.text).toBe('from elsewhere');
+});
+
+test('hiding the menu-bar icon reaches the host and survives a restart', async () => {
+  const { host, trayCalls } = slowHost();
+  const store = await createStore(host);
+  expect(store.snapshot().show_tray_icon).toBe(true);
+
+  await store.setShowTrayIcon(false);
+  expect(trayCalls).toEqual([false]);
+  expect(store.snapshot().show_tray_icon).toBe(false);
+
+  const reopened = await createStore(host);
+  expect(reopened.snapshot().show_tray_icon).toBe(false);
 });
 
 test('creating an empty page persists it across a restart', async () => {

@@ -383,6 +383,16 @@ pub fn set_theme(app: AppHandle, theme: String) -> Result<(), String> {
     crate::apply_native_theme(&app, &theme)
 }
 
+/// The menu-bar icon. Hidden, the pad is still reached by the Shift gesture,
+/// Finder and Spotlight.
+#[tauri::command]
+pub fn set_tray_visible(app: AppHandle, visible: bool) -> Result<(), String> {
+    let tray = app
+        .tray_by_id(crate::TRAY_ID)
+        .ok_or_else(|| "The menu-bar icon is missing.".to_string())?;
+    tray.set_visible(visible).map_err(|e| e.to_string())
+}
+
 /// The update found by the last check, tagged with the channel it came from.
 /// The tag is what stops a switch to Beta installing a build that was found on
 /// Stable: checks are network calls that can land out of order, so the channel

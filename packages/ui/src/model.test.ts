@@ -136,6 +136,15 @@ test('a channel this build does not know falls back without losing the rest', ()
   expect(prefs.zoom).toBe(1.2);
 });
 
+test('the menu-bar icon is shown unless prefs say otherwise', () => {
+  expect(defaultPrefs.show_tray_icon).toBe(true);
+  expect(parsePrefs('{}').prefs.show_tray_icon).toBe(true);
+  expect(parsePrefs('{"show_tray_icon":false}').prefs.show_tray_icon).toBe(false);
+  // A value that is not a boolean is ignored, not read as a truth.
+  expect(parsePrefs('{"show_tray_icon":"no"}').prefs.show_tray_icon).toBe(true);
+  expect(parsePrefs('{"show_tray_icon":0}').prefs.show_tray_icon).toBe(true);
+});
+
 test('parsePrefs carries unknown keys', () => {
   const json = JSON.stringify({
     active: 'Home',

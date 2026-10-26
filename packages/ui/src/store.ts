@@ -23,6 +23,7 @@ export type Snapshot = {
   theme: Theme;
   check_on_copy: boolean;
   group_done: boolean;
+  show_tray_icon: boolean;
   // The notes file could not be read, so nothing is being written to it.
   read_only: boolean;
   error: string | null;
@@ -149,6 +150,7 @@ export class Store {
       theme: this.model.prefs.theme,
       check_on_copy: this.model.prefs.check_on_copy,
       group_done: this.model.prefs.group_done,
+      show_tray_icon: this.model.prefs.show_tray_icon,
       read_only: this.isReadOnly,
       error: this.error,
     };
@@ -377,6 +379,12 @@ export class Store {
 
   async setGroupDone(shouldGroupDone: boolean): Promise<void> {
     this.model.setGroupDone(shouldGroupDone);
+    await this.savePrefs();
+  }
+
+  async setShowTrayIcon(shouldShowTrayIcon: boolean): Promise<void> {
+    this.model.setShowTrayIcon(shouldShowTrayIcon);
+    await this.host.tray.setVisible(shouldShowTrayIcon);
     await this.savePrefs();
   }
 }

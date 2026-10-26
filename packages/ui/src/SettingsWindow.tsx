@@ -148,6 +148,20 @@ export function SettingsWindow() {
                 </span>
               </span>
             </label>
+            <label htmlFor="show-tray-icon" className="flex cursor-default items-start gap-2.5">
+              <Checkbox
+                id="show-tray-icon"
+                checked={snap.show_tray_icon}
+                onCheckedChange={checked => void store.setShowTrayIcon(checked === true)}
+                className="mt-0.5"
+              />
+              <span>
+                Show icon in the menu bar
+                <span className="block text-xs text-muted-foreground">
+                  When hidden, double-tap Shift or open JogPad again to show the pad.
+                </span>
+              </span>
+            </label>
 
             <div>
               <p className="mb-1.5 font-medium">Appearance</p>

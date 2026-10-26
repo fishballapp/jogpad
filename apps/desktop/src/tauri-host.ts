@@ -75,9 +75,13 @@ export const tauriHost: Host = {
     version: () => getVersion(),
     check: (channel: UpdateChannel) => invoke<UpdateInfo | null>('check_update', { channel }),
     install: (channel: UpdateChannel) => invoke<void>('install_update', { channel }),
+    onCheckRequested: (h: () => void) => listen('check-for-update', () => h()),
   },
   settings: {
     open: () => invoke<void>('open_settings'),
+  },
+  tray: {
+    setVisible: (visible: boolean) => invoke<void>('set_tray_visible', { visible }),
   },
   onGesture: (h: (g: GestureInput) => void) => listen<GestureInput>('gesture', e => h(e.payload)),
 };

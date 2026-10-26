@@ -146,6 +146,7 @@ export type Prefs = {
   check_on_copy: boolean;
   group_done: boolean;
   theme: Theme;
+  show_tray_icon: boolean;
 };
 
 export const defaultPrefs: Prefs = {
@@ -155,6 +156,7 @@ export const defaultPrefs: Prefs = {
   check_on_copy: true,
   group_done: true,
   theme: 'dark',
+  show_tray_icon: true,
 };
 
 export function parsePrefs(json: string | null): {
@@ -185,6 +187,8 @@ export function parsePrefs(json: string | null): {
       typeof raw.check_on_copy === 'boolean' ? raw.check_on_copy : defaultPrefs.check_on_copy,
     group_done: typeof raw.group_done === 'boolean' ? raw.group_done : defaultPrefs.group_done,
     theme: isTheme(raw.theme) ? raw.theme : defaultPrefs.theme,
+    show_tray_icon:
+      typeof raw.show_tray_icon === 'boolean' ? raw.show_tray_icon : defaultPrefs.show_tray_icon,
   };
   return { prefs, extra };
 }
@@ -462,6 +466,10 @@ export class Model {
 
   setGroupDone(shouldGroupDone: boolean): void {
     this.prefs.group_done = shouldGroupDone;
+  }
+
+  setShowTrayIcon(shouldShowTrayIcon: boolean): void {
+    this.prefs.show_tray_icon = shouldShowTrayIcon;
   }
 
   setUpdateChannel(channel: UpdateChannel): boolean {

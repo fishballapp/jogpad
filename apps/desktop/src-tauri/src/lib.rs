@@ -12,9 +12,14 @@ mod panel;
 mod selection;
 
 use state::{AppState, WindowState};
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, LogicalSize, Manager};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager};
+
+pub(crate) const TRAY_ID: &str = "tray";
+
+/// The tray's first item, kept so its label can follow the pad.
+struct TrayToggle(MenuItem<tauri::Wry>);
 
 /// Serves `attachment://localhost/<file>` out of the attachments folder, so
 /// the webview can show a picture without any path or scope configuration.
@@ -91,6 +96,22 @@ pub(crate) fn set_visible(app: &AppHandle, visible: bool) {
         #[cfg(target_os = "macos")]
         panel::return_focus();
     }
+    sync_tray_toggle(app);
+}
+
+/// A menu cannot be asked for its label when it opens, so the first item is
+/// kept in step with the pad. Every path that shows or hides the pad ends here
+/// or in `set_visible`.
+pub(crate) fn sync_tray_toggle(app: &AppHandle) {
+    let Some(toggle) = app.try_state::<TrayToggle>() else {
+        return;
+    };
+    let label = if is_visible(app) {
+        "Hide JogPad"
+    } else {
+        "Show JogPad"
+    };
+    let _ = toggle.0.set_text(label);
 }
 
 /// The page toggles its own dark class; this covers what the page cannot
@@ -125,10 +146,16 @@ pub(crate) fn is_visible(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
+/// The prefs native setup needs before the webview exists. TypeScript owns
+/// them; Rust only peeks, as it does for the theme.
+struct LaunchPrefs {
+    theme: String,
+    shows_tray_icon: bool,
+}
+
 /// Reads window state off disk. Size and zoom come from window.json, or
-/// from prefs.json for a profile older builds wrote, else defaults. Theme is
-/// peeked from prefs.json for native window setup.
-fn load_state(app: &AppHandle) -> tauri::Result<(AppState, String)> {
+/// from prefs.json for a profile older builds wrote, else defaults.
+fn load_state(app: &AppHandle) -> tauri::Result<(AppState, LaunchPrefs)> {
     let dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&dir)?;
     let read_json = |name: &str| -> Option<serde_json::Value> {
@@ -151,15 +178,15 @@ fn load_state(app: &AppHandle) -> tauri::Result<(AppState, String)> {
     );
 
     let zoom = zoom.clamp(0.6, 2.0);
-    let theme = match prefs_val
-        .as_ref()
-        .and_then(|p| p.get("theme"))
-        .and_then(|t| t.as_str())
-    {
+    let pref = |key: &str| prefs_val.as_ref().and_then(|p| p.get(key));
+    let theme = match pref("theme").and_then(|t| t.as_str()) {
         Some("light") => "light",
         Some("system") => "system",
         _ => "dark",
     };
+    let shows_tray_icon = pref("show_tray_icon")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
 
     let state = AppState::new(
         dir,
@@ -169,22 +196,43 @@ fn load_state(app: &AppHandle) -> tauri::Result<(AppState, String)> {
             zoom,
         },
     );
-    Ok((state, theme.to_string()))
+    Ok((
+        state,
+        LaunchPrefs {
+            theme: theme.to_string(),
+            shows_tray_icon,
+        },
+    ))
 }
 
-fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, "show", "Show JogPad", true, None::<&str>)?;
-    let hide = MenuItem::with_id(app, "hide", "Hide JogPad", true, None::<&str>)?;
+/// The menu-bar icon. Built even when hidden, so it can be shown again
+/// without rebuilding the menu.
+fn build_tray(app: &AppHandle, shows_tray_icon: bool) -> tauri::Result<()> {
+    let toggle = MenuItem::with_id(app, "toggle", "Show JogPad", true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
+    let check = MenuItem::with_id(app, "check", "Check for Updates…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &toggle,
+            &settings,
+            &check,
+            &PredefinedMenuItem::separator(app)?,
+            &quit,
+        ],
+    )?;
+    app.manage(TrayToggle(toggle));
 
     // A template image: macOS recolours it for light and dark menu bars, so
     // the full-colour app icon would look wrong up there.
     let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
-    let tray = TrayIconBuilder::new().icon(tray_icon);
+    let tray = TrayIconBuilder::with_id(TRAY_ID).icon(tray_icon);
     #[cfg(target_os = "macos")]
     let tray = tray.icon_as_template(true);
 
-    tray.menu(&Menu::with_items(app, &[&show, &hide, &quit])?)
+    let tray = tray
+        .menu(&menu)
         // Left click toggles, right click opens the menu.
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
@@ -199,13 +247,19 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => set_visible(app, true),
-            "hide" => set_visible(app, false),
+            "toggle" => set_visible(app, !is_visible(app)),
+            "settings" => commands::open_settings(app.clone()),
+            // The check's result (up to date, the dialog, a failure) is shown
+            // by the pad, so the pad comes up first and the panel runs it.
+            "check" => {
+                set_visible(app, true);
+                let _ = app.emit("check-for-update", ());
+            }
             "quit" => app.exit(0),
             _ => {}
         })
         .build(app)?;
-    Ok(())
+    tray.set_visible(shows_tray_icon)
 }
 
 fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
@@ -278,12 +332,13 @@ pub fn run() {
             commands::open_settings,
             commands::set_zoom,
             commands::set_theme,
+            commands::set_tray_visible,
             commands::check_update,
             commands::install_update,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
-            let (state, theme) = load_state(&handle)?;
+            let (state, launch) = load_state(&handle)?;
 
             // A shipped app has no stderr, and a panic that aborts the
             // process leaves a crash report without the message. Keep the
@@ -297,7 +352,7 @@ pub fn run() {
             app.manage(commands::PendingUpdate::default());
             app.manage(state);
 
-            build_tray(&handle)?;
+            build_tray(&handle, launch.shows_tray_icon)?;
 
             #[cfg(target_os = "macos")]
             {
@@ -326,11 +381,12 @@ pub fn run() {
                     height,
                     zoom,
                 } = handle.state::<AppState>().window();
-                let _ = apply_native_theme(&handle, &theme);
+                let _ = apply_native_theme(&handle, &launch.theme);
                 let _ = window.set_size(LogicalSize::new(width, height));
                 let _ = window.set_zoom(zoom);
                 let _ = window.center();
                 let _ = window.show();
+                sync_tray_toggle(&handle);
                 if let Some(settings) = app.get_webview_window("settings") {
                     let _ = settings.set_zoom(zoom);
                 }
@@ -338,6 +394,13 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running JogPad");
+        .build(tauri::generate_context!())
+        .expect("error while building JogPad")
+        .run(|app, event| match event {
+            // Opening JogPad again from Finder or Spotlight brings the pad up.
+            // With the menu-bar icon hidden, that is the way back to it.
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { .. } => set_visible(app, true),
+            _ => {}
+        });
 }
