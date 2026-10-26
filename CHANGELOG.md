@@ -4,6 +4,22 @@ The release workflow reads these sections. A tag whose version has no section
 here fails before it builds anything, which is the point: notes written after
 the fact never get written.
 
+## 0.1.9
+
+The menu-bar icon can be hidden, from Settings › General. With it hidden,
+double-tap Shift, or open JogPad again from Finder or Spotlight, to bring
+the pad up. The icon's menu now reads Show JogPad or Hide JogPad, then
+Settings and Check for Updates, like the pad's ⋯ menu.
+
+Deleting the page you are on opens the page after it, or the one before it
+when it was the last. Picking a page in the ⌘K palette puts the cursor in
+the composer.
+
+An attachment preview fades in over a plain dim of the screen, without the
+zoom or the light outline around the screen it had on macOS 26.
+
+Updates Tauri to 2.12 and the Rust dependencies, including TLS fixes.
+
 ## 0.1.8
 
 Closing the pad gives the keyboard back. Open the pad from a text field in

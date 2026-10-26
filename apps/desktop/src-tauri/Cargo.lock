@@ -2076,7 +2076,7 @@ dependencies = [
 
 [[package]]
 name = "jogpad"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "accessibility-sys",
  "core-foundation 0.10.1",
