@@ -366,14 +366,16 @@ export class Model {
   }
 
   deletePage(page: string): boolean {
-    const kept = this.doc.pages.filter(s => s.name !== page);
-    if (kept.length === this.doc.pages.length) return false;
-    this.doc.pages = kept;
+    const index = this.doc.pages.findIndex(s => s.name === page);
+    if (index < 0) return false;
+    this.doc.pages.splice(index, 1);
     if (this.doc.pages.length === 0) {
       this.pageMut(DEFAULT_PAGE);
     }
     if (this.prefs.active === page) {
-      this.prefs.active = this.doc.pages[0]?.name ?? DEFAULT_PAGE;
+      // The page that took its place, or the one before it when it was last.
+      const next = this.doc.pages[index] ?? this.doc.pages[index - 1];
+      this.prefs.active = next?.name ?? DEFAULT_PAGE;
     }
     return true;
   }

@@ -246,6 +246,22 @@ test('delete page fallbacks', () => {
   expect(model.prefs.active).toBe(DEFAULT_PAGE);
 });
 
+test('deleting the active page activates the next page, or the previous when it was last', () => {
+  const model = new Model(parseDoc('## A\n\n## B\n\n## C\n\n## D\n\n'), {
+    ...defaultPrefs,
+    active: 'B',
+  });
+
+  model.deletePage('B');
+  expect(model.prefs.active).toBe('C');
+
+  model.deletePage('D');
+  expect(model.prefs.active).toBe('C');
+
+  model.deletePage('C');
+  expect(model.prefs.active).toBe('A');
+});
+
 test('set zoom clamp and rounding', () => {
   const model = new Model(parseDoc(''), { ...defaultPrefs });
   expect(model.setZoom(1.5)).toBe(1.5);
