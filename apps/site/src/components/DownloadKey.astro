@@ -1,0 +1,24 @@
+---
+// The Download key, once. The hero uses the black cap (the page's one primary
+// key) and the end of the page repeats it as a white cap, so the page never
+// carries a second black key. With no resolved release it degrades to the
+// releases page, which GitHub points at the newest non-prerelease.
+interface Props {
+  downloadUrl: string | null;
+  latestVersion: string | null;
+  primary?: boolean;
+}
+
+const { downloadUrl, latestVersion, primary = false } = Astro.props;
+const latestReleaseUrl = "https://github.com/fishballapp/jogpad/releases/latest";
+---
+
+<a href={downloadUrl ?? latestReleaseUrl} class:list={["cap", { "cap-ink": primary }]}>
+  <span class="glyph" aria-hidden="true">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8.5M4.5 7.5 8 11l3.5-3.5M3 13.5h10" /></svg>
+  </span>
+  <span>
+    {downloadUrl ? "Download for macOS" : "Latest release"}
+    <small>{downloadUrl ? `${latestVersion ?? "latest"} · free` : "on GitHub"}</small>
+  </span>
+</a>
