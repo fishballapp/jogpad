@@ -43,7 +43,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Longer than deploy-pages' own 10-minute wait, so a slow Pages queue fails there, with its error,
+    # instead of the job being cancelled mid-deploy.
+    timeout-minutes: 15
 
     steps:
       # Belt and braces: this job no longer runs on a release event, but pinning
