@@ -9,7 +9,7 @@
     "dev": "tauri dev",
     "web": "vite",
     "build": "vite build",
-    "bundle": "APPLE_SIGNING_IDENTITY=\"${APPLE_SIGNING_IDENTITY:--}\" tauri build",
+    "bundle": "./bundle.sh",
     "with-secrets": "varlock run --filter '!#release'",
     "tauri": "tauri",
     "rust:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
