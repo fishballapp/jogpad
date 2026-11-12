@@ -1,0 +1,14 @@
+language js
+
+// Temporal is the working type for instants and calendar days (code-style.md, Temporal over
+// Date). Only the constructors and parsers are matched: `Date.now()`, type positions such as
+// `: Date` and `instanceof Date`, and `Intl` pass.
+or {
+  `new Date($args)`,
+  `new Date`,
+  `Date.parse($args)`,
+  `Date.UTC($args)`
+} as $date where {
+  $message = "Date builds or parses a time here: use Temporal (docs/conventions/code-style.md, Temporal over Date). A Date a third party hands us or demands is the exception: suppress it on its line with `// biome-ignore lint/plugin/no-date: <the specific reason>`.",
+  register_diagnostic(span=$date, message=$message)
+}
