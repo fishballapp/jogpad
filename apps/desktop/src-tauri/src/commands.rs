@@ -407,9 +407,9 @@ pub struct UpdateInfo {
     pub notes: Option<String>,
 }
 
-const STABLE_ENDPOINT: &str = "https://jogpad.fishball.app/latest.json";
-const BETA_ENDPOINT: &str = "https://jogpad.fishball.app/beta.json";
-const DEV_ENDPOINT: &str = "https://jogpad.fishball.app/dev.json";
+const STABLE_ENDPOINT: &str = "https://jogpad.fsh.ba/latest.json";
+const BETA_ENDPOINT: &str = "https://jogpad.fsh.ba/beta.json";
+const DEV_ENDPOINT: &str = "https://jogpad.fsh.ba/dev.json";
 
 fn endpoint_for_channel(channel: &str) -> Result<&'static str, String> {
     match channel {

@@ -5,12 +5,12 @@ your way. Tick a few later, copy them as a numbered list, paste the lot into a
 prompt.
 
 <p align="center">
-  <a href="https://jogpad.fishball.app">
+  <a href="https://jogpad.fsh.ba">
     <img src="apps/site/public/og.png" alt="Shift Shift. A giant Shift keycap beside the JogPad pad, with the line: select text in any app, tap Shift twice, it lands in a pad that stays out of your way." width="720">
   </a>
 </p>
 
-**[jogpad.fishball.app](https://jogpad.fishball.app)** has the download, the
+**[jogpad.fsh.ba](https://jogpad.fsh.ba)** has the download, the
 shortcuts, the install steps, and the pad itself running in the page so you can
 try the gesture before installing anything. Everything below is for people who
 want to build it.

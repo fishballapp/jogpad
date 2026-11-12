@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 
 export default defineConfig({
-  site: 'https://jogpad.fishball.app',
+  site: 'https://jogpad.fsh.ba',
   integrations: [sitemap({ filter: page => !page.endsWith('/og/') }), react()],
   vite: { plugins: [tailwindcss()] },
 });

@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "jogpad.fishball.app: the landing page, the pad running in the browser, and the update manifests for each channel.",
+  "description": "jogpad.fsh.ba: the landing page, the pad running in the browser, and the update manifests for each channel.",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",

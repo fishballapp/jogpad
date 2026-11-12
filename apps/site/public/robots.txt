@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://jogpad.fishball.app/sitemap-index.xml
+Sitemap: https://jogpad.fsh.ba/sitemap-index.xml
