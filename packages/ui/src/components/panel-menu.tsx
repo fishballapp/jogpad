@@ -7,6 +7,7 @@ import {
   ShieldCheckIcon,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAlerts } from '../alert.tsx';
 import { missingPermission, useHost, usePermissions, useSnapshot } from '../context.tsx';
 import type { Unlisten, UpdateInfo } from '../host.ts';
 import { Flash, useToast } from '../toast.tsx';
@@ -39,6 +40,7 @@ export function PanelMenu() {
   const [isInstalling, setIsInstalling] = useState(false);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const { flash, toast } = useToast();
+  const alerts = useAlerts();
 
   const checkGenRef = useRef(0);
 
@@ -57,17 +59,20 @@ export function PanelMenu() {
       try {
         const info = await host.updates.check(snap.update_channel);
         if (generation !== checkGenRef.current) return;
+        alerts.clear('update');
         setUpdate(info);
         if (isUserInitiated && info) setIsUpdateDialogOpen(true);
         if (isUserInitiated && !info) toast('JogPad is up to date');
       } catch (e) {
         if (generation !== checkGenRef.current) return;
-        if (isUserInitiated) toast(`Update check failed: ${e}`);
+        if (isUserInitiated) {
+          alerts.raise('update', "Couldn't check for updates. Try again later.", e);
+        }
       } finally {
         if (generation === checkGenRef.current) setIsChecking(false);
       }
     },
-    [host, snap.update_channel, toast],
+    [host, snap.update_channel, toast, alerts],
   );
 
   useEffect(() => {
@@ -182,7 +187,11 @@ export function PanelMenu() {
                   setIsInstalling(false);
                   setIsUpdateDialogOpen(false);
                   setUpdate(null);
-                  toast(`Installation failed: ${e}`);
+                  alerts.raise(
+                    'update',
+                    `Couldn't install JogPad ${update?.version}. Check for Updates to try again.`,
+                    e,
+                  );
                 }
               }}
             >

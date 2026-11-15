@@ -29,8 +29,11 @@
     "tw-animate-css": "catalog:"
   },
   "devDependencies": {
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
     "@types/react": "catalog:web",
     "@types/react-dom": "catalog:web",
+    "jsdom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

@@ -1,5 +1,6 @@
 import { ArrowSquareOutIcon, CopyIcon, FileIcon, XIcon } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
+import { logFailure } from './alert.tsx';
 import { Button } from './components/ui/button.tsx';
 import { useHost, useSnapshot } from './context.tsx';
 import { type Attachment, extensionOf, isImage, isVideo } from './model.ts';
@@ -16,6 +17,9 @@ export function PreviewWindow() {
   const snap = useSnapshot();
   useTheme(snap.theme);
   const { flash, toast } = useToast();
+  // A failed action's sentence. It replaces the name in the bar until the
+  // next action, so it cannot vanish before it is read.
+  const [problem, setProblem] = useState<string | null>(null);
   // The window is only ever hidden, never closed, and the next open
   // navigates it afresh. So once it goes, render nothing: that unmounts the
   // video, which would otherwise keep playing behind an invisible window.
@@ -46,13 +50,16 @@ export function PreviewWindow() {
     };
   }, [close]);
 
-  const run = async (label: string, action: () => Promise<void>) => {
+  const run = async (label: string, failure: string, action: () => Promise<void>) => {
     try {
       await action();
-      toast(label);
     } catch (e) {
-      toast(`${e instanceof Error ? e.message : e}`);
+      logFailure(failure, e);
+      setProblem(failure);
+      return;
     }
+    setProblem(null);
+    toast(label);
   };
 
   const url = host.attachments.url(a.ref);
@@ -71,11 +78,21 @@ export function PreviewWindow() {
       />
       <AttachmentView name={a.name} url={url} />
       <div className="relative flex max-w-[90vw] items-center gap-1 rounded-full bg-popover py-1 pr-1 pl-4 text-sm text-popover-foreground shadow-xl ring-1 ring-foreground/10">
-        <span className="mr-2 max-w-64 truncate">{flash ?? a.name}</span>
+        {problem ? (
+          <span role="alert" className="mr-2 max-w-80 text-destructive">
+            {problem}
+          </span>
+        ) : (
+          <span className="mr-2 max-w-64 truncate">{flash ?? a.name}</span>
+        )}
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => run('Shown in Finder', () => host.attachments.reveal(a.ref))}
+          onClick={() =>
+            run('Shown in Finder', "Couldn't show it in Finder. Try again.", () =>
+              host.attachments.reveal(a.ref),
+            )
+          }
         >
           <ArrowSquareOutIcon /> Reveal in Finder
         </Button>
@@ -83,7 +100,11 @@ export function PreviewWindow() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => run('Copied image', () => host.attachments.copyImage(a.ref))}
+            onClick={() =>
+              run('Copied image', "Couldn't copy the image. Try Reveal in Finder.", () =>
+                host.attachments.copyImage(a.ref),
+              )
+            }
           >
             <CopyIcon /> Copy image
           </Button>
@@ -92,7 +113,7 @@ export function PreviewWindow() {
             variant="ghost"
             size="sm"
             onClick={() =>
-              run('Copied path', async () =>
+              run('Copied path', "Couldn't copy the path. Try again.", async () =>
                 host.clipboard.write(await host.attachments.path(a.ref)),
               )
             }

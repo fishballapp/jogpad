@@ -291,36 +291,6 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
       [data-edge="nw"] { top: 0; left: 0; cursor: nwse-resize; }
       [data-edge="se"] { bottom: 0; right: 0; cursor: nwse-resize; }
 
-      /* Hand-written, the way the first version had it. Hidden once the pad
-         has been dragged away, and on phones where there is no room beside. */
-      .try-me {
-        position: absolute;
-        right: calc(100% - 1rem);
-        top: -1.5rem;
-        width: 150px;
-        color: var(--ink-soft);
-        font-family: "Comic Sans MS", "Chalkboard SE", "Bradley Hand", cursive;
-        font-size: 1.15rem;
-        line-height: 1;
-        transform: rotate(-8deg);
-        pointer-events: none;
-      }
-
-      .try-me span {
-        display: block;
-        margin-left: 0.25rem;
-      }
-
-      .try-me svg {
-        display: block;
-        width: 120px;
-        margin-top: 0.25rem;
-      }
-
-      .demo:has(.detached) .try-me {
-        display: none;
-      }
-
       .demo img {
         display: block;
         max-width: 100%;
@@ -603,9 +573,6 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
           justify-self: center;
           width: min(420px, 100%);
         }
-        .try-me {
-          display: none;
-        }
         .two-col {
           grid-template-columns: minmax(0, 1fr);
         }
@@ -653,13 +620,6 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
           </button>
 
           <div class="demo">
-            <div class="try-me" aria-hidden="true">
-              <span>Try me!</span>
-              <svg viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M6 10 C 30 8, 70 14, 104 62" />
-                <path d="M88 60 L 104 62 L 102 46" />
-              </svg>
-            </div>
             <Demo client:only="react" />
             <noscript>
               <img src="/screenshot.png" alt={screenshotAlt} width="420" height="448" />
@@ -680,10 +640,7 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
               </span>
             </a>
           </div>
-          <p>
-            One universal .dmg for Apple silicon and Intel, signed and notarized.
-            No account, no sync, no telemetry.
-          </p>
+          <p>One universal .dmg for Apple silicon and Intel.</p>
         </div>
 
         <section aria-labelledby="moods-title">
@@ -730,8 +687,7 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
           </ul>
           <p class="aside">
             The menu bar icon toggles the pad, and a right-click on it shows Show,
-            Hide and Quit. Items drag to reorder. Done items fold away under a
-            "Done" heading at the bottom, and copying ticks them off as it goes.
+            Hide and Quit.
           </p>
         </section>
 
@@ -747,6 +703,10 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
               <p>
                 Without them it still works as a scratchpad. It just cannot see
                 what other apps have selected.
+              </p>
+              <p>
+                The download is signed and notarized, so macOS opens it as an
+                app from an identified developer.
               </p>
             </div>
             <div>
@@ -785,7 +745,8 @@ const shortcuts: { keys: string[]; label: string; what: string }[] = [
               <h2 id="file-title">It's one file.</h2>
               <p>
                 Every page and every item is plain markdown in one file under
-                Application Support. Read it, copy from it, diff it, back it up.
+                Application Support. No account, no sync, no telemetry. Read it,
+                copy from it, diff it, back it up.
               </p>
               <p>
                 JogPad owns its shape: <code>##</code> headings are pages, task-list

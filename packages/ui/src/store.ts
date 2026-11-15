@@ -8,12 +8,14 @@ import {
   type Page,
   parseDoc,
   parsePrefs,
+  type Removal,
   serialiseDoc,
+  splitItem,
   type Theme,
   type UpdateChannel,
 } from './model.ts';
 
-export type { Attachment, Item, Page, Theme, UpdateChannel };
+export type { Attachment, Item, Page, Removal, Theme, UpdateChannel };
 
 export type Snapshot = {
   pages: Page[];
@@ -90,8 +92,9 @@ export async function createStore(host: Host): Promise<Store> {
       if (store.consumeEcho('notes.md', text)) return;
       store.model.doc = parseDoc(text ?? '');
       // What someone else removed is theirs to clean up. Forgetting it here
-      // means the next save cannot mistake it for something we dropped.
-      store.saved = docRefs(store.model.doc);
+      // means the next save cannot mistake it for something we dropped. A
+      // file held for Undo is still ours, whatever the other writer changed.
+      store.saved = docRefs(store.model.doc).union(store.saved.intersection(store.heldRefs()));
       if (!store.model.doc.pages.some(p => p.name === store.model.prefs.active)) {
         store.model.prefs.active = store.model.doc.pages[0]?.name ?? DEFAULT_PAGE;
       }
@@ -125,6 +128,9 @@ export class Store {
   // disk exactly when something here references it; every notes write
   // settles the difference, so no mutation can forget to.
   saved: Set<string>;
+  // Deletions that can still be undone. Their files stay on disk until each
+  // is released, or Undo would bring back an item whose files are in the Trash.
+  private undoable = new Set<Removal>();
 
   constructor(
     host: Host,
@@ -139,6 +145,15 @@ export class Store {
     this.isReadOnly = isReadOnly;
     this.error = error;
     this.saved = docRefs(model.doc);
+  }
+
+  /** The files of deletions that can still be undone. */
+  heldRefs(): Set<string> {
+    return new Set(
+      [...this.undoable].flatMap(({ entries }) =>
+        entries.flatMap(({ item }) => splitItem(item.text).attachments.map(a => a.ref)),
+      ),
+    );
   }
 
   snapshot(): Snapshot {
@@ -226,8 +241,12 @@ export class Store {
     // Only a write that landed may take files away: the notes on disk still
     // mention them until then, and a full disk is not a reason to lose them.
     if (!(await this.write('notes.md', serialiseDoc(this.model.doc)))) return;
-    const gone = this.saved.difference(now);
-    this.saved = now;
+    // An Undo while this write waited puts a file back in the document: it
+    // is kept like a held one, and the restore's own write records it.
+    const kept = this.heldRefs().union(docRefs(this.model.doc));
+    const gone = this.saved.difference(now).difference(kept);
+    // A held file is still ours: the write after its release trashes it.
+    this.saved = now.union(this.saved.intersection(kept));
     for (const ref of gone) {
       try {
         await this.host.attachments.remove(ref);
@@ -299,8 +318,31 @@ export class Store {
     if (this.model.setDone(ids, isDone)) await this.saveNotes();
   }
 
-  async deleteItems(ids: number[]): Promise<void> {
-    if (this.model.deleteItems(ids)) await this.saveNotes();
+  /**
+   * The notes file loses the items at once; their files stay until
+   * `releaseRemoval`. Hand the result to `restoreItems` to undo.
+   */
+  async deleteItems(ids: number[]): Promise<Removal | null> {
+    const removal = this.model.deleteItems(ids);
+    if (!removal) return null;
+    this.undoable.add(removal);
+    await this.saveNotes();
+    return removal;
+  }
+
+  async restoreItems(removal: Removal): Promise<void> {
+    if (!this.undoable.delete(removal)) return;
+    if (this.model.restoreItems(removal)) await this.saveNotes();
+  }
+
+  /** Undo is no longer offered: the files only these items had now go. */
+  async releaseRemoval(removal: Removal): Promise<void> {
+    if (!this.undoable.delete(removal)) return;
+    const hasFiles = removal.entries.some(
+      ({ item }) => splitItem(item.text).attachments.length > 0,
+    );
+    // Rewriting the same text is how files are settled: only after a write lands.
+    if (hasFiles) await this.writeNotes();
   }
 
   async moveItemsBefore(ids: number[], before: number | null, page: string): Promise<void> {
@@ -326,6 +368,10 @@ export class Store {
   async renamePage(from: string, to: string): Promise<void> {
     const prevActive = this.model.prefs.active;
     if (!this.model.renamePage(from, to)) return;
+    // An Undo still on offer puts its items back on the page under its new name.
+    for (const { entries } of this.undoable) {
+      for (const entry of entries) if (entry.page === from) entry.page = to.trim();
+    }
     // The active page moved with the rename, so prefs change too.
     if (this.model.prefs.active !== prevActive) await this.savePrefs();
     await this.saveNotes();

@@ -22,6 +22,7 @@ import {
 } from '@phosphor-icons/react';
 import { cn } from 'cn';
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertBanner, AlertProvider, useAlertState } from './alert.tsx';
 import { AttachmentStrip, filesFrom, type Thumb } from './components/attachments.tsx';
 import { PagePalette } from './components/page-palette.tsx';
 import { Panel } from './components/panel.tsx';
@@ -44,11 +45,46 @@ import {
 } from './components/ui/tooltip.tsx';
 import { useHost, useSnapshot, useStore } from './context.tsx';
 import type { Unlisten } from './host.ts';
-import { type Attachment, type Item, splitItem } from './model.ts';
+import { type Attachment, type Item, type Removal, splitItem } from './model.ts';
+import type { Store } from './store.ts';
 import { useTheme } from './theme.ts';
 import { Flash, useToast } from './toast.tsx';
 
 type Row = { item: Item; page: string };
+
+/** How long "N items removed · Undo" stays up. */
+const UNDO_MS = 8000;
+
+/**
+ * The deletion Undo is offered for, one at a time. Whatever ends the offer
+ * (time running out, the next deletion, closing) lets the store trash the
+ * files only those items had.
+ */
+function useUndoableRemoval(store: Store) {
+  const [removal, setRemoval] = useState<Removal | null>(null);
+  useEffect(() => {
+    if (!removal) return;
+    const timer = window.setTimeout(() => setRemoval(null), UNDO_MS);
+    return () => {
+      window.clearTimeout(timer);
+      void store.releaseRemoval(removal);
+    };
+  }, [removal, store]);
+  return {
+    removal,
+    remove: async (ids: number[]) => {
+      const next = await store.deleteItems(ids);
+      if (next) setRemoval(next);
+    },
+    /** The ids it brought back. Restores before the offer ends, so nothing is trashed. */
+    undo: (): number[] => {
+      if (!removal) return [];
+      void store.restoreItems(removal);
+      setRemoval(null);
+      return removal.entries.map(e => e.item.id);
+    },
+  };
+}
 
 /** Counts enter/leave pairs so a drag passing over children does not flicker. */
 function useDragOver(onDrop: (files: File[]) => void) {
@@ -103,6 +139,8 @@ export function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } =
   // Done items start folded away under their heading. Per session, not saved.
   const [isDoneCollapsed, setIsDoneCollapsed] = useState(true);
   const { flash, toast } = useToast();
+  const { alert, alerts, dismiss } = useAlertState();
+  const { removal, remove, undo } = useUndoableRemoval(store);
   // Files pasted or dropped while composing wait here until Enter, the way
   // an email holds its attachments above the message. In memory only:
   // nothing reaches the disk until the item does, so a draft thrown away
@@ -153,10 +191,18 @@ export function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } =
       try {
         await store.attach(id, files);
       } catch (e) {
-        toast(`Could not attach: ${e instanceof Error ? e.message : e}`);
+        alerts.raise(
+          'attach',
+          snap.read_only
+            ? "Couldn't attach: nothing is being saved until the problem above is fixed."
+            : "Couldn't attach the file. Try again.",
+          e,
+        );
+        return;
       }
+      alerts.clear('attach');
     },
-    [store, toast],
+    [store, alerts, snap.read_only],
   );
 
   // A drop anywhere in the pad that is not on a row goes to the composer.
@@ -167,10 +213,12 @@ export function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } =
       try {
         await host.attachments.preview(a);
       } catch (e) {
-        toast(`Could not open: ${e}`);
+        alerts.raise('open', `Couldn't open ${a.name}. Try again.`, e);
+        return;
       }
+      alerts.clear('open');
     },
-    [host, toast],
+    [host, alerts],
   );
 
   useEffect(() => {
@@ -267,12 +315,13 @@ export function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } =
       try {
         await store.copyAsList(ids);
       } catch (e) {
-        toast(`Could not copy: ${e}`);
+        alerts.raise('copy', "Couldn't copy. Try ⌘⇧C again.", e);
         return;
       }
+      alerts.clear('copy');
       toast(ids.length > 1 ? `Copied ${ids.length} as a list` : 'Copied');
     },
-    [selected, store, toast],
+    [selected, store, toast, alerts],
   );
 
   const submit = async () => {
@@ -288,11 +337,18 @@ export function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } =
         draft.map(d => d.file),
       );
     } catch (e) {
-      toast(`Could not attach: ${e instanceof Error ? e.message : e}`);
+      alerts.raise(
+        'attach',
+        snap.read_only
+          ? "Couldn't attach: nothing is being saved until the problem above is fixed."
+          : "Couldn't attach the file. Press Enter to try again.",
+        e,
+      );
       return;
     } finally {
       isSubmittingRef.current = false;
     }
+    alerts.clear('attach');
     for (const d of draft) URL.revokeObjectURL(d.url);
     // Files and typing added while the save waited belong to the next note.
     setDraft(prev => prev.filter(d => !draft.some(sent => sent.url === d.url)));
@@ -362,9 +418,13 @@ export function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } =
       if (e.metaKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         setSelected(rows.map(r => r.item.id));
+      } else if (e.metaKey && !e.shiftKey && e.key.toLowerCase() === 'z' && removal) {
+        // Below the typing guard: in a field, ⌘Z undoes the typing, not the delete.
+        e.preventDefault();
+        setSelected(undo());
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault();
-        if (selected.length > 0) void store.deleteItems(selected);
+        if (selected.length > 0) void remove(selected);
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         const step = e.key === 'ArrowDown' ? 1 : -1;
@@ -403,10 +463,13 @@ export function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } =
     isPaletteOpen,
     isSearching,
     query,
+    remove,
+    removal,
     rows,
     selected,
     snap.zoom,
     store,
+    undo,
   ]);
 
   // Clicks must still select and double-clicks still edit, so a drag only
@@ -464,248 +527,270 @@ export function App({ menu, notice }: { menu?: ReactNode; notice?: ReactNode } =
   );
 
   return (
-    <TooltipProvider>
-      <Panel
-        isFocused={isFocused}
-        {...panelDrop.props}
-        className={cn(panelDrop.isOver && 'border-ring ring-2 ring-ring/40 ring-inset')}
-      >
-        <header
-          // The drag-region attribute only fires on the element under the
-          // pointer, which leaves just the gaps between buttons grabbable.
-          // Dragging from anywhere that is not a control is better.
-          onPointerDown={e => {
-            if (e.target instanceof Element && e.target.closest('button')) return;
-            host.window.startDragging();
-          }}
-          className="flex shrink-0 cursor-grab items-center gap-1 px-3 py-2 active:cursor-grabbing"
+    <AlertProvider value={alerts}>
+      <TooltipProvider>
+        <Panel
+          isFocused={isFocused}
+          {...panelDrop.props}
+          className={cn(panelDrop.isOver && 'border-ring ring-2 ring-ring/40 ring-inset')}
         >
-          <button
-            onClick={() => setIsPaletteOpen(true)}
-            className={cn(
-              'flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-sm font-medium hover:bg-accent',
-              !isFocused && 'text-muted-foreground',
-            )}
-            aria-label={`${snap.active} \u2318K \u2014 Switch page`}
+          <header
+            // The drag-region attribute only fires on the element under the
+            // pointer, which leaves just the gaps between buttons grabbable.
+            // Dragging from anywhere that is not a control is better.
+            onPointerDown={e => {
+              if (e.target instanceof Element && e.target.closest('button')) return;
+              host.window.startDragging();
+            }}
+            className="flex shrink-0 cursor-grab items-center gap-1 px-3 py-2 active:cursor-grabbing"
           >
-            <span className="truncate">{snap.active}</span>
-            <Kbd>⌘K</Kbd>
-          </button>
-          <span className="text-xs text-muted-foreground">{rows.length}</span>
-          <div className="ml-auto flex items-center gap-0.5">
-            <IconButton
-              label="Search"
-              hint="⌘F"
-              onClick={() => {
-                if (isSearching) setQuery('');
-                setIsSearching(s => !s);
-                window.setTimeout(() => searchRef.current?.focus(), 0);
-              }}
-            >
-              <MagnifyingGlassIcon />
-            </IconButton>
-            {menu}
-          </div>
-        </header>
-
-        {isSearching && (
-          <div className="flex shrink-0 items-center gap-2 border-b px-3 pb-2">
-            <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Search every page"
-              className="w-full bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
-            />
             <button
-              onClick={() => {
-                setQuery('');
-                setIsSearching(false);
-              }}
-              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setIsPaletteOpen(true)}
+              className={cn(
+                'flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-sm font-medium hover:bg-accent',
+                !isFocused && 'text-muted-foreground',
+              )}
+              aria-label={`${snap.active} \u2318K \u2014 Switch page`}
             >
-              <XIcon className="size-3.5" />
+              <span className="truncate">{snap.active}</span>
+              <Kbd>⌘K</Kbd>
             </button>
-          </div>
-        )}
-
-        {snap.error && (
-          <div className="shrink-0 bg-destructive/15 px-3 py-2 text-xs text-destructive">
-            {snap.error}
-            {snap.read_only && ' Nothing is being saved until this is resolved.'}
-          </div>
-        )}
-
-        {notice}
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
-          {rows.length === 0 && doneCount === 0 ? (
-            <p className="px-2 py-8 text-center text-xs text-muted-foreground">
-              {query ? (
-                'Nothing matches.'
-              ) : (
-                <>
-                  Select text anywhere and tap <Kbd>Shift</Kbd> twice.
-                </>
-              )}
-            </p>
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              modifiers={[restrictToVerticalAxis]}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={rows.map(r => r.item.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {rows.map((row, index) => (
-                  <Fragment key={row.item.id}>
-                    {row.item.isDone && !rows[index - 1]?.item.isDone && doneHeader}
-                    <ItemRow
-                      row={row}
-                      shouldShowPage={query !== ''}
-                      isSelected={selected.includes(row.item.id)}
-                      isEditing={editing === row.item.id}
-                      onEdit={() => setEditing(row.item.id)}
-                      onWarn={toast}
-                      onEndEdit={() => setEditing(null)}
-                      onOpenAttachment={a => void openAttachment(a)}
-                      onFiles={files => void attachTo(row.item.id, files)}
-                      onClick={e => selectRow(index, e)}
-                      selectionCount={selected.length}
-                      onCopy={() =>
-                        copySelection(selected.includes(row.item.id) ? selected : [row.item.id])
-                      }
-                      onMerge={() => void store.mergeItems(selected)}
-                      onDelete={() =>
-                        void store.deleteItems(
-                          selected.includes(row.item.id) ? selected : [row.item.id],
-                        )
-                      }
-                      // Search shows rows from several pages, where "drop
-                      // above this row" has no one meaning, so dragging is off
-                      // there. Editing needs the pointer for text selection.
-                      canDrag={!query && editing !== row.item.id}
-                    />
-                  </Fragment>
-                ))}
-                {/* Collapsed done rows are not in `rows`, so the heading
-                    has no row to sit above and goes at the end instead. */}
-                {isDoneCollapsed && doneHeader}
-              </SortableContext>
-            </DndContext>
-          )}
-        </div>
-
-        {selected.length > 0 && (
-          <div className="flex shrink-0 items-center gap-1 border-t px-2 py-1.5 text-xs">
-            <span className="px-1 text-muted-foreground">{selected.length} selected</span>
+            <span className="text-xs text-muted-foreground">{rows.length}</span>
             <div className="ml-auto flex items-center gap-0.5">
-              <Button variant="ghost" size="sm" onClick={() => copySelection()}>
-                <CopyIcon /> Copy as list <Kbd>⌘⇧C</Kbd>
-              </Button>
-              {/* A mixed selection checks everything rather than flipping each
-                item, which would only swap the mix around. */}
               <IconButton
-                label={areAllSelectedDone ? 'Unmark done' : 'Mark done'}
-                onClick={() => void store.setDone(selected, !areAllSelectedDone)}
+                label="Search"
+                hint="⌘F"
+                onClick={() => {
+                  if (isSearching) setQuery('');
+                  setIsSearching(s => !s);
+                  window.setTimeout(() => searchRef.current?.focus(), 0);
+                }}
               >
-                {areAllSelectedDone ? <SquareIcon /> : <CheckSquareIcon />}
+                <MagnifyingGlassIcon />
               </IconButton>
-              {selected.length > 1 && (
-                <IconButton
-                  label="Merge into one item"
-                  onClick={() => void store.mergeItems(selected)}
+              {menu}
+            </div>
+          </header>
+
+          {isSearching && (
+            <div className="flex shrink-0 items-center gap-2 border-b px-3 pb-2">
+              <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search every page"
+                className="w-full bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
+              />
+              <button
+                onClick={() => {
+                  setQuery('');
+                  setIsSearching(false);
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <XIcon className="size-3.5" />
+              </button>
+            </div>
+          )}
+
+          {alert && <AlertBanner message={alert.message} onDismiss={dismiss} />}
+
+          {snap.error && (
+            <div className="shrink-0 bg-destructive/15 px-3 py-2 text-xs text-destructive">
+              {snap.error}
+              {snap.read_only && ' Nothing is being saved until this is resolved.'}
+            </div>
+          )}
+
+          {notice}
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
+            {rows.length === 0 && doneCount === 0 ? (
+              <p className="px-2 py-8 text-center text-xs text-muted-foreground">
+                {query ? (
+                  'Nothing matches.'
+                ) : (
+                  <>
+                    Select text anywhere and tap <Kbd>Shift</Kbd> twice.
+                  </>
+                )}
+              </p>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                modifiers={[restrictToVerticalAxis]}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={rows.map(r => r.item.id)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <ArrowsMergeIcon />
+                  {rows.map((row, index) => (
+                    <Fragment key={row.item.id}>
+                      {row.item.isDone && !rows[index - 1]?.item.isDone && doneHeader}
+                      <ItemRow
+                        row={row}
+                        shouldShowPage={query !== ''}
+                        isSelected={selected.includes(row.item.id)}
+                        isEditing={editing === row.item.id}
+                        onEdit={() => setEditing(row.item.id)}
+                        onWarn={toast}
+                        onEndEdit={() => setEditing(null)}
+                        onOpenAttachment={a => void openAttachment(a)}
+                        onFiles={files => void attachTo(row.item.id, files)}
+                        onClick={e => selectRow(index, e)}
+                        selectionCount={selected.length}
+                        onCopy={() =>
+                          copySelection(selected.includes(row.item.id) ? selected : [row.item.id])
+                        }
+                        onMerge={() => void store.mergeItems(selected)}
+                        onDelete={() =>
+                          void remove(selected.includes(row.item.id) ? selected : [row.item.id])
+                        }
+                        // Search shows rows from several pages, where "drop
+                        // above this row" has no one meaning, so dragging is off
+                        // there. Editing needs the pointer for text selection.
+                        canDrag={!query && editing !== row.item.id}
+                      />
+                    </Fragment>
+                  ))}
+                  {/* Collapsed done rows are not in `rows`, so the heading
+                    has no row to sit above and goes at the end instead. */}
+                  {isDoneCollapsed && doneHeader}
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
+
+          {selected.length > 0 && (
+            <div className="flex shrink-0 items-center gap-1 border-t px-2 py-1.5 text-xs">
+              <span className="px-1 text-muted-foreground">{selected.length} selected</span>
+              <div className="ml-auto flex items-center gap-0.5">
+                <Button variant="ghost" size="sm" onClick={() => copySelection()}>
+                  <CopyIcon /> Copy as list <Kbd>⌘⇧C</Kbd>
+                </Button>
+                {/* A mixed selection checks everything rather than flipping each
+                item, which would only swap the mix around. */}
+                <IconButton
+                  label={areAllSelectedDone ? 'Unmark done' : 'Mark done'}
+                  onClick={() => void store.setDone(selected, !areAllSelectedDone)}
+                >
+                  {areAllSelectedDone ? <SquareIcon /> : <CheckSquareIcon />}
                 </IconButton>
-              )}
-              <IconButton label="Delete" hint="⌫" onClick={() => void store.deleteItems(selected)}>
-                <TrashIcon />
+                {selected.length > 1 && (
+                  <IconButton
+                    label="Merge into one item"
+                    onClick={() => void store.mergeItems(selected)}
+                  >
+                    <ArrowsMergeIcon />
+                  </IconButton>
+                )}
+                <IconButton label="Delete" hint="⌫" onClick={() => void remove(selected)}>
+                  <TrashIcon />
+                </IconButton>
+              </div>
+            </div>
+          )}
+
+          {removal && (
+            <div className="flex shrink-0 items-center gap-1 border-t px-2 py-1.5 text-xs">
+              <span className="px-1 text-muted-foreground">
+                {removal.entries.length === 1
+                  ? '1 item removed'
+                  : `${removal.entries.length} items removed`}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+                onClick={() => setSelected(undo())}
+              >
+                Undo <Kbd>⌘Z</Kbd>
+              </Button>
+            </div>
+          )}
+
+          <div className="relative shrink-0 border-t p-2">
+            <AttachmentStrip
+              items={draft.map(d => ({ key: d.url, name: d.file.name, url: d.url }))}
+              onRemove={t => dropFromDraft(t.url)}
+              className="px-0.5 pt-1 pb-2"
+            />
+            <textarea
+              ref={composerRef}
+              rows={1}
+              placeholder={
+                draft.length > 0 ? 'Say something about it, or just Enter' : 'Next prompt'
+              }
+              onPaste={e => {
+                const files = filesFrom(e.clipboardData);
+                if (files.length === 0) return;
+                e.preventDefault();
+                addToDraft(files);
+              }}
+              onInput={e => {
+                const el = e.currentTarget;
+                el.style.height = 'auto';
+                el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                // Scrollbars only once the cap is hit; macOS 26 paints them
+                // for a single-row textarea otherwise.
+                el.style.overflowY = el.scrollHeight > 160 ? 'auto' : 'hidden';
+              }}
+              onKeyDown={e => {
+                if (e.nativeEvent.isComposing) return;
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void submit();
+                }
+              }}
+              className="block max-h-40 w-full resize-none overflow-hidden rounded-lg bg-muted/50 py-2 pr-9 pl-2.5 text-sm outline-none placeholder:text-muted-foreground focus:bg-muted"
+            />
+            {/* The picker for anyone who would rather browse than paste or
+              drop. It lands in the draft like the other two. */}
+            <input
+              ref={pickerRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={e => {
+                addToDraft(Array.from(e.currentTarget.files ?? []));
+                e.currentTarget.value = '';
+              }}
+            />
+            <div className="absolute right-3 bottom-3">
+              <IconButton
+                label="Attach a file"
+                // The picker is a native window and needs the app active to take
+                // clicks. WebKit only opens a file input from inside the user's
+                // gesture, so the click must not wait for the activation.
+                onClick={() => {
+                  void host.window.activate();
+                  pickerRef.current?.click();
+                }}
+              >
+                <PaperclipIcon />
               </IconButton>
             </div>
           </div>
-        )}
 
-        <div className="relative shrink-0 border-t p-2">
-          <AttachmentStrip
-            items={draft.map(d => ({ key: d.url, name: d.file.name, url: d.url }))}
-            onRemove={t => dropFromDraft(t.url)}
-            className="px-0.5 pt-1 pb-2"
+          <PagePalette
+            isOpen={isPaletteOpen}
+            onOpenChange={setIsPaletteOpen}
+            pages={snap.pages}
+            active={snap.active}
+            onPick={name => void store.setActive(name)}
+            focusAfterPick={composerRef}
+            onRename={(from, to) => void store.renamePage(from, to)}
+            onDelete={name => void store.deletePage(name)}
+            onMove={(name, before) => void store.movePageBefore(name, before)}
           />
-          <textarea
-            ref={composerRef}
-            rows={1}
-            placeholder={draft.length > 0 ? 'Say something about it, or just Enter' : 'Next prompt'}
-            onPaste={e => {
-              const files = filesFrom(e.clipboardData);
-              if (files.length === 0) return;
-              e.preventDefault();
-              addToDraft(files);
-            }}
-            onInput={e => {
-              const el = e.currentTarget;
-              el.style.height = 'auto';
-              el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-              // Scrollbars only once the cap is hit; macOS 26 paints them
-              // for a single-row textarea otherwise.
-              el.style.overflowY = el.scrollHeight > 160 ? 'auto' : 'hidden';
-            }}
-            onKeyDown={e => {
-              if (e.nativeEvent.isComposing) return;
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                void submit();
-              }
-            }}
-            className="block max-h-40 w-full resize-none overflow-hidden rounded-lg bg-muted/50 py-2 pr-9 pl-2.5 text-sm outline-none placeholder:text-muted-foreground focus:bg-muted"
-          />
-          {/* The picker for anyone who would rather browse than paste or
-              drop. It lands in the draft like the other two. */}
-          <input
-            ref={pickerRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={e => {
-              addToDraft(Array.from(e.currentTarget.files ?? []));
-              e.currentTarget.value = '';
-            }}
-          />
-          <div className="absolute right-3 bottom-3">
-            <IconButton
-              label="Attach a file"
-              // The picker is a native window and needs the app active to take
-              // clicks. WebKit only opens a file input from inside the user's
-              // gesture, so the click must not wait for the activation.
-              onClick={() => {
-                void host.window.activate();
-                pickerRef.current?.click();
-              }}
-            >
-              <PaperclipIcon />
-            </IconButton>
-          </div>
-        </div>
 
-        <PagePalette
-          isOpen={isPaletteOpen}
-          onOpenChange={setIsPaletteOpen}
-          pages={snap.pages}
-          active={snap.active}
-          onPick={name => void store.setActive(name)}
-          focusAfterPick={composerRef}
-          onRename={(from, to) => void store.renamePage(from, to)}
-          onDelete={name => void store.deletePage(name)}
-          onMove={(name, before) => void store.movePageBefore(name, before)}
-        />
-
-        <Flash message={flash} />
-      </Panel>
-    </TooltipProvider>
+          <Flash message={flash} />
+        </Panel>
+      </TooltipProvider>
+    </AlertProvider>
   );
 }
 

@@ -354,3 +354,45 @@ test('a note added to a page with a blank name is not lost', () => {
   expect(model.addItem('new')).not.toBe(null);
   expect(model.doc.pages.some(p => p.items.some(i => i.text === 'new'))).toBe(true);
 });
+
+test('restored items go back above the item that followed them, else at their old index', () => {
+  const model = new Model(
+    parseDoc('## A\n\n- [ ] a\n- [ ] b\n- [ ] c\n- [ ] d\n\n## B\n\n- [ ] e\n'),
+    {
+      ...defaultPrefs,
+    },
+  );
+  const [a, b, c, d] = model.doc.pages[0]!.items.map(i => i.id);
+  const e = model.doc.pages[1]!.items[0]!.id;
+
+  const removal = model.deleteItems([b!, d!, e]);
+  expect(removal?.entries.map(x => [x.page, x.index, x.before])).toEqual([
+    ['A', 1, c],
+    ['A', 3, null],
+    ['B', 0, null],
+  ]);
+  if (!removal) throw new Error('nothing was deleted');
+
+  // Since the delete: c moved off the page, a new item arrived, page B went.
+  model.moveItems([c!], 'B2');
+  model.addItem('new', 'A');
+  model.deletePage('B');
+
+  expect(model.restoreItems(removal)).toBe(true);
+  expect(stripIds(model.doc)).toEqual([
+    [
+      'A',
+      [
+        ['a', false],
+        ['b', false],
+        ['new', false],
+        ['d', false],
+      ],
+    ],
+    ['B2', [['c', false]]],
+    ['B', [['e', false]]],
+  ]);
+  expect(model.doc.pages[0]!.items[0]!.id).toBe(a);
+  expect(model.restoreItems(removal), 'already back').toBe(false);
+  expect(model.deleteItems([12345])).toBeNull();
+});

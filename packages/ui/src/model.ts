@@ -1,6 +1,13 @@
 export type Item = { id: number; text: string; isDone: boolean };
 export type Page = { name: string; items: Item[] };
 export type Doc = { pages: Page[] };
+/**
+ * Deleted items and where each stood: its page, its index there, and the
+ * item that followed it (null at the end of the page).
+ */
+export type Removal = {
+  entries: Array<{ page: string; index: number; before: number | null; item: Item }>;
+};
 export const DEFAULT_PAGE = 'Inbox';
 
 /**
@@ -309,8 +316,45 @@ export class Model {
     return hasChanged;
   }
 
-  deleteItems(ids: number[]): boolean {
-    return this.takeItems(ids).length > 0;
+  /**
+   * Takes the items out and says where each one stood, so `restoreItems`
+   * can put them back. Null when none of them was there.
+   */
+  deleteItems(ids: number[]): Removal | null {
+    const idSet = new Set(ids);
+    const entries = this.doc.pages.flatMap(page =>
+      page.items.flatMap((item, index) =>
+        idSet.has(item.id)
+          ? [
+              {
+                page: page.name,
+                index,
+                before: page.items.slice(index + 1).find(i => !idSet.has(i.id))?.id ?? null,
+                item,
+              },
+            ]
+          : [],
+      ),
+    );
+    if (entries.length === 0) return null;
+    this.takeItems(ids);
+    return { entries };
+  }
+
+  /**
+   * Each item goes back above the item that followed it, or at its old
+   * index when there was none or it has gone too, so edits made since stand. An item
+   * already in the document is left where it is.
+   */
+  restoreItems({ entries }: Removal): boolean {
+    const present = new Set(this.doc.pages.flatMap(p => p.items.map(i => i.id)));
+    const missing = entries.filter(e => !present.has(e.item.id));
+    for (const { page, index, before, item } of missing) {
+      const items = this.pageMut(page).items;
+      const anchor = before === null ? -1 : items.findIndex(i => i.id === before);
+      items.splice(anchor >= 0 ? anchor : Math.min(index, items.length), 0, item);
+    }
+    return missing.length > 0;
   }
 
   moveItems(ids: number[], page: string): boolean {

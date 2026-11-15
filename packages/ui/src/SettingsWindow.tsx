@@ -1,6 +1,7 @@
 import { ArrowCircleDownIcon, FolderOpenIcon, SlidersHorizontalIcon } from '@phosphor-icons/react';
 import { cn } from 'cn';
 import { useEffect, useRef, useState } from 'react';
+import { logFailure } from './alert.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Checkbox } from './components/ui/checkbox.tsx';
 import { useHost, useSnapshot, useStore } from './context.tsx';
@@ -24,7 +25,8 @@ export function SettingsWindow() {
   const [isChecking, setIsChecking] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
+  // The last check's outcome, kept on screen under the update controls.
+  const [status, setStatus] = useState<{ text: string; isError: boolean } | null>(null);
   const [notesPath, setNotesPath] = useState('');
   const [version, setVersion] = useState('');
   const checkGenRef = useRef(0);
@@ -63,7 +65,9 @@ export function SettingsWindow() {
     try {
       await store.setUpdateChannel(channel);
     } catch (e) {
-      setStatus(`Could not change update channel: ${e}`);
+      const text = "Couldn't change the channel. Try again.";
+      logFailure(text, e);
+      setStatus({ text, isError: true });
     }
   };
 
@@ -76,10 +80,12 @@ export function SettingsWindow() {
       const info = await host.updates.check(snap.update_channel);
       if (generation !== checkGenRef.current) return;
       setUpdate(info);
-      if (!info) setStatus('JogPad is up to date.');
+      if (!info) setStatus({ text: 'JogPad is up to date.', isError: false });
     } catch (e) {
       if (generation !== checkGenRef.current) return;
-      setStatus(`Update check failed: ${e}`);
+      const text = "Couldn't check for updates. Try again later.";
+      logFailure(text, e);
+      setStatus({ text, isError: true });
     } finally {
       if (generation === checkGenRef.current) setIsChecking(false);
     }
@@ -93,8 +99,10 @@ export function SettingsWindow() {
       // Rust took the pending update before installing, so the offer is spent
       // whether or not it worked.
       setIsInstalling(false);
+      const text = `Couldn't install JogPad ${update?.version}. Check for Updates to try again.`;
+      logFailure(text, e);
+      setStatus({ text, isError: true });
       setUpdate(null);
-      setStatus(`Installation failed: ${e}`);
     }
   };
 
@@ -209,9 +217,7 @@ export function SettingsWindow() {
                   </Button>
                 )}
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                ⌘− and ⌘+ in the panel do the same. Applies to this window too.
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">⌘− ⌘+ in the panel</p>
             </div>
 
             <div>
@@ -226,12 +232,7 @@ export function SettingsWindow() {
 
         {category === 'updates' && (
           <div className="flex flex-col items-start gap-4">
-            <div>
-              <p className="font-medium">JogPad {version}</p>
-              <p className="text-xs text-muted-foreground">
-                The version running now. An update is offered when a channel has a newer one.
-              </p>
-            </div>
+            <p className="font-medium">JogPad {version}</p>
 
             <div>
               <p className="mb-1.5 font-medium">Channel</p>
@@ -270,7 +271,16 @@ export function SettingsWindow() {
               </div>
             )}
 
-            {status && <p className="text-xs text-muted-foreground">{status}</p>}
+            {status && (
+              <p
+                className={cn(
+                  'text-xs',
+                  status.isError ? 'text-destructive' : 'text-muted-foreground',
+                )}
+              >
+                {status.text}
+              </p>
+            )}
           </div>
         )}
       </main>

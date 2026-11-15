@@ -89,7 +89,9 @@ test('a write that never landed takes no files away', async () => {
   expect(id).toBeDefined();
 
   failing.notes = true;
-  await store.deleteItems([id!]);
+  const removal = await store.deleteItems([id!]);
+  if (!removal) throw new Error('nothing was deleted');
+  await store.releaseRemoval(removal);
   expect(removed, 'notes.md on disk still mentions a.png').toEqual([]);
   expect(store.snapshot().error ?? '').toMatch(/disk full/);
 
@@ -120,7 +122,9 @@ test('a file goes when its last reference does, and stays while any remains', as
   expect(first).toBeDefined();
   expect(second).toBeDefined();
 
-  await store.deleteItems([first!]);
+  const removal = await store.deleteItems([first!]);
+  if (!removal) throw new Error('nothing was deleted');
+  await store.releaseRemoval(removal);
   expect(removed, 'a.png is still on the second item').toEqual([]);
 
   await store.detach(second!, 'attachments/a.png');
@@ -274,4 +278,126 @@ test('a submission keeps its destination while files are being read', async () =
   await adding;
   expect(store.snapshot().pages.find(p => p.name === 'Inbox')?.items.length).toBe(1);
   expect(store.snapshot().pages.find(p => p.name === 'Work')?.items.length).toBe(0);
+});
+
+test('undo puts deleted items back in place, on screen and in the file', async () => {
+  const { host, disk } = slowHost();
+  const store = await createStore(host);
+  for (const text of ['a', 'b', 'c', 'd']) await store.addItem(text);
+  const [, b, c] = store.model.doc.pages[0]!.items.map(i => i.id);
+
+  const removal = await store.deleteItems([b!, c!]);
+  if (!removal) throw new Error('nothing was deleted');
+  expect(disk.get('notes.md')).toBe('## Inbox\n\n- [ ] a\n- [ ] d\n\n');
+
+  await store.restoreItems(removal);
+  expect(disk.get('notes.md')).toBe('## Inbox\n\n- [ ] a\n- [ ] b\n- [ ] c\n- [ ] d\n\n');
+  expect(store.snapshot().pages[0]?.items.map(i => i.id)).toContain(b);
+});
+
+test('undo after further edits keeps those edits', async () => {
+  const { host, disk } = slowHost();
+  const store = await createStore(host);
+  for (const text of ['a', 'b', 'c']) await store.addItem(text);
+  const [a, b] = store.model.doc.pages[0]!.items.map(i => i.id);
+
+  const removal = await store.deleteItems([b!]);
+  if (!removal) throw new Error('nothing was deleted');
+  await store.updateItem(a!, 'a edited');
+  await store.capture('captured since');
+  await store.toggleItem(a!);
+
+  await store.restoreItems(removal);
+  expect(disk.get('notes.md')).toBe(
+    '## Inbox\n\n- [x] a edited\n- [ ] b\n- [ ] c\n- [ ] captured since\n\n',
+  );
+});
+
+test('a deleted item keeps its files until Undo is no longer offered', async () => {
+  const { host, disk, removed } = slowHost();
+  const store = await createStore(host);
+  await store.addItem('one', undefined, [fakeFile('a.png')]);
+  const id = store.model.doc.pages[0]!.items[0]!.id;
+
+  const removal = await store.deleteItems([id]);
+  if (!removal) throw new Error('nothing was deleted');
+  // A crash here loses only the item that was meant to go: the file is
+  // already without it, and its picture is still on disk.
+  expect(disk.get('notes.md')).not.toMatch(/one/);
+  await store.addItem('later edit');
+  expect(removed).toEqual([]);
+
+  await store.restoreItems(removal);
+  expect(disk.get('notes.md')).toMatch(/attachments\/a.png/);
+
+  const again = await store.deleteItems([id]);
+  if (!again) throw new Error('nothing was deleted');
+  await store.releaseRemoval(again);
+  expect(removed).toEqual(['attachments/a.png']);
+});
+
+test('undo cannot run twice, nor after its offer was released', async () => {
+  const { host } = slowHost();
+  const store = await createStore(host);
+  await store.addItem('one');
+  const id = store.model.doc.pages[0]!.items[0]!.id;
+
+  const removal = await store.deleteItems([id]);
+  if (!removal) throw new Error('nothing was deleted');
+  await store.restoreItems(removal);
+  await store.restoreItems(removal);
+  expect(store.snapshot().pages[0]?.items.length).toBe(1);
+
+  const again = await store.deleteItems([id]);
+  if (!again) throw new Error('nothing was deleted');
+  await store.releaseRemoval(again);
+  await store.restoreItems(again);
+  expect(store.snapshot().pages[0]?.items.length).toBe(0);
+});
+
+test('undo while an earlier write is still landing keeps the restored file', async () => {
+  const { host, disk, removed } = slowHost();
+  const store = await createStore(host);
+  await store.addItem('one', undefined, [fakeFile('a.png')]);
+  await store.addItem('two');
+  const [one, two] = store.model.doc.pages[0]!.items.map(i => i.id);
+
+  const removal = await store.deleteItems([one!]);
+  if (!removal) throw new Error('nothing was deleted');
+  const edit = store.updateItem(two!, 'two edited');
+  await Promise.all([edit, store.restoreItems(removal)]);
+
+  expect(removed).toEqual([]);
+  expect(disk.get('notes.md')).toMatch(/attachments\/a.png/);
+});
+
+test('a file held for Undo is still trashed after someone else edits the notes', async () => {
+  const { host, removed } = slowHost();
+  const store = await createStore(host);
+  await store.addItem('one', undefined, [fakeFile('a.png')]);
+  await store.addItem('two');
+  const [one] = store.model.doc.pages[0]!.items.map(i => i.id);
+
+  const removal = await store.deleteItems([one!]);
+  if (!removal) throw new Error('nothing was deleted');
+  // Another window writes through the same host; the store did not.
+  await host.fs.write('notes.md', '## Inbox\n\n- [ ] two, edited elsewhere\n\n');
+  await new Promise(r => setTimeout(r, 10));
+
+  await store.releaseRemoval(removal);
+  expect(removed).toEqual(['attachments/a.png']);
+});
+
+test('undo after its page was renamed puts the item back on that page', async () => {
+  const { host, disk } = slowHost();
+  const store = await createStore(host);
+  for (const text of ['a', 'b']) await store.addItem(text);
+  const [a] = store.model.doc.pages[0]!.items.map(i => i.id);
+
+  const removal = await store.deleteItems([a!]);
+  if (!removal) throw new Error('nothing was deleted');
+  await store.renamePage('Inbox', 'Today');
+
+  await store.restoreItems(removal);
+  expect(disk.get('notes.md')).toBe('## Today\n\n- [ ] a\n- [ ] b\n\n');
 });
