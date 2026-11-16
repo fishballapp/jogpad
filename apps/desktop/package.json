@@ -25,12 +25,12 @@
     "react-dom": "catalog:web"
   },
   "devDependencies": {
+    "@baymutt/varlock-plugin": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@tauri-apps/cli": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:web",
     "@types/react-dom": "catalog:web",
-    "@varlock/1password-plugin": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",

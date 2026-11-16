@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # `pnpm bundle`: `tauri build`, with the arguments it is given. With the team's Developer ID
-# certificate in the environment (`pnpm with-secrets -- pnpm bundle`, which loads it from 1Password,
+# certificate in the environment (`pnpm with-secrets -- pnpm bundle`, which loads it from baymutt,
 # as cd.yml does in CI) the app is signed with it; without, it is ad-hoc signed, whatever identity
 # the environment or a keychain happens to hold.
 #

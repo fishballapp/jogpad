@@ -30,7 +30,7 @@ jobs:
     # window. None of that exists off macOS. Free for public repos.
     runs-on: macos-latest
     timeout-minutes: 35
-    # Holds JOGPAD_OP_TOKEN, which only main and v* tags can reach.
+    # Holds BAYMUTT_KEY, which only main and v* tags can reach.
     environment: production
     permissions:
       contents: write
@@ -175,15 +175,15 @@ jobs:
             echo 'RELEASE_NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
 
-      # The credentials live in two 1Password Environments
-      # (apps/desktop/.env.schema); varlock resolves them with a read-only
-      # service-account token and fails here if either is unreadable or any
-      # value is missing. They reach later steps through GITHUB_ENV.
+      # The credentials live in three baymutt environments
+      # (apps/desktop/.env.schema); varlock resolves them with a baymutt key
+      # that reads those and nothing else, and fails here if any is unreadable
+      # or any value is missing. They reach later steps through GITHUB_ENV.
       # GitHub only masks values that come from `secrets`, so each line of each
       # value is masked here before anything can print it.
       - name: Load Apple and updater credentials
         env:
-          OP_TOKEN: ${{ secrets.JOGPAD_OP_TOKEN }}
+          BAYMUTT_KEY: ${{ secrets.BAYMUTT_KEY }}
         run: |
           set -euo pipefail
           # shellcheck disable=SC2016 # the ${} below are JavaScript's
@@ -205,7 +205,7 @@ jobs:
                 if (line) console.log(`::add-mask::${line.replace(/%/g, "%25").replace(/\r/g, "%0D")}`);
             };
             for (const [name, value] of Object.entries(env)) {
-              if (name === "OP_TOKEN" || value == null) continue;
+              if (name === "BAYMUTT_KEY" || value == null) continue;
               mask(String(value));
               if (name === "ASC_API_KEY_P8_BASE64") {
                 // notarytool and Tauri take the App Store Connect key as a file.

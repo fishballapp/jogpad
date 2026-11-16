@@ -5,6 +5,18 @@ packages:
 autoInstallPeers: true
 strictPeerDependencies: false
 minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - "@baymutt/*"
+  - baymutt
+  - "@dynm.link/*"
+  - "@fsh.ba/*"
+  - "@gut.run/*"
+  - "@openrepo/*"
+  - "@socialized.dev/*"
+  - "@yozz.app/*"
+  - clapio
+  - extship
+  - self-hosted-artifacts
 catalogMode: strict
 cleanupUnusedCatalogs: true
 overrides:
@@ -20,6 +32,7 @@ catalog:
   "@astrojs/sitemap": ^3.7.4
   "@babel/core": ^7.29.7
   "@base-ui/react": ^1.8.0
+  "@baymutt/varlock-plugin": ^0.8.0
   "@biomejs/biome": ^2.5.13
   "@dnd-kit/core": ^6.3.1
   "@dnd-kit/modifiers": ^9.0.0
@@ -37,7 +50,6 @@ catalog:
   "@testing-library/react": ^16.3.3
   "@types/node": ^24.13.4
   "@types/semver": ^7.5.8
-  "@varlock/1password-plugin": ^2.0.6
   "@vitejs/plugin-react": ^6.1.1
   astro: ^7.3.2
   class-variance-authority: ^0.7.1

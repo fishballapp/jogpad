@@ -7,5 +7,5 @@ dist
 .vscode/*
 !.vscode/extensions.json
 
-# The updater's signing key, if one is ever generated here. It lives in 1Password.
+# The updater's signing key, if one is ever generated here. It lives in baymutt.
 .updater/
