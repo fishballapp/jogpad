@@ -5,20 +5,10 @@ packages:
 autoInstallPeers: true
 strictPeerDependencies: false
 minimumReleaseAge: 10080
-minimumReleaseAgeExclude:
-  - "@baymutt/*"
-  - baymutt
-  - "@dynm.link/*"
-  - "@fsh.ba/*"
-  - "@gut.run/*"
-  - "@openrepo/*"
-  - "@socialized.dev/*"
-  - "@yozz.app/*"
-  - clapio
-  - extship
-  - self-hosted-artifacts
 catalogMode: strict
 cleanupUnusedCatalogs: true
+minimumReleaseAgeExclude:
+  - "@baymutt/*"
 overrides:
   "@types/node": "catalog:"
   "@babel/core": "catalog:"
